@@ -233,12 +233,23 @@ SDR input with the same catalog and preview/publication owners as other rasters.
 `ImportScanVerifiesKnownContentAcrossTimestampOnlyChanges` covers verified
 SHA-256 identity after metadata-only changes and rejection of actual byte
 changes; neither branch revises catalog or recipe state.
-Desktop tests isolate QSettings and cover Copy defaults, streaming check intent,
+Desktop tests isolate QSettings and cover Copy defaults, opt-in filename
+composition, ordered parts/separators, extension preservation, unchecked/Add
+original-name behavior, invalid choice rejection and preflight locking. Production
+offscreen smoke checks preview/rename/second-copy/destination ordering, the
+non-collapsible destination section, Add hiding its tree, and the read-only
+filename example; Copy/second-copy integration verifies renamed output bytes.
+Second-copy checkbox contracts cover missing-path rejection, retained disabled
+paths, Add omission, preflight locking and unchecked Copy publishing only the
+primary while preserving source bytes.
+They also cover streaming check intent,
 visible disabled duplicates, single/range/all selection exclusion, duplicate
 thumbnail completion without rescan loops, and source-byte preservation,
 source persistence before import, source ancestor selection/reveal after page
-reopen and cross-catalog restart, unavailable saved-source removal and explicit
-errors without automatic scanning of another folder, invalid source
+reopen and cross-catalog restart, one-shot expansion of the restored source,
+manual source changes while storage discovery is blocked, tree reset clearing
+selection and rejecting old listings, unavailable saved-source removal and explicit
+errors with collapsed roots and no automatic scanning of another folder, invalid source
 preferences and failed-write preservation, destination and organization persistence
 without importing, organization value validation and failed-write preservation,
 restart/cross-catalog restore, unavailable
@@ -1685,6 +1696,11 @@ full Ravo suite for changes to these worker or repository boundaries
   durable value. Window-geometry tests prove default 1440×900, windowed
   persist/reload, maximized keeping the last windowed rectangle, invalid-size
   rejection without writes, and incomplete/malformed key repair (ADR-0066/0115).
+  Panel-layout contracts cover default sizes, destruction/reload, bounded
+  input rejection, malformed settings and failed-write retry. Studio's isolated
+  offscreen smoke invokes the production filmstrip resize intent,
+  checks side-width bindings and preference reload, and verifies that temporary
+  height constraints retain the preferred size.
   Translation package smoke separately proves every manifest
   catalog compiles with no active unfinished strings (ADR-0066/0093).
 - Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled

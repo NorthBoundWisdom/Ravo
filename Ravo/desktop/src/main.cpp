@@ -32,6 +32,7 @@
 #include <QStyleHints>
 #include <QSurfaceFormat>
 #include <QSettings>
+#include <QQmlProperty>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QUrl>
@@ -43,6 +44,7 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/studio_window_geometry.h"
+#include "ravo/desktop/studio_panel_layout.h"
 #include "ravo/desktop/studio_display_presentation.h"
 #include "ravo/foundation/log.h"
 #include "studio_image_providers.h"
@@ -97,6 +99,66 @@ bool smoke_startup_splash(QQmlApplicationEngine &engine)
     if (!independent)
         LOG_ERROR(ravo::logger(), "Showing startup splash must leave the main window hidden");
     return independent;
+}
+
+bool smoke_panel_layout(QQmlApplicationEngine &engine, ravo::StudioPanelLayout &layout)
+{
+    auto *root = engine.rootObjects().isEmpty() ? nullptr : engine.rootObjects().front();
+    auto *strip = root ? root->findChild<QObject *>(QStringLiteral("studioFilmstrip")) : nullptr;
+    auto *left = root ? root->findChild<QObject *>(QStringLiteral("librarySidePanel")) : nullptr;
+    auto *right = root ? root->findChild<QObject *>(QStringLiteral("inspectorSidePanel")) : nullptr;
+    auto *split = root ? root->findChild<QObject *>(QStringLiteral("studioSidePanels")) : nullptr;
+    if (!strip || !left || !right || !split)
+    {
+        LOG_ERROR(ravo::logger(), "Panel layout smoke missing production controls");
+        return false;
+    }
+    const auto preferred = [](QObject *panel)
+    {
+        return QQmlProperty::read(panel, QStringLiteral("SplitView.preferredWidth"),
+                                  qmlContext(panel))
+            .toInt();
+    };
+    const auto set_preferred = [](QObject *panel, int width)
+    {
+        return QQmlProperty::write(panel, QStringLiteral("SplitView.preferredWidth"), width,
+                                   qmlContext(panel));
+    };
+    if (!layout.setSideWidths(280, 390) || preferred(left) != 280 || preferred(right) != 390 ||
+        !set_preferred(left, 305) || !set_preferred(right, 420) ||
+        !QMetaObject::invokeMethod(split, "resizingChanged") || layout.leftWidth() != 305 ||
+        layout.rightWidth() != 420 ||
+        !QMetaObject::invokeMethod(strip, "panelHeightRequested", Q_ARG(double, 225.0)) ||
+        layout.filmstripHeight() != 225 || !layout.flush())
+    {
+        LOG_ERROR(ravo::logger(), "Panel layout smoke intent failed left={} right={} bottom={}",
+                  preferred(left), preferred(right), layout.filmstripHeight());
+        return false;
+    }
+    ravo::StudioPanelLayout reopened;
+    if (!reopened.initialize() || reopened.leftWidth() != 305 || reopened.rightWidth() != 420 ||
+        reopened.filmstripHeight() != 225)
+    {
+        LOG_ERROR(ravo::logger(), "Panel layout smoke reload failed");
+        return false;
+    }
+    // View constraints must not rewrite the preferred height during a small-window layout.
+    strip->setProperty("maximumPanelHeight", 120);
+    QCoreApplication::processEvents();
+    const auto strip_preferred_height = [strip]()
+    {
+        return QQmlProperty::read(strip, QStringLiteral("Layout.preferredHeight"),
+                                  qmlContext(strip))
+            .toInt();
+    };
+    const bool retained = strip_preferred_height() == 120 && layout.filmstripHeight() == 225;
+    strip->setProperty("maximumPanelHeight", 400);
+    QCoreApplication::processEvents();
+    const bool restored = strip_preferred_height() == 225;
+    if (!retained || !restored)
+        LOG_ERROR(ravo::logger(), "Panel layout smoke constraint failed retained={} restored={}",
+                  retained, restored);
+    return retained && restored;
 }
 
 bool smoke_export_options(QQmlApplicationEngine &engine)
@@ -517,6 +579,13 @@ int main(int argc, char *argv[])
         return 1;
     }
     ravo::StudioWindowGeometry window_geometry;
+    ravo::StudioPanelLayout panel_layout;
+    if (!panel_layout.initialize())
+    {
+        LOG_ERROR(ravo::logger(), "panel layout failed to initialize: {}",
+                  panel_layout.lastError().toStdString());
+        return 1;
+    }
     ravo::StudioDisplayPresentation display_presentation;
     if (!window_geometry.initialize())
     {
@@ -560,6 +629,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("studioAssistant"),
                                              &assistant_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioWindow"), &window_geometry);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioLayout"), &panel_layout);
     engine.rootContext()->setContextProperty(QStringLiteral("studioDisplayPresentation"),
                                              &display_presentation);
     presenter.bindDisplayPresentation(&display_presentation);
@@ -657,7 +727,9 @@ int main(int argc, char *argv[])
     }
     if (smoke)
     {
-        const bool loaded = smoke_startup_splash(engine) && smoke_export_options(engine) &&
+        const bool loaded = smoke_startup_splash(engine) &&
+                            smoke_panel_layout(engine, panel_layout) &&
+                            smoke_export_options(engine) &&
                             ravo::smoke_photo_merge_dialog(engine, command_controller) &&
                             ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
         if (!loaded)

@@ -3662,10 +3662,6 @@ Diff: %6</translation>
             <translation>Unavailable</translation>
         </message>
         <message>
-            <source>File Handling</source>
-            <translation>File Handling</translation>
-        </message>
-        <message>
             <source>Build Previews</source>
             <translation>Build Previews</translation>
         </message>
@@ -3682,8 +3678,56 @@ Diff: %6</translation>
             <translation>1:1</translation>
         </message>
         <message>
+            <source>Rename files</source>
+            <translation>Rename files</translation>
+        </message>
+        <message>
+            <source>Part %1</source>
+            <translation>Part %1</translation>
+        </message>
+        <message>
+            <source>Original filename</source>
+            <translation>Original filename</translation>
+        </message>
+        <message>
+            <source>Capture date (YYYYMMDD)</source>
+            <translation>Capture date (YYYYMMDD)</translation>
+        </message>
+        <message>
+            <source>Sequence (0001)</source>
+            <translation>Sequence (0001)</translation>
+        </message>
+        <message>
+            <source>None</source>
+            <translation>None</translation>
+        </message>
+        <message>
+            <source>Separator</source>
+            <translation>Separator</translation>
+        </message>
+        <message>
+            <source>Underscore (_)</source>
+            <translation>Underscore (_)</translation>
+        </message>
+        <message>
+            <source>Hyphen (-)</source>
+            <translation>Hyphen (-)</translation>
+        </message>
+        <message>
+            <source>Filename example</source>
+            <translation>Filename example</translation>
+        </message>
+        <message>
+            <source>The original extension is kept.</source>
+            <translation>The original extension is kept.</translation>
+        </message>
+        <message>
             <source>Destination</source>
             <translation>Destination</translation>
+        </message>
+        <message>
+            <source>change</source>
+            <translation>change</translation>
         </message>
         <message>
             <source>Choose Destination…</source>
@@ -3722,20 +3766,8 @@ Diff: %6</translation>
             <translation>Planning destination…</translation>
         </message>
         <message>
-            <source>Rename template</source>
-            <translation>Rename template</translation>
-        </message>
-        <message>
             <source>Keep original names</source>
             <translation>Keep original names</translation>
-        </message>
-        <message>
-            <source>Import filename template</source>
-            <translation>Import filename template</translation>
-        </message>
-        <message>
-            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
-            <translation>Tokens: {date}, {stem}, {sequence}, {ext}</translation>
         </message>
         <message>
             <source>Second copy</source>
@@ -3744,10 +3776,6 @@ Diff: %6</translation>
         <message>
             <source>Choose Second Copy…</source>
             <translation>Choose Second Copy…</translation>
-        </message>
-        <message>
-            <source>Clear</source>
-            <translation>Clear</translation>
         </message>
         <message>
             <source>No second copy selected</source>
@@ -5718,6 +5746,25 @@ Diff: %6</translation>
         <message>
             <source>Help</source>
             <translation>Help</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioPanelLayout</name>
+        <message>
+            <source>Unable to read the panel layout.</source>
+            <translation>Unable to read the panel layout.</translation>
+        </message>
+        <message>
+            <source>The stored panel layout is invalid.</source>
+            <translation>The stored panel layout is invalid.</translation>
+        </message>
+        <message>
+            <source>Panel size is invalid.</source>
+            <translation>Panel size is invalid.</translation>
+        </message>
+        <message>
+            <source>Unable to save the panel layout.</source>
+            <translation>Unable to save the panel layout.</translation>
         </message>
     </context>
     <context>

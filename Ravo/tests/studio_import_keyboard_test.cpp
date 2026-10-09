@@ -794,6 +794,9 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     ASSERT_TRUE(destination_file.open(QIODevice::ReadOnly | QIODevice::Text));
     const auto destination_source = QString::fromUtf8(destination_file.readAll());
     EXPECT_TRUE(destination_source.contains(QStringLiteral("CustomTextField")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("readOnly: true")));
+    EXPECT_TRUE(destination_source.contains(
+        QStringLiteral("text: root.presenter.imports.importRenameExample")));
     EXPECT_TRUE(
         destination_source.contains(QStringLiteral("objectName: \"importFilenameTemplate\"")));
     ASSERT_TRUE(

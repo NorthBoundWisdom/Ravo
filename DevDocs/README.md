@@ -69,6 +69,10 @@ including inline counts, asynchronous branch reveal after listings settle, and
 remembered destination/organization choices without importing, with overlay lifecycle
 and QML presentation coverage in [TESTING.md](TESTING.md). Those authorities also
 specify cancellable blocking during planning and bounded metadata reuse.
+Import's always-visible preview settings, C++-owned filename component builder
+and optional second-copy checkbox
+are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with opt-in/original-name,
+extension, byte-preservation and production layout coverage in [TESTING.md](TESTING.md).
 Color Harmonizer's inverse dt-UCS exception semantics and optimized
 Clang coverage are recorded in [ARCHITECTURE.md](ARCHITECTURE.md) and
 [TESTING.md](TESTING.md).
@@ -159,6 +163,12 @@ source gating.
 Startup splash ownership, main-window handoff and geometry isolation are also
 specified in [ARCHITECTURE.md](ARCHITECTURE.md); their lifecycle and offscreen
 validation are specified in [TESTING.md](TESTING.md).
+Those authorities also define per-user side-panel/filmstrip size persistence,
+bounded layout intents, and settings-failure/offscreen validation.
+Import source restoration, unavailable-source tree collapse and superseded
+restore rejection are specified in the same architecture/testing authorities.
+Review-bar vector flag presentation and its existing command ownership are
+specified in [ARCHITECTURE.md](ARCHITECTURE.md).
 HEIC/HEIF macOS decode and deterministic import file identity follow
 [ADR-0159](adr/0159-owned-heic-macos-decode.md) and the same architecture/testing
 authorities; native dependency ownership is in

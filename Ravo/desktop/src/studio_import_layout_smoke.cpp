@@ -299,20 +299,33 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 LOG_ERROR(logger(), "Production StudioCommands or filename template missing");
                 return false;
             }
-            // Filename template lives in copy/move mode and starts collapsed.
-            // Use the presenter API so the field text is a non-empty production template.
+            // Rename is an opt-in component builder; its example is selectable but read-only.
             presenter->imports()->setImportMode(QStringLiteral("copy"));
             presenter->imports()->setImportDestination(select_all_dir.path());
-            presenter->imports()->setImportFilenameTemplate(
-                QStringLiteral("RavoSelectAll_{date}_{seq}"));
-            for (QObject *parent = field->parent(); parent; parent = parent->parent())
+            auto *preview =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importPreviewSettings"));
+            auto *rename =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importRenameSettings"));
+            auto *destination =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importDestinationSection"));
+            auto *second_copy =
+                workspace->findChild<QQuickItem *>(QStringLiteral("importSecondCopySettings"));
+            auto *rename_check =
+                workspace->findChild<QObject *>(QStringLiteral("importRenameEnabled"));
+            if (!preview || !rename || !destination || !second_copy || !rename_check ||
+                preview->property("expanded").isValid() || preview->y() >= rename->y() ||
+                rename->y() >= second_copy->y() || second_copy->y() >= destination->y() ||
+                destination->property("expanded").isValid() ||
+                !field->property("readOnly").toBool())
             {
-                if (parent->property("expanded").isValid())
-                {
-                    parent->setProperty("expanded", true);
-                    break;
-                }
+                LOG_ERROR(logger(),
+                          "Import preview/rename ordering or read-only example is invalid");
+                return false;
             }
+            rename_check->setProperty("checked", true);
+            QMetaObject::invokeMethod(rename_check, "clicked", Qt::DirectConnection);
+            if (!presenter->imports()->importRenameEnabled())
+                return false;
             QEventLoop expand_loop;
             QTimer::singleShot(30, &expand_loop, &QEventLoop::quit);
             expand_loop.exec();
@@ -994,18 +1007,16 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     QTimer::singleShot(30, &layout, &QEventLoop::quit);
                     layout.exec();
                 };
-                QQmlProperty::write(section, QStringLiteral("expanded"), false);
                 settle_layout();
-                const bool collapsed_fits = qAbs(section->parentItem()->height() -
-                                                 section->parentItem()->implicitHeight()) < 1;
-                QQmlProperty::write(section, QStringLiteral("expanded"), true);
+                const bool destination_fixed = !section->property("expanded").isValid() &&
+                                               section->isVisible() && tree->isVisible();
                 presenter->imports()->setImportMode(QStringLiteral("add"));
                 settle_layout();
                 const bool add_fits = qAbs(section->parentItem()->height() -
                                            section->parentItem()->implicitHeight()) < 1;
                 presenter->imports()->setImportMode(QStringLiteral("copy"));
                 settle_layout();
-                if (!collapsed_fits || !add_fits)
+                if (!destination_fixed || !add_fits)
                 {
                     LOG_ERROR(logger(),
                               "Hidden destination tree must not stretch the other settings");

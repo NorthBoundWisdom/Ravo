@@ -248,6 +248,25 @@ is introduced. The supported keyboard map is documented in `Ravo/README.md`.
 Loupe accepts only an absent argument or `confirm_crop`: E switches to loupe,
 while Enter's explicit confirmation intent closes cropping without leaving Develop.
 
+The review bar presents Unflag/Keep, Pick and Reject as dashed, filled and
+red-X outlined flags in that order. GeoControls segmented buttons retain
+keyboard activation, translated tooltips and accessible radio state; their
+selection binds directly to the presenter. Inline theme-aware SVG uses the
+existing Qt SVG support and screen pixel ratio to keep compact icons sharp.
+The existing command owner still dispatches every review intent; there is no new state,
+worker or fallback. Production QML smoke loads the icons, while the
+review-bar and shortcut contracts retain command-routing coverage.
+
+`StudioPanelLayout` owns per-user logical-pixel rail widths and filmstrip height
+on the GUI thread. One versioned QSettings map (`desktop/panel-layout/v1`)
+stores all three dimensions; absent settings use 240/320/108 defaults. Values
+are bounded to 160–640, 260–800 and 88–400 respectively. Malformed settings
+fail initialization explicitly. QML forwards divider-resize intents, and a
+200 ms debounce coalesces writes; quit and destruction flush pending changes.
+Save failures remain visible and retain dirty state for retry. Window constraints
+change rendered extents without rewriting preferences. No catalog, service,
+recipe, task or worker ownership changes are involved.
+
 `StudioStartupController` owns the one-shot startup handoff on the UI thread.
 The process logging scope is created before `QGuiApplication` and destroyed
 after Qt, desktop owners and their joined workers, including early-return
@@ -316,7 +335,12 @@ after asynchronous directory/writability validation, even without importing.
 Invalid or unavailable destinations do not replace the saved valid path.
 These are global desktop preferences, independent of catalog identity;
 reopening restores the source scan and asynchronously expands,
-selects, and scrolls its ancestor chain through the C++ folder model. Listing
+selects, and scrolls its ancestor chain through the C++ folder model. The source
+tree starts collapsed with cleared selection. One workspace-owned saved-source
+intent waits for mounted-root discovery, reveals the ancestors, then expands the
+selected directory once. Page close or an explicit source change cancels that
+intent; later storage refreshes preserve the user's collapse choices. An absent
+or unavailable saved source leaves all source roots collapsed. Listing
 trees start at Home and add ready, readable mounted volumes, including storage
 cards. Storage discovery runs on the filesystem worker on page entry and source
 recheck; close/reopen rejects old discovery results. Refresh preserves existing
@@ -971,8 +995,21 @@ verification and the ordinary catalog commit. Rename and second-copy choices
 remain session state and use the existing task owner.
 
 The source/photos/destination workspace defaults to Copy on every entry.
-New photographs start checked, rename and second-copy sections start collapsed,
-and narrow windows use side drawers. The last selected source, valid primary
+New photographs start checked. Preview settings are first and always visible;
+rename is an opt-in checkbox immediately below them. `ImportDraft` owns three
+ordered component choices (original stem, capture date, sequence; the first
+component is required) and underscore/hyphen/no separator. The workspace derives
+the bounded service template and a read-only sample using the shared domain
+expander. Unchecking preserves the choices but sends an empty template so names
+remain original; Add omits naming options. No editable naming text or QML-owned
+template assembly remains. Existing import/preflight locks reject changes, and
+destination planning uses the derived template in its cache key. Second copy also
+uses a session-owned checkbox: unchecked hides but retains its path and omits
+the second-copy request; checked requires a path before planning/import. Add
+omits the second copy independently of this retained choice. Its controls appear
+below Rename and above the always-visible, non-collapsible destination section.
+Narrow windows use
+side drawers. The last selected source, valid primary
 destination and organization are durable desktop preferences saved without an
 import; Add, preview, and naming options stay in
 the session. A folder selection restores its ancestors asynchronously.

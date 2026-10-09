@@ -193,6 +193,7 @@ void FilesystemBrowserModel::resetWithRoots(std::vector<FilesystemFolderEntry> r
     beginResetModel();
     all_nodes_.clear();
     mounted_roots_.clear();
+    selected_path_.clear();
     reveal_path_.clear();
     preview_reveal_path_.clear();
     preview_folders_.clear();

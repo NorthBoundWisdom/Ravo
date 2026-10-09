@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import GeoControls 1.0
 
 Rectangle {
@@ -306,31 +307,79 @@ Rectangle {
                 }
             }
 
-            SegmentedControl {
+            Rectangle {
                 id: keepReject
                 objectName: "cullReviewFlagControl"
                 Layout.alignment: Qt.AlignVCenter
                 Layout.minimumWidth: implicitWidth
+                implicitWidth: flagButtons.implicitWidth + 2
+                implicitHeight: Fonts.inputFieldHeight
+                color: Theme.baseColor
+                border.color: Theme.midColor
+                border.width: 1
+                radius: 2
                 enabled: root.hasSelection
-                model: [qsTr("Pick"), qsTr("Keep"), qsTr("Reject")]
-                currentIndex: {
+                readonly property int currentIndex: {
                     if (!root.hasPresenter)
-                        return 1;
-                    if (root.presenter.selectedPicked)
                         return 0;
+                    if (root.presenter.selectedPicked)
+                        return 1;
                     if (root.presenter.selectedRejected)
                         return 2;
-                    return 1;
+                    return 0;
                 }
-                onActivated: function (index) {
-                    if (!root.commands || !root.hasPresenter)
-                        return;
-                    if (index === 0)
-                        root.commands.pick.trigger();
-                    else if (index === 2)
-                        root.commands.reject.trigger();
-                    else
-                        root.commands.unflag.trigger();
+
+                RowLayout {
+                    id: flagButtons
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    spacing: 0
+
+                    Repeater {
+                        model: [qsTr("Keep"), qsTr("Pick"), qsTr("Reject")]
+                        SegmentedButton {
+                            id: flagButton
+                            required property int index
+                            required property string modelData
+                            objectName: "cullReviewFlagButton" + index
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: Fonts.inputFieldHeight
+                            implicitWidth: Fonts.inputFieldHeight
+                            implicitHeight: 1
+                            selected: keepReject.currentIndex === index
+                            tooltipText: modelData
+                            Accessible.role: Accessible.RadioButton
+                            Accessible.name: modelData
+                            Accessible.checkable: true
+                            Accessible.checked: selected
+                            onClicked: {
+                                if (!root.commands || !root.hasPresenter || selected)
+                                    return;
+                                if (index === 1)
+                                    root.commands.pick.trigger();
+                                else if (index === 2)
+                                    root.commands.reject.trigger();
+                                else
+                                    root.commands.unflag.trigger();
+                            }
+                            contentItem: Item {
+                                implicitWidth: 24
+                                implicitHeight: 24
+                                Image {
+                                    id: flagIcon
+                                    anchors.centerIn: parent
+                                    width: Math.min(parent.width, parent.height)
+                                    height: width
+                                    sourceSize: Qt.size(width * Screen.devicePixelRatio, height * Screen.devicePixelRatio)
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: flagButton.enabled ? 1 : 0.45
+                                    readonly property color ink: flagButton.selected ? Theme.highlightedTextColor : Theme.textColor
+                                    readonly property string svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' + '<g stroke="' + ink + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + '<path d="M5 21V3" fill="none"/>' + '<path d="M5 4H20L17 9L20 14H5Z" fill="' + (flagButton.index === 1 ? ink : 'none') + '"' + (flagButton.index === 0 ? ' stroke-dasharray="2 2"' : '') + '/></g>' + (flagButton.index === 2 ? '<path d="M9 6L15 12M15 6L9 12" fill="none" stroke="#e45c5c" stroke-width="2" stroke-linecap="round"/>' : '') + '</svg>'
+                                    source: "data:image/svg+xml;utf8," + encodeURIComponent(svg)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -340,6 +389,11 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             visible: root.showNavigation
             text: qsTr("Previous")
+            display: AbstractButton.IconOnly
+            implicitWidth: implicitHeight
+            icon.source: "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 12H5M11 6L5 12L11 18" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+            tooltipText: text
+            Accessible.name: text
             enabled: root.hasSelection && root.commands
             onClicked: if (root.commands)
                 root.commands.previousPhoto.trigger()
@@ -349,6 +403,11 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             visible: root.showNavigation
             text: qsTr("Next")
+            display: AbstractButton.IconOnly
+            implicitWidth: implicitHeight
+            icon.source: "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 12H19M13 6L19 12L13 18" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+            tooltipText: text
+            Accessible.name: text
             enabled: root.hasSelection && root.commands
             onClicked: if (root.commands)
                 root.commands.nextPhoto.trigger()

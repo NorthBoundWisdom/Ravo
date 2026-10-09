@@ -3662,10 +3662,6 @@ Diff: %6</source>
             <translation>無法使用</translation>
         </message>
         <message>
-            <source>File Handling</source>
-            <translation>檔案處理</translation>
-        </message>
-        <message>
             <source>Build Previews</source>
             <translation>建立預覽</translation>
         </message>
@@ -3682,8 +3678,56 @@ Diff: %6</source>
             <translation>1:1</translation>
         </message>
         <message>
+            <source>Rename files</source>
+            <translation>重新命名檔案</translation>
+        </message>
+        <message>
+            <source>Part %1</source>
+            <translation>組件 %1</translation>
+        </message>
+        <message>
+            <source>Original filename</source>
+            <translation>原始檔名</translation>
+        </message>
+        <message>
+            <source>Capture date (YYYYMMDD)</source>
+            <translation>拍攝日期 (YYYYMMDD)</translation>
+        </message>
+        <message>
+            <source>Sequence (0001)</source>
+            <translation>序號 (0001)</translation>
+        </message>
+        <message>
+            <source>None</source>
+            <translation>無</translation>
+        </message>
+        <message>
+            <source>Separator</source>
+            <translation>分隔符號</translation>
+        </message>
+        <message>
+            <source>Underscore (_)</source>
+            <translation>底線 (_)</translation>
+        </message>
+        <message>
+            <source>Hyphen (-)</source>
+            <translation>連字號 (-)</translation>
+        </message>
+        <message>
+            <source>Filename example</source>
+            <translation>檔名範例</translation>
+        </message>
+        <message>
+            <source>The original extension is kept.</source>
+            <translation>保留原始副檔名。</translation>
+        </message>
+        <message>
             <source>Destination</source>
             <translation>目的地</translation>
+        </message>
+        <message>
+            <source>change</source>
+            <translation>變更</translation>
         </message>
         <message>
             <source>Choose Destination…</source>
@@ -3722,20 +3766,8 @@ Diff: %6</source>
             <translation>正在規劃目標資料夾…</translation>
         </message>
         <message>
-            <source>Rename template</source>
-            <translation>重新命名範本</translation>
-        </message>
-        <message>
             <source>Keep original names</source>
             <translation>保留原始名稱</translation>
-        </message>
-        <message>
-            <source>Import filename template</source>
-            <translation>匯入檔名範本</translation>
-        </message>
-        <message>
-            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
-            <translation>標記：{date}、{stem}、{sequence}、{ext}</translation>
         </message>
         <message>
             <source>Second copy</source>
@@ -3744,10 +3776,6 @@ Diff: %6</source>
         <message>
             <source>Choose Second Copy…</source>
             <translation>選擇第二份副本…</translation>
-        </message>
-        <message>
-            <source>Clear</source>
-            <translation>清除</translation>
         </message>
         <message>
             <source>No second copy selected</source>
@@ -5718,6 +5746,25 @@ Diff: %6</source>
         <message>
             <source>Help</source>
             <translation>說明</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioPanelLayout</name>
+        <message>
+            <source>Unable to read the panel layout.</source>
+            <translation>無法讀取面板配置。</translation>
+        </message>
+        <message>
+            <source>The stored panel layout is invalid.</source>
+            <translation>已儲存的面板配置無效。</translation>
+        </message>
+        <message>
+            <source>Panel size is invalid.</source>
+            <translation>面板尺寸無效。</translation>
+        </message>
+        <message>
+            <source>Unable to save the panel layout.</source>
+            <translation>無法儲存面板配置。</translation>
         </message>
     </context>
     <context>

@@ -32,6 +32,14 @@ namespace testing
 class StudioImportTestControl
 {
 public:
+    static ImportRequest plannedRequest(StudioPresenter &presenter)
+    {
+        return presenter.import_workspace_->plannedImportRequest();
+    }
+    static void preflightActive(StudioPresenter &presenter, bool active)
+    {
+        presenter.import_workspace_->import_preflight_active_ = active;
+    }
     static void pendingClassification(StudioPresenter &presenter)
     {
         const auto snapshot =
@@ -53,6 +61,17 @@ public:
     static bool blockImportWorker(StudioPresenter &presenter, std::shared_future<void> release)
     {
         return presenter.import_workspace_->worker->executor().post([release] { release.wait(); });
+    }
+    static bool filesystemFence(StudioPresenter &presenter,
+                                std::shared_ptr<std::promise<void>> reached)
+    {
+        return presenter.import_workspace_->filesystem_executor_.post([reached = std::move(reached)]
+                                                                      { reached->set_value(); });
+    }
+    static bool blockFilesystem(StudioPresenter &presenter, std::shared_future<void> release)
+    {
+        return presenter.import_workspace_->filesystem_executor_.post([release]
+                                                                      { release.wait(); });
     }
     static bool blockDestinationPreview(StudioPresenter &presenter,
                                         std::shared_future<void> release)
@@ -87,6 +106,21 @@ bool photo(const QString &path, const QColor &color)
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));
     image.fill(color);
     return image.save(path, "PNG");
+}
+bool wait_for_filesystem(StudioPresenter &presenter)
+{
+    auto reached = std::make_shared<std::promise<void>>();
+    auto finished = reached->get_future();
+    if (!testing::StudioImportTestControl::filesystemFence(presenter, std::move(reached)))
+        return false;
+    if (!wait_until(
+            [&]
+            {
+                return finished.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
+            }))
+        return false;
+    QCoreApplication::processEvents();
+    return true;
 }
 struct BlockedSettingsDirectory
 {
@@ -212,8 +246,10 @@ TEST(FilesystemBrowserModelTest, RevealExpandsAncestorsAndRejectsOldListings)
     EXPECT_TRUE(
         model.data(model.index(revealed, 0), FilesystemBrowserModel::SelectedRole).toBool());
     model.resetWithRoots({{directory.path(), QStringLiteral("root"), true}});
+    EXPECT_TRUE(model.selectedPath().isEmpty());
     model.applyChildren(directory.path(), 1, list_filesystem_folders(directory.path()));
     EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_TRUE(model.data(model.index(0, 0), FilesystemBrowserModel::CollapsedRole).toBool());
 }
 
 TEST(FilesystemBrowserModelTest, NewSelectionCancelsPendingRevealAndListingErrorsStayVisible)
@@ -441,15 +477,159 @@ TEST(StudioImportWorkspace, SourcePreferenceValidatesPathsAndRemovesUnavailableF
     EXPECT_TRUE(preferences.loadLastSource().value().isEmpty());
 }
 
+TEST(StudioImportWorkspace, SecondCopyCheckboxRequiresPathAndUncheckingOmitsCopy)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    const auto destination = directory.filePath("destination");
+    const auto second = directory.filePath("second");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(QDir().mkpath(second));
+    ASSERT_TRUE(photo(source + "/photo.png", Qt::red));
+    QFile original(source + "/photo.png");
+    ASSERT_TRUE(original.open(QIODevice::ReadOnly));
+    const auto source_hash =
+        QCryptographicHash::hash(original.readAll(), QCryptographicHash::Sha256);
+    original.close();
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    auto *imports = presenter.imports();
+    imports->openImportPage();
+    imports->setImportSourceRoot(source);
+    imports->setImportDestination(destination);
+    ASSERT_TRUE(wait_until([&] { return imports->importReady(); }));
+    EXPECT_FALSE(imports->importSecondCopyEnabled());
+    imports->setImportSecondCopyEnabled(true);
+    EXPECT_FALSE(imports->importReady());
+    imports->startPlannedImport();
+    EXPECT_TRUE(imports->importPageOpen());
+    EXPECT_FALSE(imports->importPreflightActive());
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    imports->setImportMode(QStringLiteral("add"));
+    EXPECT_TRUE(imports->importReady());
+    EXPECT_TRUE(
+        testing::StudioImportTestControl::plannedRequest(presenter).second_copy_directory.empty());
+    imports->setImportMode(QStringLiteral("copy"));
+    imports->setImportSecondCopyDestination(second);
+    ASSERT_TRUE(wait_until([&] { return imports->importReady(); }));
+    EXPECT_EQ(testing::StudioImportTestControl::plannedRequest(presenter).second_copy_directory,
+              second.toStdString());
+    testing::StudioImportTestControl::preflightActive(presenter, true);
+    imports->setImportSecondCopyEnabled(false);
+    EXPECT_TRUE(imports->importSecondCopyEnabled());
+    testing::StudioImportTestControl::preflightActive(presenter, false);
+    imports->setImportSecondCopyEnabled(false);
+    EXPECT_EQ(imports->importSecondCopyDestination(), second);
+    EXPECT_TRUE(
+        testing::StudioImportTestControl::plannedRequest(presenter).second_copy_directory.empty());
+    ASSERT_TRUE(wait_until([&] { return imports->importReady(); }));
+    imports->startPlannedImport();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return QFileInfo::exists(destination + "/photo.png") &&
+                   !imports->importPreflightActive() && !imports->importWorkActive();
+        }));
+    EXPECT_FALSE(QFileInfo::exists(second + "/photo.png"));
+    for (const auto &path : {source + "/photo.png", destination + "/photo.png"})
+    {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::ReadOnly));
+        EXPECT_EQ(QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256),
+                  source_hash);
+    }
+}
+
+TEST(StudioImportWorkspace, RenameComponentsPreserveOriginalNamesUnlessEnabled)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    auto *imports = presenter.imports();
+    EXPECT_FALSE(imports->importRenameEnabled());
+    EXPECT_TRUE(imports->importFilenameTemplate().isEmpty());
+    EXPECT_TRUE(
+        testing::StudioImportTestControl::plannedRequest(presenter).filename_template.empty());
+    imports->setImportRenameEnabled(true);
+    EXPECT_EQ(imports->importFilenameTemplate(), QStringLiteral("{date}_{stem}_{sequence}{ext}"));
+    EXPECT_EQ(imports->importRenameExample(), QStringLiteral("20260123_IMG_1234_0001.jpg"));
+    imports->setImportRenamePart(0, 1);
+    imports->setImportRenamePart(1, 3);
+    imports->setImportRenamePart(2, 0);
+    imports->setImportRenameSeparator(1);
+    EXPECT_EQ(imports->importFilenameTemplate(), QStringLiteral("{stem}-{sequence}{ext}"));
+    EXPECT_EQ(imports->importRenameExample(), QStringLiteral("IMG_1234-0001.jpg"));
+    EXPECT_EQ(testing::StudioImportTestControl::plannedRequest(presenter).filename_template,
+              "{stem}-{sequence}{ext}");
+    imports->setImportRenameEnabled(false);
+    EXPECT_TRUE(imports->importFilenameTemplate().isEmpty());
+    EXPECT_EQ(imports->importRenameExample(), QStringLiteral("IMG_1234.jpg"));
+    EXPECT_TRUE(
+        testing::StudioImportTestControl::plannedRequest(presenter).filename_template.empty());
+    imports->setImportRenameEnabled(true);
+    EXPECT_EQ(imports->importFilenameTemplate(), QStringLiteral("{stem}-{sequence}{ext}"));
+    imports->setImportMode(QStringLiteral("add"));
+    EXPECT_TRUE(
+        testing::StudioImportTestControl::plannedRequest(presenter).filename_template.empty());
+    imports->setImportMode(QStringLiteral("copy"));
+    testing::StudioImportTestControl::preflightActive(presenter, true);
+    imports->setImportRenameEnabled(false);
+    imports->setImportRenamePart(0, 2);
+    imports->setImportRenameSeparator(2);
+    EXPECT_TRUE(imports->importRenameEnabled());
+    EXPECT_EQ(imports->importFilenameTemplate(), QStringLiteral("{stem}-{sequence}{ext}"));
+    testing::StudioImportTestControl::preflightActive(presenter, false);
+}
+
+TEST(StudioImportWorkspace, RenameComponentsRejectInvalidChoicesAndPreserveExtensions)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    auto *imports = presenter.imports();
+    imports->setImportRenameEnabled(true);
+    const auto original = imports->importFilenameTemplate();
+    for (const auto &[position, component] :
+         {std::pair{-1, 1}, std::pair{3, 1}, std::pair{0, 0}, std::pair{1, -1}, std::pair{1, 4}})
+    {
+        imports->setImportRenamePart(position, component);
+        EXPECT_EQ(imports->importFilenameTemplate(), original);
+        EXPECT_FALSE(presenter.errorText().isEmpty());
+    }
+    for (int separator : {-1, 3})
+    {
+        imports->setImportRenameSeparator(separator);
+        EXPECT_EQ(imports->importFilenameTemplate(), original);
+    }
+    for (int first = 1; first <= 3; ++first)
+        for (int second = 0; second <= 3; ++second)
+            for (int third = 0; third <= 3; ++third)
+                for (int separator = 0; separator <= 2; ++separator)
+                {
+                    imports->setImportRenamePart(0, first);
+                    imports->setImportRenamePart(1, second);
+                    imports->setImportRenamePart(2, third);
+                    imports->setImportRenameSeparator(separator);
+                    const auto expanded = expand_import_filename_template(
+                        imports->importFilenameTemplate().toStdString(), "DSC_1234", "20260123", 1,
+                        ".NEF");
+                    ASSERT_TRUE(expanded);
+                    EXPECT_TRUE(expanded.value().ends_with(".NEF"));
+                    EXPECT_EQ(expanded.value().find('{'), std::string::npos);
+                }
+}
+
 TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterRestart)
 {
     ensure_qt_core();
     init_logging("ravo-import-tests");
     QTemporaryDir directory;
     const auto source = directory.filePath("Pictures/2026/09");
-    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(source + "/child"));
     ASSERT_TRUE(photo(source + "/photo.png", Qt::red));
-    const auto expect_revealed = [&](StudioPresenter &presenter)
+    const auto expect_revealed = [&](StudioPresenter &presenter, bool expanded = false)
     {
         auto *model = presenter.imports()->importSourceFolders();
         EXPECT_TRUE(wait_until(
@@ -460,8 +640,16 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
                 for (int row = 0; row < model->rowCount(); ++row)
                     if (model->data(model->index(row, 0), FilesystemBrowserModel::SelectedRole)
                             .toBool())
+                    {
+                        const auto index = model->index(row, 0);
+                        if (expanded &&
+                            (model->data(index, FilesystemBrowserModel::CollapsedRole).toBool() ||
+                             model->data(index, FilesystemBrowserModel::ListingPendingRole)
+                                 .toBool()))
+                            return false;
                         return model->data(model->index(row, 0), FilesystemBrowserModel::PathRole)
                                    .toString() == source;
+                    }
                 return false;
             }));
         EXPECT_EQ(presenter.imports()->importSourceRoot(), source);
@@ -478,7 +666,7 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
         EXPECT_EQ(StudioImportPreferences{}.loadLastSource().value(), source);
         presenter.imports()->closeImportPage();
         presenter.imports()->openImportPage();
-        expect_revealed(presenter);
+        expect_revealed(presenter, true);
         presenter.imports()->closeImportPage();
     }
     StudioPresenter restarted;
@@ -489,21 +677,110 @@ TEST(StudioImportWorkspace, SourceSelectionPersistsWithoutImportAndRevealsAfterR
                      &FilesystemBrowserModel::folderRevealed, &restarted,
                      [&](int) { ++reveal_count; });
     restarted.imports()->openImportPage();
-    expect_revealed(restarted);
+    expect_revealed(restarted, true);
     EXPECT_GT(reveal_count, 0);
+    auto *tree = restarted.imports()->importSourceFolders();
+    tree->toggleCollapsed(source);
+    restarted.imports()->refreshImportSources();
+    ASSERT_TRUE(wait_for_filesystem(restarted));
+    for (int row = 0; row < tree->rowCount(); ++row)
+        if (tree->data(tree->index(row, 0), FilesystemBrowserModel::SelectedRole).toBool())
+            EXPECT_TRUE(
+                tree->data(tree->index(row, 0), FilesystemBrowserModel::CollapsedRole).toBool());
     restarted.imports()->closeImportPage();
     ASSERT_TRUE(QFile::remove(source + "/photo.png"));
+    ASSERT_TRUE(QDir().rmdir(source + "/child"));
     ASSERT_TRUE(QDir().rmdir(source));
     restarted.imports()->openImportPage();
     ASSERT_TRUE(wait_until([&] { return !restarted.imports()->importScanActive(); }));
     EXPECT_TRUE(restarted.imports()->importSourceRoot().isEmpty());
     EXPECT_FALSE(restarted.errorText().isEmpty());
     EXPECT_FALSE(restarted.imports()->importReady());
+    ASSERT_TRUE(wait_for_filesystem(restarted));
+    EXPECT_TRUE(tree->selectedPath().isEmpty());
+    for (int row = 0; row < tree->rowCount(); ++row)
+    {
+        const auto index = tree->index(row, 0);
+        EXPECT_EQ(tree->data(index, FilesystemBrowserModel::DepthRole).toInt(), 0);
+        EXPECT_TRUE(tree->data(index, FilesystemBrowserModel::CollapsedRole).toBool());
+        EXPECT_FALSE(tree->data(index, FilesystemBrowserModel::SelectedRole).toBool());
+        EXPECT_FALSE(tree->data(index, FilesystemBrowserModel::ListingPendingRole).toBool());
+    }
     restarted.imports()->closeImportPage();
     restarted.imports()->openImportPage();
     EXPECT_TRUE(restarted.imports()->importSourceRoot().isEmpty());
     EXPECT_TRUE(restarted.errorText().isEmpty());
     restarted.imports()->closeImportPage();
+}
+
+TEST(StudioImportWorkspace, NewSourceSelectionCancelsPendingSavedSourceRestore)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto previous = directory.filePath("previous/2026");
+    const auto chosen = directory.filePath("chosen/2026");
+    ASSERT_TRUE(QDir().mkpath(previous));
+    ASSERT_TRUE(QDir().mkpath(chosen));
+    ASSERT_TRUE(photo(previous + "/previous.png", Qt::red));
+    ASSERT_TRUE(photo(chosen + "/chosen.png", Qt::blue));
+    ASSERT_TRUE(StudioImportPreferences{}.rememberSource(previous));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    WorkerGate gate;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockFilesystem(
+        presenter, gate.promise.get_future().share()));
+    auto *imports = presenter.imports();
+    auto *tree = imports->importSourceFolders();
+    imports->openImportPage();
+    EXPECT_EQ(imports->importSourceRoot(), previous);
+    EXPECT_TRUE(tree->selectedPath().isEmpty());
+    imports->setImportSourceRoot(chosen);
+    gate.release();
+    ASSERT_TRUE(wait_for_filesystem(presenter));
+    ASSERT_TRUE(wait_until([&] { return !imports->importScanActive(); }));
+    EXPECT_EQ(imports->importSourceRoot(), chosen);
+    EXPECT_EQ(tree->selectedPath(), chosen);
+    ASSERT_EQ(imports->importCandidates()->rowCount(), 1);
+    EXPECT_EQ(imports->importCandidates()->sourcePath(0),
+              QFileInfo(chosen + "/chosen.png").canonicalFilePath());
+    imports->closeImportPage();
+}
+
+TEST(StudioImportWorkspace, ClosedSourceRestoreCannotExpandUnavailableSourceAfterReopen)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(StudioImportPreferences{}.rememberSource(source));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    WorkerGate gate;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockFilesystem(
+        presenter, gate.promise.get_future().share()));
+    auto *imports = presenter.imports();
+    imports->openImportPage();
+    imports->closeImportPage();
+    ASSERT_TRUE(QDir().rmdir(source));
+    imports->openImportPage();
+    EXPECT_TRUE(imports->importSourceRoot().isEmpty());
+    EXPECT_FALSE(presenter.errorText().isEmpty());
+    gate.release();
+    ASSERT_TRUE(wait_for_filesystem(presenter));
+    auto *tree = imports->importSourceFolders();
+    EXPECT_TRUE(tree->selectedPath().isEmpty());
+    for (int row = 0; row < tree->rowCount(); ++row)
+    {
+        const auto index = tree->index(row, 0);
+        EXPECT_EQ(tree->data(index, FilesystemBrowserModel::DepthRole).toInt(), 0);
+        EXPECT_TRUE(tree->data(index, FilesystemBrowserModel::CollapsedRole).toBool());
+        EXPECT_FALSE(tree->data(index, FilesystemBrowserModel::ListingPendingRole).toBool());
+    }
+    imports->closeImportPage();
 }
 
 TEST(StudioImportWorkspace, DestinationAndOrganizationPersistBeforeImportAcrossReopenAndRestart)

@@ -34,6 +34,7 @@ target_sources(ravo_desktop
     src/studio_assistant_controller.cpp
     src/studio_language_manager.cpp
     src/studio_window_geometry.cpp
+    src/studio_panel_layout.cpp
     src/studio_startup_controller.cpp
     src/studio_startup_controller.h
     src/studio_library_resume.cpp
@@ -102,6 +103,7 @@ target_sources(ravo_desktop
     include/ravo/desktop/studio_library_presenter.h
     include/ravo/desktop/studio_presenter.h
     include/ravo/desktop/studio_window_geometry.h
+    include/ravo/desktop/studio_panel_layout.h
     include/ravo/desktop/studio_display_presentation.h
     src/studio_language_manager.h)
 

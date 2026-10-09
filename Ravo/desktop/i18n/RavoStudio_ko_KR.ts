@@ -3662,10 +3662,6 @@ Diff: %6</source>
             <translation>사용할 수 없음</translation>
         </message>
         <message>
-            <source>File Handling</source>
-            <translation>파일 처리</translation>
-        </message>
-        <message>
             <source>Build Previews</source>
             <translation>미리보기 생성</translation>
         </message>
@@ -3682,8 +3678,56 @@ Diff: %6</source>
             <translation>1:1</translation>
         </message>
         <message>
+            <source>Rename files</source>
+            <translation>파일 이름 변경</translation>
+        </message>
+        <message>
+            <source>Part %1</source>
+            <translation>구성 요소 %1</translation>
+        </message>
+        <message>
+            <source>Original filename</source>
+            <translation>원래 파일 이름</translation>
+        </message>
+        <message>
+            <source>Capture date (YYYYMMDD)</source>
+            <translation>촬영 날짜 (YYYYMMDD)</translation>
+        </message>
+        <message>
+            <source>Sequence (0001)</source>
+            <translation>일련번호 (0001)</translation>
+        </message>
+        <message>
+            <source>None</source>
+            <translation>없음</translation>
+        </message>
+        <message>
+            <source>Separator</source>
+            <translation>구분 기호</translation>
+        </message>
+        <message>
+            <source>Underscore (_)</source>
+            <translation>밑줄 (_)</translation>
+        </message>
+        <message>
+            <source>Hyphen (-)</source>
+            <translation>하이픈 (-)</translation>
+        </message>
+        <message>
+            <source>Filename example</source>
+            <translation>파일 이름 예시</translation>
+        </message>
+        <message>
+            <source>The original extension is kept.</source>
+            <translation>원래 확장자를 유지합니다.</translation>
+        </message>
+        <message>
             <source>Destination</source>
             <translation>대상</translation>
+        </message>
+        <message>
+            <source>change</source>
+            <translation>변경</translation>
         </message>
         <message>
             <source>Choose Destination…</source>
@@ -3722,20 +3766,8 @@ Diff: %6</source>
             <translation>대상 폴더 계획 중…</translation>
         </message>
         <message>
-            <source>Rename template</source>
-            <translation>이름 변경 템플릿</translation>
-        </message>
-        <message>
             <source>Keep original names</source>
             <translation>원래 이름 유지</translation>
-        </message>
-        <message>
-            <source>Import filename template</source>
-            <translation>가져오기 파일 이름 템플릿</translation>
-        </message>
-        <message>
-            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
-            <translation>토큰: {date}, {stem}, {sequence}, {ext}</translation>
         </message>
         <message>
             <source>Second copy</source>
@@ -3744,10 +3776,6 @@ Diff: %6</source>
         <message>
             <source>Choose Second Copy…</source>
             <translation>두 번째 복사본 선택…</translation>
-        </message>
-        <message>
-            <source>Clear</source>
-            <translation>지우기</translation>
         </message>
         <message>
             <source>No second copy selected</source>
@@ -5718,6 +5746,25 @@ Diff: %6</source>
         <message>
             <source>Help</source>
             <translation>도움말</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioPanelLayout</name>
+        <message>
+            <source>Unable to read the panel layout.</source>
+            <translation>패널 레이아웃을 읽을 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>The stored panel layout is invalid.</source>
+            <translation>저장된 패널 레이아웃이 유효하지 않습니다.</translation>
+        </message>
+        <message>
+            <source>Panel size is invalid.</source>
+            <translation>패널 크기가 유효하지 않습니다.</translation>
+        </message>
+        <message>
+            <source>Unable to save the panel layout.</source>
+            <translation>패널 레이아웃을 저장할 수 없습니다.</translation>
         </message>
     </context>
     <context>

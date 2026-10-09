@@ -3662,10 +3662,6 @@ Diferença: %6</translation>
             <translation>Indisponível</translation>
         </message>
         <message>
-            <source>File Handling</source>
-            <translation>Gerenciamento de arquivos</translation>
-        </message>
-        <message>
             <source>Build Previews</source>
             <translation>Criar visualizações</translation>
         </message>
@@ -3682,8 +3678,56 @@ Diferença: %6</translation>
             <translation>1:1</translation>
         </message>
         <message>
+            <source>Rename files</source>
+            <translation>Renomear arquivos</translation>
+        </message>
+        <message>
+            <source>Part %1</source>
+            <translation>Parte %1</translation>
+        </message>
+        <message>
+            <source>Original filename</source>
+            <translation>Nome original do arquivo</translation>
+        </message>
+        <message>
+            <source>Capture date (YYYYMMDD)</source>
+            <translation>Data da captura (YYYYMMDD)</translation>
+        </message>
+        <message>
+            <source>Sequence (0001)</source>
+            <translation>Número sequencial (0001)</translation>
+        </message>
+        <message>
+            <source>None</source>
+            <translation>Nenhum</translation>
+        </message>
+        <message>
+            <source>Separator</source>
+            <translation>Separador</translation>
+        </message>
+        <message>
+            <source>Underscore (_)</source>
+            <translation>Sublinhado (_)</translation>
+        </message>
+        <message>
+            <source>Hyphen (-)</source>
+            <translation>Hífen (-)</translation>
+        </message>
+        <message>
+            <source>Filename example</source>
+            <translation>Exemplo de nome de arquivo</translation>
+        </message>
+        <message>
+            <source>The original extension is kept.</source>
+            <translation>A extensão original é mantida.</translation>
+        </message>
+        <message>
             <source>Destination</source>
             <translation>Destino</translation>
+        </message>
+        <message>
+            <source>change</source>
+            <translation>alterar</translation>
         </message>
         <message>
             <source>Choose Destination…</source>
@@ -3722,20 +3766,8 @@ Diferença: %6</translation>
             <translation>Planejando destino…</translation>
         </message>
         <message>
-            <source>Rename template</source>
-            <translation>Modelo de renomeação</translation>
-        </message>
-        <message>
             <source>Keep original names</source>
             <translation>Manter nomes originais</translation>
-        </message>
-        <message>
-            <source>Import filename template</source>
-            <translation>Modelo de nome de arquivo da importação</translation>
-        </message>
-        <message>
-            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
-            <translation>Marcadores: {date}, {stem}, {sequence}, {ext}</translation>
         </message>
         <message>
             <source>Second copy</source>
@@ -3744,10 +3776,6 @@ Diferença: %6</translation>
         <message>
             <source>Choose Second Copy…</source>
             <translation>Escolher segunda cópia…</translation>
-        </message>
-        <message>
-            <source>Clear</source>
-            <translation>Limpar</translation>
         </message>
         <message>
             <source>No second copy selected</source>
@@ -5718,6 +5746,25 @@ Diferença: %6</translation>
         <message>
             <source>Help</source>
             <translation>StudioMenuBar::Ajuda</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioPanelLayout</name>
+        <message>
+            <source>Unable to read the panel layout.</source>
+            <translation>Não foi possível ler a disposição dos painéis.</translation>
+        </message>
+        <message>
+            <source>The stored panel layout is invalid.</source>
+            <translation>A disposição salva dos painéis é inválida.</translation>
+        </message>
+        <message>
+            <source>Panel size is invalid.</source>
+            <translation>O tamanho do painel é inválido.</translation>
+        </message>
+        <message>
+            <source>Unable to save the panel layout.</source>
+            <translation>Não foi possível salvar a disposição dos painéis.</translation>
         </message>
     </context>
     <context>

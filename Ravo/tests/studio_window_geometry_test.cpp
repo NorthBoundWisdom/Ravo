@@ -1,9 +1,14 @@
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QSettings>
 #include <QTemporaryDir>
+#include <QVariantMap>
 #include <gtest/gtest.h>
 
 #include "ravo/desktop/studio_window_geometry.h"
+#include "ravo/desktop/studio_panel_layout.h"
 
 namespace ravo
 {
@@ -154,6 +159,84 @@ TEST_F(WindowGeometryTest, RepairsIncompleteStoredGeometry)
         QSettings settings;
         EXPECT_FALSE(settings.contains(QStringLiteral("desktop/window/width")));
     }
+}
+
+TEST_F(WindowGeometryTest, PanelSizesPersistAcrossOwnerDestruction)
+{
+    {
+        StudioPanelLayout layout;
+        ASSERT_TRUE(layout.initialize());
+        EXPECT_EQ(layout.leftWidth(), 240);
+        EXPECT_EQ(layout.rightWidth(), 320);
+        EXPECT_EQ(layout.filmstripHeight(), 108);
+        ASSERT_TRUE(layout.setSideWidths(285, 410));
+        ASSERT_TRUE(layout.setFilmstripHeight(215));
+        // Destruction flushes even before the debounce timer fires.
+    }
+    StudioPanelLayout reopened;
+    ASSERT_TRUE(reopened.initialize());
+    EXPECT_EQ(reopened.leftWidth(), 285);
+    EXPECT_EQ(reopened.rightWidth(), 410);
+    EXPECT_EQ(reopened.filmstripHeight(), 215);
+    EXPECT_TRUE(reopened.lastError().isEmpty());
+}
+
+TEST_F(WindowGeometryTest, InvalidPanelSizesDoNotReplaceStoredPreference)
+{
+    StudioPanelLayout layout;
+    ASSERT_TRUE(layout.initialize());
+    ASSERT_TRUE(layout.setSideWidths(160, 800));
+    ASSERT_TRUE(layout.setFilmstripHeight(400));
+    ASSERT_TRUE(layout.flush());
+    EXPECT_FALSE(layout.setSideWidths(159, 320));
+    EXPECT_FALSE(layout.setSideWidths(641, 320));
+    EXPECT_FALSE(layout.setSideWidths(240, 259));
+    EXPECT_FALSE(layout.setSideWidths(240, 801));
+    EXPECT_FALSE(layout.setFilmstripHeight(87));
+    EXPECT_FALSE(layout.setFilmstripHeight(401));
+    StudioPanelLayout reopened;
+    ASSERT_TRUE(reopened.initialize());
+    EXPECT_EQ(reopened.leftWidth(), 160);
+    EXPECT_EQ(reopened.rightWidth(), 800);
+    EXPECT_EQ(reopened.filmstripHeight(), 400);
+}
+
+TEST_F(WindowGeometryTest, MalformedPanelLayoutFailsExplicitly)
+{
+    for (const QVariant &stored : {QVariant(QStringLiteral("broken")),
+                                   QVariant(QVariantMap{{QStringLiteral("leftWidth"), 240}}),
+                                   QVariant(QVariantMap{{QStringLiteral("leftWidth"), 240},
+                                                        {QStringLiteral("rightWidth"), 320},
+                                                        {QStringLiteral("filmstripHeight"), 999}})})
+    {
+        QSettings settings;
+        settings.setValue(QStringLiteral("desktop/panel-layout/v1"), stored);
+        settings.sync();
+        StudioPanelLayout layout;
+        EXPECT_FALSE(layout.initialize());
+        EXPECT_FALSE(layout.lastError().isEmpty());
+    }
+}
+
+TEST_F(WindowGeometryTest, PanelLayoutSaveFailureIsVisibleAndCanBeRetried)
+{
+    const auto settings_directory = QFileInfo(QSettings{}.fileName()).absolutePath();
+    ASSERT_TRUE(QDir().mkpath(settings_directory));
+    ASSERT_TRUE(QDir(settings_directory).removeRecursively());
+    QFile blocker(settings_directory);
+    ASSERT_TRUE(blocker.open(QIODevice::WriteOnly));
+    blocker.close();
+    StudioPanelLayout layout;
+    ASSERT_TRUE(layout.setFilmstripHeight(190));
+    EXPECT_FALSE(layout.flush());
+    EXPECT_FALSE(layout.lastError().isEmpty());
+    ASSERT_TRUE(blocker.remove());
+    ASSERT_TRUE(QDir().mkpath(settings_directory));
+    ASSERT_TRUE(layout.flush());
+    EXPECT_TRUE(layout.lastError().isEmpty());
+    StudioPanelLayout reopened;
+    ASSERT_TRUE(reopened.initialize());
+    EXPECT_EQ(reopened.filmstripHeight(), 190);
 }
 
 } // namespace

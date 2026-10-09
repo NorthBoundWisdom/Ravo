@@ -1,15 +1,46 @@
 import QtQuick
-import QtQuick.Layouts
 import GeoControls 1.0
 
 Rectangle {
     id: root
     property var presenter
     property var commands
+    property int maximumPanelHeight: 400
+    signal panelHeightRequested(real value)
     property var swatchColor: function (name) {
         return Theme.midColor;
     }
     color: Theme.toolbarSurfaceColor
+
+    MouseArea {
+        id: resizeBar
+        objectName: "filmstripResizeBar"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 7
+        cursorShape: Qt.SizeVerCursor
+        hoverEnabled: true
+        property real pressSceneY: 0
+        property real pressHeight: 0
+        onPressed: function (mouse) {
+            pressSceneY = mapToItem(null, mouse.x, mouse.y).y;
+            pressHeight = root.height;
+        }
+        onPositionChanged: function (mouse) {
+            if (pressed) {
+                const delta = pressSceneY - mapToItem(null, mouse.x, mouse.y).y;
+                root.panelHeightRequested(Math.max(88, Math.min(root.maximumPanelHeight, pressHeight + delta)));
+            }
+        }
+        Rectangle {
+            anchors.centerIn: parent
+            width: 40
+            height: 2
+            radius: 1
+            color: resizeBar.containsMouse || resizeBar.pressed ? Theme.midColor : Theme.splitHandleColor
+        }
+    }
 
     Rectangle {
         anchors.left: parent.left
@@ -22,9 +53,11 @@ Rectangle {
 
     ListView {
         id: strip
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.top: resizeBar.bottom
         anchors.margins: Fonts.size4
-        anchors.topMargin: Fonts.size4 + 1
         orientation: ListView.Horizontal
         flickableDirection: Flickable.HorizontalFlick
         boundsBehavior: Flickable.StopAtBounds

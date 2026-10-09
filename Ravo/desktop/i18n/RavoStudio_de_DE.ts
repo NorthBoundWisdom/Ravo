@@ -3662,10 +3662,6 @@ Differenz: %6</translation>
             <translation>Nicht verfügbar</translation>
         </message>
         <message>
-            <source>File Handling</source>
-            <translation>Dateiverwaltung</translation>
-        </message>
-        <message>
             <source>Build Previews</source>
             <translation>Vorschauen erstellen</translation>
         </message>
@@ -3682,8 +3678,56 @@ Differenz: %6</translation>
             <translation>1:1</translation>
         </message>
         <message>
+            <source>Rename files</source>
+            <translation>Dateien umbenennen</translation>
+        </message>
+        <message>
+            <source>Part %1</source>
+            <translation>Teil %1</translation>
+        </message>
+        <message>
+            <source>Original filename</source>
+            <translation>Ursprünglicher Dateiname</translation>
+        </message>
+        <message>
+            <source>Capture date (YYYYMMDD)</source>
+            <translation>Aufnahmedatum (YYYYMMDD)</translation>
+        </message>
+        <message>
+            <source>Sequence (0001)</source>
+            <translation>Laufende Nummer (0001)</translation>
+        </message>
+        <message>
+            <source>None</source>
+            <translation>Keine</translation>
+        </message>
+        <message>
+            <source>Separator</source>
+            <translation>Trennzeichen</translation>
+        </message>
+        <message>
+            <source>Underscore (_)</source>
+            <translation>Unterstrich (_)</translation>
+        </message>
+        <message>
+            <source>Hyphen (-)</source>
+            <translation>Bindestrich (-)</translation>
+        </message>
+        <message>
+            <source>Filename example</source>
+            <translation>Beispiel für Dateinamen</translation>
+        </message>
+        <message>
+            <source>The original extension is kept.</source>
+            <translation>Die ursprüngliche Dateiendung bleibt erhalten.</translation>
+        </message>
+        <message>
             <source>Destination</source>
             <translation>Ziel</translation>
+        </message>
+        <message>
+            <source>change</source>
+            <translation>ändern</translation>
         </message>
         <message>
             <source>Choose Destination…</source>
@@ -3722,20 +3766,8 @@ Differenz: %6</translation>
             <translation>Ziel wird geplant…</translation>
         </message>
         <message>
-            <source>Rename template</source>
-            <translation>Umbenennungsvorlage</translation>
-        </message>
-        <message>
             <source>Keep original names</source>
             <translation>Originalnamen beibehalten</translation>
-        </message>
-        <message>
-            <source>Import filename template</source>
-            <translation>Vorlage für Importdateinamen</translation>
-        </message>
-        <message>
-            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
-            <translation>Platzhalter: {date}, {stem}, {sequence}, {ext}</translation>
         </message>
         <message>
             <source>Second copy</source>
@@ -3744,10 +3776,6 @@ Differenz: %6</translation>
         <message>
             <source>Choose Second Copy…</source>
             <translation>Zweites Ziel auswählen…</translation>
-        </message>
-        <message>
-            <source>Clear</source>
-            <translation>Auswahl aufheben</translation>
         </message>
         <message>
             <source>No second copy selected</source>
@@ -5718,6 +5746,25 @@ Differenz: %6</translation>
         <message>
             <source>Help</source>
             <translation>Hilfe</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioPanelLayout</name>
+        <message>
+            <source>Unable to read the panel layout.</source>
+            <translation>Das Bedienfeldlayout kann nicht gelesen werden.</translation>
+        </message>
+        <message>
+            <source>The stored panel layout is invalid.</source>
+            <translation>Das gespeicherte Bedienfeldlayout ist ungültig.</translation>
+        </message>
+        <message>
+            <source>Panel size is invalid.</source>
+            <translation>Die Bedienfeldgröße ist ungültig.</translation>
+        </message>
+        <message>
+            <source>Unable to save the panel layout.</source>
+            <translation>Das Bedienfeldlayout kann nicht gespeichert werden.</translation>
         </message>
     </context>
     <context>

@@ -69,7 +69,12 @@ class StudioImportWorkspace final : public QObject
     Q_PROPERTY(QString importDestination READ importDestination NOTIFY importPageChanged)
     Q_PROPERTY(QString importSecondCopyDestination READ importSecondCopyDestination NOTIFY
                    importPageChanged)
+    Q_PROPERTY(bool importSecondCopyEnabled READ importSecondCopyEnabled NOTIFY importPageChanged)
     Q_PROPERTY(QString importFilenameTemplate READ importFilenameTemplate NOTIFY importPageChanged)
+    Q_PROPERTY(bool importRenameEnabled READ importRenameEnabled NOTIFY importPageChanged)
+    Q_PROPERTY(QVariantList importRenameParts READ importRenameParts NOTIFY importPageChanged)
+    Q_PROPERTY(int importRenameSeparator READ importRenameSeparator NOTIFY importPageChanged)
+    Q_PROPERTY(QString importRenameExample READ importRenameExample NOTIFY importPageChanged)
     Q_PROPERTY(QString importMode READ importMode NOTIFY importPageChanged)
     Q_PROPERTY(QString importOrganization READ importOrganization NOTIFY importPageChanged)
     Q_PROPERTY(QString importPreviewPolicy READ importPreviewPolicy NOTIFY importPageChanged)
@@ -154,7 +159,12 @@ public:
     [[nodiscard]] QUrl importSourceFolderUrl() const;
     [[nodiscard]] QUrl importSecondCopyFolderUrl() const;
     [[nodiscard]] QString importSecondCopyDestination() const;
+    [[nodiscard]] bool importSecondCopyEnabled() const noexcept;
     [[nodiscard]] QString importFilenameTemplate() const;
+    [[nodiscard]] bool importRenameEnabled() const noexcept;
+    [[nodiscard]] QVariantList importRenameParts() const;
+    [[nodiscard]] int importRenameSeparator() const noexcept;
+    [[nodiscard]] QString importRenameExample() const;
     [[nodiscard]] QString importMode() const;
     [[nodiscard]] QString importOrganization() const;
     [[nodiscard]] QString importPreviewPolicy() const;
@@ -170,7 +180,10 @@ public:
     Q_INVOKABLE void setImportSourceRoot(const QString &path);
     Q_INVOKABLE void setImportDestination(const QString &path);
     Q_INVOKABLE void setImportSecondCopyDestination(const QString &path);
-    Q_INVOKABLE void setImportFilenameTemplate(const QString &filename_template);
+    Q_INVOKABLE void setImportSecondCopyEnabled(bool enabled);
+    Q_INVOKABLE void setImportRenameEnabled(bool enabled);
+    Q_INVOKABLE void setImportRenamePart(int position, int component);
+    Q_INVOKABLE void setImportRenameSeparator(int separator);
     Q_INVOKABLE void setImportMode(const QString &mode);
     Q_INVOKABLE void setImportOrganization(const QString &organization);
     Q_INVOKABLE void setImportPreviewPolicy(const QString &policy);
@@ -232,6 +245,8 @@ private:
     FilesystemBrowserModel source_folders;
     FilesystemBrowserModel destination_folders;
     ImportDraft draft;
+    // One page-entry restore intent, consumed before expanding the selected folder.
+    QString pending_source_restore_;
     std::unique_ptr<StudioImportScanController> scan;
     std::unique_ptr<StudioImportThumbnailController> thumbnails;
     std::unique_ptr<StudioImportDestinationPreviewController> destination_preview;

@@ -1,4 +1,4 @@
-// Behavioral host: filename template TextField + production ImportCandidateGrid.
+// Behavioral host: read-only filename example + production ImportCandidateGrid.
 // Used to prove passive candidate publication does not steal text focus.
 import QtQuick
 import QtQuick.Controls
@@ -40,7 +40,8 @@ Item {
         anchors.top: parent.top
         anchors.margins: 8
         height: 36
-        text: "{date}_{stem}_{seq}"
+        text: "20260123_IMG_1234_0001.jpg"
+        readOnly: true
         selectByMouse: true
     }
 

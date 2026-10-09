@@ -14,6 +14,9 @@ TEST(ImportDraft, DefaultsAreStable)
     EXPECT_TRUE(draft.destination.isEmpty());
     EXPECT_FALSE(draft.destination_valid);
     EXPECT_TRUE(draft.destination_error.isEmpty());
+    EXPECT_FALSE(draft.rename_enabled);
+    EXPECT_EQ(draft.rename_parts, (std::array<int, 3>{2, 1, 3}));
+    EXPECT_EQ(draft.rename_separator, 0);
 }
 
 TEST(ImportDraft, ValueCopyPreservesFields)
@@ -25,7 +28,9 @@ TEST(ImportDraft, ValueCopyPreservesFields)
     draft.second_copy_enabled = true;
     draft.organization = QStringLiteral("date");
     draft.mode = QStringLiteral("move");
-    draft.filename_pattern = QStringLiteral("{original}");
+    draft.rename_enabled = true;
+    draft.rename_parts = {1, 3, 0};
+    draft.rename_separator = 1;
     draft.destination_valid = true;
     draft.destination_error = QStringLiteral("ok");
 
@@ -36,7 +41,9 @@ TEST(ImportDraft, ValueCopyPreservesFields)
     EXPECT_EQ(copy.second_copy_enabled, draft.second_copy_enabled);
     EXPECT_EQ(copy.organization, draft.organization);
     EXPECT_EQ(copy.mode, draft.mode);
-    EXPECT_EQ(copy.filename_pattern, draft.filename_pattern);
+    EXPECT_EQ(copy.rename_enabled, draft.rename_enabled);
+    EXPECT_EQ(copy.rename_parts, draft.rename_parts);
+    EXPECT_EQ(copy.rename_separator, draft.rename_separator);
     EXPECT_EQ(copy.destination_valid, draft.destination_valid);
     EXPECT_EQ(copy.destination_error, draft.destination_error);
 }

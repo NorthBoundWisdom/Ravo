@@ -1,5 +1,15 @@
 # Ravo
 
+Studio remembers the left and right panel widths and filmstrip height across
+restarts. Drag the side dividers to resize the rails and the filmstrip's top
+edge to resize the bottom panel. These per-user layout
+preferences are separate from photo catalogs and recipes.
+
+The review bar uses three compact flags: dashed for unmarked (Keep), solid
+for Pick, and outlined with a red X for Reject. Tooltips retain the action
+names, and the selected flag follows the photo's stored review state.
+Photo navigation uses left/right arrows with translated Previous/Next tooltips.
+
 Studio's filter bar exposes rating, colour, file type and pick/reject/unflagged
 filters. The Photo inspector edits metadata through an explicit dialog and
 provides −1, −⅓, +⅓ and +1 EV buttons for one selected manual-exposure photo.
@@ -186,11 +196,21 @@ Current implementation status:
   sources remain visible with an error instead of silently switching folders.
   The valid import destination root and organization (including `YYYY/MM`) are
   remembered globally when chosen, even without importing, and restored on page
-  reopen and restart, including the directory tree and picker. Unavailable paths
-  and failed settings writes preserve the prior saved choice and report errors.
+  reopen and restart, including the directory tree and picker. Unavailable
+  destinations and failed settings writes preserve the prior saved choice and
+  report errors. A valid saved source is selected with its ancestors and directory
+  expanded once after storage discovery. An unavailable saved source is removed
+  with an explicit error and leaves the source tree collapsed. Manual source
+  selection cancels a pending restore; later refreshes preserve tree collapse.
   Disconnected destinations remain visible and block Copy until resolved.
-  Rename and second-copy controls start collapsed, and narrow windows use side
-  drawers. Schema v17 adds a rebuildable content-hash index; old assets are
+  Preview settings appear first and remain expanded. Rename is an unchecked
+  option below previews: choose up to three ordered filename/date/sequence
+  components and a separator, with a read-only example and the original extension
+  preserved. Unchecked uses original names; Add never renames. Second copy is
+  another checkbox: enabled shows the second path and requires a folder;
+  unchecked retains the choice but creates no second copy. Destination stays
+  expanded below Rename and Second copy. Narrow windows use side drawers.
+  Schema v17 adds a rebuildable content-hash index; old assets are
   indexed on demand without changing edit history or original files.
 - Browse & Review includes ratings, color labels, and reject
   state; Gallery grid/loupe and an Edit pane; a filmstrip that contains whole

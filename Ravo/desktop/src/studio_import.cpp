@@ -147,6 +147,12 @@ void StudioImportWorkspace::startPlannedImport()
         setError(QCoreApplication::translate("StudioPresenter", "Choose an import destination."));
         return;
     }
+    if (draft.mode != QLatin1String("add") && draft.second_copy_enabled &&
+        draft.second_copy_destination.isEmpty())
+    {
+        setError(QCoreApplication::translate("ImportPage", "No second copy selected"));
+        return;
+    }
     if ((import_ingest_transport_ == QLatin1String("filesystem-card") ||
          import_ingest_transport_ == QLatin1String("ptp-stub") ||
          import_ingest_transport_ == QLatin1String("ptp-usb") ||

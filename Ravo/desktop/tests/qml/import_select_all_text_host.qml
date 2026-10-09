@@ -1,4 +1,4 @@
-// Composition host: filename template text + production candidate grid + command textInputActive binding.
+// Composition host: read-only filename example + production grid + textInputActive binding.
 // Mirrors Main.qml textInputActive ownership without loading the full Studio shell.
 import QtQuick
 import QtQuick.Controls
@@ -55,7 +55,8 @@ Item {
         anchors.top: parent.top
         anchors.margins: 8
         height: 36
-        text: "{date}_{stem}_{seq}"
+        text: "20260123_IMG_1234_0001.jpg"
+        readOnly: true
         selectByMouse: true
         onActiveFocusChanged: root.syncTextInputActive()
     }

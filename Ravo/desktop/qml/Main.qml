@@ -540,18 +540,25 @@ ApplicationWindow {
         InfoBar {
             Layout.fillWidth: true
             Layout.margins: Fonts.size8
-            visible: studio.errorText.length > 0
+            visible: studio.errorText.length > 0 || studioLayout.lastError.length > 0
             severity: "error"
             title: qsTr("Error")
-            message: studio.errorText
+            message: studioLayout.lastError.length > 0 ? studioLayout.lastError : studio.errorText
             closable: false
         }
 
         SplitView {
+            id: sidePanels
+            objectName: "studioSidePanels"
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.minimumHeight: 160
             orientation: Qt.Horizontal
             visible: studio.catalogOpen
+            onResizingChanged: {
+                if (!resizing)
+                    studioLayout.setSideWidths(Math.round(librarySidePanel.SplitView.preferredWidth), Math.round(inspectorSidePanel.SplitView.preferredWidth));
+            }
             handle: Rectangle {
                 implicitWidth: 1
                 implicitHeight: 1
@@ -559,8 +566,11 @@ ApplicationWindow {
             }
 
             LibrarySidePanel {
-                SplitView.preferredWidth: 240
+                id: librarySidePanel
+                objectName: "librarySidePanel"
+                SplitView.preferredWidth: studioLayout.leftWidth
                 SplitView.minimumWidth: 160
+                SplitView.maximumWidth: 640
                 presenter: studio
                 commands: studioActions
                 viewRectX: navigatorVisible.x
@@ -1244,18 +1254,26 @@ ApplicationWindow {
 
             InspectorSidePanel {
                 id: inspectorSidePanel
-                SplitView.preferredWidth: 320
+                objectName: "inspectorSidePanel"
+                SplitView.preferredWidth: studioLayout.rightWidth
                 SplitView.minimumWidth: Math.max(260, inspectorSidePanel.minimumToolWidth)
+                SplitView.maximumWidth: 800
                 presenter: studio
                 commands: studioActions
             }
         }
 
         FilmStripBar {
+            objectName: "studioFilmstrip"
             visible: studio.catalogOpen
             Layout.fillWidth: true
-            Layout.preferredHeight: 108
+            Layout.preferredHeight: Math.min(studioLayout.filmstripHeight, maximumPanelHeight)
             Layout.minimumHeight: 88
+            Layout.maximumHeight: maximumPanelHeight
+            maximumPanelHeight: Math.max(88, Math.min(400, sidePanels.height + height - 160))
+            onPanelHeightRequested: function (value) {
+                studioLayout.setFilmstripHeight(Math.round(value));
+            }
             presenter: studio
             commands: studioActions
             swatchColor: window.swatchColor

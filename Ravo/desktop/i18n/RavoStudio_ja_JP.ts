@@ -3662,10 +3662,6 @@ Diff: %6</source>
             <translation>利用できません</translation>
         </message>
         <message>
-            <source>File Handling</source>
-            <translation>ファイル処理</translation>
-        </message>
-        <message>
             <source>Build Previews</source>
             <translation>プレビューを作成</translation>
         </message>
@@ -3682,8 +3678,56 @@ Diff: %6</source>
             <translation>1:1</translation>
         </message>
         <message>
+            <source>Rename files</source>
+            <translation>ファイル名を変更</translation>
+        </message>
+        <message>
+            <source>Part %1</source>
+            <translation>項目 %1</translation>
+        </message>
+        <message>
+            <source>Original filename</source>
+            <translation>元のファイル名</translation>
+        </message>
+        <message>
+            <source>Capture date (YYYYMMDD)</source>
+            <translation>撮影日 (YYYYMMDD)</translation>
+        </message>
+        <message>
+            <source>Sequence (0001)</source>
+            <translation>連番 (0001)</translation>
+        </message>
+        <message>
+            <source>None</source>
+            <translation>なし</translation>
+        </message>
+        <message>
+            <source>Separator</source>
+            <translation>区切り文字</translation>
+        </message>
+        <message>
+            <source>Underscore (_)</source>
+            <translation>アンダースコア (_)</translation>
+        </message>
+        <message>
+            <source>Hyphen (-)</source>
+            <translation>ハイフン (-)</translation>
+        </message>
+        <message>
+            <source>Filename example</source>
+            <translation>ファイル名の例</translation>
+        </message>
+        <message>
+            <source>The original extension is kept.</source>
+            <translation>元の拡張子を保持します。</translation>
+        </message>
+        <message>
             <source>Destination</source>
             <translation>保存先</translation>
+        </message>
+        <message>
+            <source>change</source>
+            <translation>変更</translation>
         </message>
         <message>
             <source>Choose Destination…</source>
@@ -3722,20 +3766,8 @@ Diff: %6</source>
             <translation>保存先を計画中…</translation>
         </message>
         <message>
-            <source>Rename template</source>
-            <translation>名前変更テンプレート</translation>
-        </message>
-        <message>
             <source>Keep original names</source>
             <translation>元の名前を保持</translation>
-        </message>
-        <message>
-            <source>Import filename template</source>
-            <translation>読み込みファイル名テンプレート</translation>
-        </message>
-        <message>
-            <source>Tokens: {date}, {stem}, {sequence}, {ext}</source>
-            <translation>トークン: {date}、{stem}、{sequence}、{ext}</translation>
         </message>
         <message>
             <source>Second copy</source>
@@ -3744,10 +3776,6 @@ Diff: %6</source>
         <message>
             <source>Choose Second Copy…</source>
             <translation>2つ目のコピー先を選択…</translation>
-        </message>
-        <message>
-            <source>Clear</source>
-            <translation>クリア</translation>
         </message>
         <message>
             <source>No second copy selected</source>
@@ -5718,6 +5746,25 @@ Diff: %6</source>
         <message>
             <source>Help</source>
             <translation>StudioMenuBar::Help</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioPanelLayout</name>
+        <message>
+            <source>Unable to read the panel layout.</source>
+            <translation>パネルのレイアウトを読み込めません。</translation>
+        </message>
+        <message>
+            <source>The stored panel layout is invalid.</source>
+            <translation>保存されたパネルのレイアウトが無効です。</translation>
+        </message>
+        <message>
+            <source>Panel size is invalid.</source>
+            <translation>パネルのサイズが無効です。</translation>
+        </message>
+        <message>
+            <source>Unable to save the panel layout.</source>
+            <translation>パネルのレイアウトを保存できません。</translation>
         </message>
     </context>
     <context>

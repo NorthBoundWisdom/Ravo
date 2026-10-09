@@ -136,7 +136,8 @@ bool StudioImportWorkspace::importReady() const
            !importInteractionBlocked() && scan && scan->catalogRevision().has_value() &&
            candidates.selectedCount() > 0 && draft.mode != QLatin1String("move") &&
            (draft.mode == QLatin1String("add") ||
-            (draft.destination_valid && importDestinationPreviewError().isEmpty()));
+            (draft.destination_valid && importDestinationPreviewError().isEmpty() &&
+             (!draft.second_copy_enabled || !draft.second_copy_destination.isEmpty())));
 }
 
 bool StudioImportWorkspace::importInteractionBlocked() const
@@ -219,9 +220,49 @@ QString StudioImportWorkspace::importSecondCopyDestination() const
     return draft.second_copy_destination;
 }
 
+bool StudioImportWorkspace::importSecondCopyEnabled() const noexcept
+{
+    return draft.second_copy_enabled;
+}
+
 QString StudioImportWorkspace::importFilenameTemplate() const
 {
-    return draft.filename_pattern;
+    if (!draft.rename_enabled)
+        return {};
+    const std::array<QString, 4> tokens{QString{}, QStringLiteral("{stem}"),
+                                        QStringLiteral("{date}"), QStringLiteral("{sequence}")};
+    const std::array<QString, 3> separators{QStringLiteral("_"), QStringLiteral("-"), QString{}};
+    QStringList parts;
+    for (const auto component : draft.rename_parts)
+        if (component != 0)
+            parts.push_back(tokens[static_cast<std::size_t>(component)]);
+    return parts.join(separators[static_cast<std::size_t>(draft.rename_separator)]) +
+           QStringLiteral("{ext}");
+}
+
+bool StudioImportWorkspace::importRenameEnabled() const noexcept
+{
+    return draft.rename_enabled;
+}
+
+QVariantList StudioImportWorkspace::importRenameParts() const
+{
+    return {draft.rename_parts[0], draft.rename_parts[1], draft.rename_parts[2]};
+}
+
+int StudioImportWorkspace::importRenameSeparator() const noexcept
+{
+    return draft.rename_separator;
+}
+
+QString StudioImportWorkspace::importRenameExample() const
+{
+    if (!draft.rename_enabled)
+        return QStringLiteral("IMG_1234.jpg");
+    const auto expanded = expand_import_filename_template(
+        utf8_from_qstring(importFilenameTemplate()), "IMG_1234", "20260123", 1, ".jpg");
+    return expanded ? qstring_from_utf8(expanded.value()) :
+                      qstring_from_utf8(expanded.error().message);
 }
 
 QString StudioImportWorkspace::importMode() const
@@ -289,11 +330,10 @@ void StudioImportWorkspace::openImportPage()
         setError(qstring_from_utf8(organization.error().message));
     validateImportDestination();
     refreshImportNativeSupport();
-    source_folders.loadUserDirectory();
+    source_folders.resetWithRoots({{QDir::homePath(), QDir::homePath(), true}});
+    pending_source_restore_ = draft.source_root;
     destination_folders.loadUserDirectory();
     refreshImportSources();
-    if (!draft.source_root.isEmpty())
-        source_folders.revealFolder(draft.source_root);
     if (!draft.destination.isEmpty())
         destination_folders.revealFolder(draft.destination);
     emit importPageChanged();
@@ -314,6 +354,8 @@ void StudioImportWorkspace::closeImportPage()
         setImportWork(0, 0, false);
     import_preflight_active_ = false;
     import_page_open_ = false;
+    pending_source_restore_.clear();
+    source_folders.revealFolder({});
     ++import_roots_generation_;
     import_context_row_ = -1;
     import_context_path_.clear();
@@ -340,6 +382,10 @@ void StudioImportWorkspace::refreshImportSources()
                         return;
                     source_folders.updateMountedRoots(roots);
                     destination_folders.updateMountedRoots(std::move(roots));
+                    // Wait for real mounted roots before revealing an external saved
+                    // source; later refreshes must not undo the user's tree collapse.
+                    if (!pending_source_restore_.isEmpty())
+                        source_folders.revealFolder(pending_source_restore_);
                 },
                 Qt::QueuedConnection);
         });
@@ -378,6 +424,7 @@ void StudioImportWorkspace::setImportSourceRoot(const QString &path)
             return;
     }
     draft.source_root = next;
+    pending_source_restore_.clear();
     refreshImportSources();
     source_folders.revealFolder(next);
     emit importPageChanged();
@@ -405,6 +452,14 @@ void StudioImportWorkspace::setImportDestination(const QString &path)
     emit importPageChanged();
 }
 
+void StudioImportWorkspace::setImportSecondCopyEnabled(const bool enabled)
+{
+    if (import_work_active_ || import_preflight_active_ || enabled == draft.second_copy_enabled)
+        return;
+    draft.second_copy_enabled = enabled;
+    emit importPageChanged();
+}
+
 void StudioImportWorkspace::setImportSecondCopyDestination(const QString &path)
 {
     if (import_work_active_ || import_preflight_active_)
@@ -416,13 +471,45 @@ void StudioImportWorkspace::setImportSecondCopyDestination(const QString &path)
     emit importPageChanged();
 }
 
-void StudioImportWorkspace::setImportFilenameTemplate(const QString &filename_template)
+void StudioImportWorkspace::setImportRenameEnabled(const bool enabled)
 {
     if (import_work_active_ || import_preflight_active_)
         return;
-    if (filename_template == draft.filename_pattern)
+    if (enabled == draft.rename_enabled)
         return;
-    draft.filename_pattern = filename_template;
+    draft.rename_enabled = enabled;
+    emit importPageChanged();
+}
+
+void StudioImportWorkspace::setImportRenamePart(const int position, const int component)
+{
+    if (import_work_active_ || import_preflight_active_)
+        return;
+    if (position < 0 || position >= 3 || component < 0 || component > 3 ||
+        (position == 0 && component == 0))
+    {
+        setError(QStringLiteral("Invalid import rename component"));
+        return;
+    }
+    auto &part = draft.rename_parts[static_cast<std::size_t>(position)];
+    if (part == component)
+        return;
+    part = component;
+    emit importPageChanged();
+}
+
+void StudioImportWorkspace::setImportRenameSeparator(const int separator)
+{
+    if (import_work_active_ || import_preflight_active_)
+        return;
+    if (separator < 0 || separator > 2)
+    {
+        setError(QStringLiteral("Invalid import rename separator"));
+        return;
+    }
+    if (separator == draft.rename_separator)
+        return;
+    draft.rename_separator = separator;
     emit importPageChanged();
 }
 

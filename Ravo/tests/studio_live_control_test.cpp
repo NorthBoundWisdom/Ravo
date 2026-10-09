@@ -107,8 +107,13 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     EXPECT_EQ(presenter.imports()->importCandidates()->selectedCount(), 1);
     presenter.imports()->setImportMode(QStringLiteral("copy"));
     presenter.imports()->setImportDestination(destination);
-    presenter.imports()->setImportFilenameTemplate(QStringLiteral("shoot-{sequence}{ext}"));
+    presenter.imports()->setImportRenamePart(0, 1);
+    presenter.imports()->setImportRenamePart(1, 3);
+    presenter.imports()->setImportRenamePart(2, 0);
+    presenter.imports()->setImportRenameSeparator(1);
+    presenter.imports()->setImportRenameEnabled(true);
     presenter.imports()->setImportSecondCopyDestination(second_copy);
+    presenter.imports()->setImportSecondCopyEnabled(true);
     presenter.imports()->setImportPreviewPolicy(QStringLiteral("standard"));
     ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }, 30000))
         << presenter.errorText().toStdString();
@@ -134,10 +139,10 @@ TEST(StudioPresenterTest, ImportWorkspaceScansSelectsCopiesAndBuildsPreviewInBac
     EXPECT_TRUE(presenter.lastImportSelected());
     EXPECT_EQ(presenter.lastImportCount(), 1);
     EXPECT_EQ(presenter.imports()->importFilenameTemplate(),
-              QStringLiteral("shoot-{sequence}{ext}"));
+              QStringLiteral("{stem}-{sequence}{ext}"));
     EXPECT_EQ(presenter.imports()->importSecondCopyDestination(), second_copy);
-    const QString copied = QDir(destination).filePath(QStringLiteral("shoot-0001.png"));
-    const QString copied_second = QDir(second_copy).filePath(QStringLiteral("shoot-0001.png"));
+    const QString copied = QDir(destination).filePath(QStringLiteral("workspace-0001.png"));
+    const QString copied_second = QDir(second_copy).filePath(QStringLiteral("workspace-0001.png"));
     ASSERT_TRUE(QFileInfo::exists(copied));
     QFile copied_file(copied);
     ASSERT_TRUE(copied_file.open(QIODevice::ReadOnly));
@@ -801,7 +806,14 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
         QStringLiteral("objectName: \"importDestinationTreeSurface\"")));
     EXPECT_TRUE(destination_source.contains(
         QStringLiteral("Math.max(implicitHeight, destinationScroll.availableHeight)")));
-    EXPECT_TRUE(destination_source.contains(QStringLiteral("stretchContent: true")));
+    EXPECT_TRUE(destination_source.contains(QStringLiteral("Layout.fillHeight: true")));
+    EXPECT_FALSE(destination_source.contains(QStringLiteral("ImportSection {")));
+    EXPECT_FALSE(destination_source.contains(QStringLiteral("expanded")));
+    const auto second_copy_position =
+        destination_source.indexOf(QStringLiteral("objectName: \"importSecondCopySettings\""));
+    EXPECT_GE(second_copy_position, 0);
+    EXPECT_LT(second_copy_position, destination_source.indexOf(QStringLiteral(
+                                        "objectName: \"importDestinationSection\"")));
     EXPECT_FALSE(destination_source.contains(QStringLiteral("Layout.preferredHeight: 220")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Add\")")));
     EXPECT_TRUE(source.contains(QStringLiteral("qsTr(\"Copy\")")));
@@ -856,11 +868,17 @@ TEST(StudioQmlContract, ImportUsesOneWorkspaceForSelectionTransferAndPreviewPoli
     EXPECT_FALSE(source.contains(QStringLiteral(
         "anchors.leftMargin: Fonts.size4 + folderRow.depth * Fonts.size20 + Fonts.size16")));
     EXPECT_TRUE(source.contains(QStringLiteral("setImportPreviewPolicy")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setImportFilenameTemplate")));
-    EXPECT_TRUE(source.contains(QStringLiteral("setImportSecondCopyDestination")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportRenameEnabled")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportRenamePart")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportRenameSeparator")));
+    EXPECT_TRUE(source.contains(QStringLiteral("readOnly: true")));
+    EXPECT_FALSE(source.contains(QStringLiteral("File Handling")));
+    EXPECT_FALSE(source.contains(QStringLiteral("Rename template")));
+    EXPECT_TRUE(source.contains(QStringLiteral("setImportSecondCopyEnabled")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importFilenameTemplate\"")));
     EXPECT_TRUE(source.contains(QStringLiteral("objectName: \"importChooseSecondCopy\"")));
-    EXPECT_TRUE(source.contains(QStringLiteral("{date}, {stem}, {sequence}, {ext}")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Capture date (YYYYMMDD)")));
+    EXPECT_TRUE(source.contains(QStringLiteral("Sequence (0001)")));
     EXPECT_TRUE(source.contains(QStringLiteral("Minimal (320)")));
     EXPECT_TRUE(source.contains(QStringLiteral("Standard (1600)")));
     EXPECT_TRUE(source.contains(QStringLiteral("startPlannedImport")));

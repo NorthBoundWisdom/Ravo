@@ -60,27 +60,154 @@ Rectangle {
         ColumnLayout {
             id: settingsColumn
             width: parent.width
-            height: destinationSection.visible && destinationSection.expanded ? Math.max(implicitHeight, destinationScroll.availableHeight) : implicitHeight
+            height: destinationSection.visible ? Math.max(implicitHeight, destinationScroll.availableHeight) : implicitHeight
             spacing: Fonts.size12
-            ImportSection {
+            ColumnLayout {
+                objectName: "importPreviewSettings"
+                Layout.fillWidth: true
+                CustomLabel {
+                    text: qsTr("Build Previews")
+                }
+                CustomComboBox {
+                    objectName: "importPreviewPolicy"
+                    Layout.fillWidth: true
+                    Accessible.name: qsTr("Build Previews")
+                    model: [qsTr("Minimal (320)"), qsTr("Standard (1600)"), qsTr("1:1")]
+                    currentIndex: root.presenter.imports.importPreviewPolicy === "minimal" ? 0 : root.presenter.imports.importPreviewPolicy === "one-to-one" ? 2 : 1
+                    onActivated: function (index) {
+                        root.presenter.imports.setImportPreviewPolicy(["minimal", "standard", "one-to-one"][index]);
+                    }
+                }
+            }
+            ColumnLayout {
+                objectName: "importRenameSettings"
+                Layout.fillWidth: true
+                visible: root.presenter.imports.importMode !== "add"
+                CustomCheckBox {
+                    objectName: "importRenameEnabled"
+                    text: qsTr("Rename files")
+                    checked: root.presenter.imports.importRenameEnabled
+                    onClicked: root.presenter.imports.setImportRenameEnabled(checked)
+                }
+                CustomLabel {
+                    visible: !root.presenter.imports.importRenameEnabled
+                    text: qsTr("Keep original names")
+                    color: Theme.placeholderTextColor
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: root.presenter.imports.importRenameEnabled
+                    Repeater {
+                        model: 3
+                        RowLayout {
+                            required property int index
+                            Layout.fillWidth: true
+                            CustomLabel {
+                                text: qsTr("Part %1").arg(index + 1)
+                            }
+                            CustomComboBox {
+                                objectName: "importRenamePart" + index
+                                Layout.fillWidth: true
+                                Accessible.name: qsTr("Part %1").arg(index + 1)
+                                model: index === 0 ? [qsTr("Original filename"), qsTr("Capture date (YYYYMMDD)"), qsTr("Sequence (0001)")] : [qsTr("None"), qsTr("Original filename"), qsTr("Capture date (YYYYMMDD)"), qsTr("Sequence (0001)")]
+                                currentIndex: root.presenter.imports.importRenameParts[index] - (index === 0 ? 1 : 0)
+                                onActivated: function (choice) {
+                                    root.presenter.imports.setImportRenamePart(index, choice + (index === 0 ? 1 : 0));
+                                }
+                            }
+                        }
+                    }
+                    CustomLabel {
+                        text: qsTr("Separator")
+                    }
+                    CustomComboBox {
+                        objectName: "importRenameSeparator"
+                        Layout.fillWidth: true
+                        Accessible.name: qsTr("Separator")
+                        model: [qsTr("Underscore (_)"), qsTr("Hyphen (-)"), qsTr("None")]
+                        currentIndex: root.presenter.imports.importRenameSeparator
+                        onActivated: function (index) {
+                            root.presenter.imports.setImportRenameSeparator(index);
+                        }
+                    }
+                    CustomLabel {
+                        text: qsTr("Filename example")
+                    }
+                    CustomTextField {
+                        objectName: "importFilenameTemplate"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Fonts.inputFieldHeight
+                        readOnly: true
+                        alignRightWhenFocused: false
+                        showClipIndicator: false
+                        showEmptyIndicator: false
+                        text: root.presenter.imports.importRenameExample
+                        Accessible.name: qsTr("Filename example")
+                    }
+                    CustomLabel {
+                        Layout.fillWidth: true
+                        text: qsTr("The original extension is kept.")
+                        wrapMode: Text.WordWrap
+                        color: Theme.placeholderTextColor
+                    }
+                }
+            }
+            ColumnLayout {
+                objectName: "importSecondCopySettings"
+                Layout.fillWidth: true
+                visible: root.presenter.imports.importMode !== "add"
+                CustomCheckBox {
+                    objectName: "importSecondCopyEnabled"
+                    text: qsTr("Second copy")
+                    checked: root.presenter.imports.importSecondCopyEnabled
+                    onClicked: root.presenter.imports.setImportSecondCopyEnabled(checked)
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.presenter.imports.importSecondCopyEnabled
+                    CustomButton {
+                        objectName: "importChooseSecondCopy"
+                        Layout.alignment: Qt.AlignTop
+                        text: qsTr("change")
+                        Accessible.name: qsTr("Choose Second Copy…")
+                        onClicked: root.chooseSecondCopyRequested()
+                    }
+                    CustomLabel {
+                        objectName: "importSecondCopyPath"
+                        Layout.fillWidth: true
+                        text: root.presenter.imports.importSecondCopyDestination.length ? root.presenter.imports.importSecondCopyDestination : qsTr("No second copy selected")
+                        wrapMode: Text.WrapAnywhere
+                        color: Theme.placeholderTextColor
+                    }
+                }
+            }
+            ColumnLayout {
                 id: destinationSection
                 objectName: "importDestinationSection"
                 Layout.fillWidth: true
-                stretchContent: true
+                Layout.fillHeight: true
                 visible: root.presenter.imports.importMode !== "add"
-                title: qsTr("Destination")
+                spacing: Fonts.size8
                 CustomLabel {
-                    objectName: "importDestinationPath"
-                    Layout.fillWidth: true
-                    visible: root.presenter.imports.importDestination.length > 0
-                    text: root.presenter.imports.importDestination
-                    wrapMode: Text.WrapAnywhere
+                    text: qsTr("Destination")
                     font.bold: true
                 }
-                CustomButton {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: qsTr("Choose Destination…")
-                    onClicked: root.chooseDestinationRequested()
+                    CustomButton {
+                        objectName: "importChangeDestination"
+                        Layout.alignment: Qt.AlignTop
+                        text: qsTr("change")
+                        Accessible.name: qsTr("Choose Destination…")
+                        onClicked: root.chooseDestinationRequested()
+                    }
+                    CustomLabel {
+                        objectName: "importDestinationPath"
+                        Layout.fillWidth: true
+                        text: root.presenter.imports.importDestination
+                        wrapMode: Text.WrapAnywhere
+                        font.bold: true
+                    }
                 }
                 CustomLabel {
                     Layout.fillWidth: true
@@ -94,15 +221,19 @@ Rectangle {
                     text: qsTr("Check again")
                     onClicked: root.presenter.imports.setImportDestination(root.presenter.imports.importDestination)
                 }
-                CustomLabel {
-                    text: qsTr("Organize")
-                }
-                CustomComboBox {
+                RowLayout {
                     Layout.fillWidth: true
-                    model: [qsTr("Into one folder"), qsTr("Preserve hierarchy"), qsTr("By date (YYYY/MM/DD)"), qsTr("By month (YYYY/MM)")]
-                    currentIndex: root.presenter.imports.importOrganization === "hierarchy" ? 1 : root.presenter.imports.importOrganization === "date" ? 2 : root.presenter.imports.importOrganization === "month" ? 3 : 0
-                    onActivated: function (index) {
-                        root.presenter.imports.setImportOrganization(["single", "hierarchy", "date", "month"][index]);
+                    CustomLabel {
+                        text: qsTr("Organize")
+                    }
+                    CustomComboBox {
+                        Layout.fillWidth: true
+                        Accessible.name: qsTr("Organize")
+                        model: [qsTr("Into one folder"), qsTr("Preserve hierarchy"), qsTr("By date (YYYY/MM/DD)"), qsTr("By month (YYYY/MM)")]
+                        currentIndex: root.presenter.imports.importOrganization === "hierarchy" ? 1 : root.presenter.imports.importOrganization === "date" ? 2 : root.presenter.imports.importOrganization === "month" ? 3 : 0
+                        onActivated: function (index) {
+                            root.presenter.imports.setImportOrganization(["single", "hierarchy", "date", "month"][index]);
+                        }
                     }
                 }
                 CustomLabel {
@@ -145,72 +276,6 @@ Rectangle {
                             root.presenter.imports.setImportDestination(path);
                         }
                     }
-                }
-            }
-            ImportSection {
-                Layout.fillWidth: true
-                title: qsTr("File Handling")
-                CustomLabel {
-                    text: qsTr("Build Previews")
-                }
-                CustomComboBox {
-                    Layout.fillWidth: true
-                    model: [qsTr("Minimal (320)"), qsTr("Standard (1600)"), qsTr("1:1")]
-                    currentIndex: root.presenter.imports.importPreviewPolicy === "minimal" ? 0 : root.presenter.imports.importPreviewPolicy === "one-to-one" ? 2 : 1
-                    onActivated: function (index) {
-                        root.presenter.imports.setImportPreviewPolicy(["minimal", "standard", "one-to-one"][index]);
-                    }
-                }
-            }
-            ImportSection {
-                Layout.fillWidth: true
-                visible: root.presenter.imports.importMode !== "add"
-                title: qsTr("Rename template")
-                expanded: false
-                CustomTextField {
-                    objectName: "importFilenameTemplate"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Fonts.inputFieldHeight
-                    alignRightWhenFocused: false
-                    showClipIndicator: false
-                    showEmptyIndicator: false
-                    text: root.presenter.imports.importFilenameTemplate
-                    placeholderText: qsTr("Keep original names")
-                    Accessible.name: qsTr("Import filename template")
-                    onEditingFinished: root.presenter.imports.setImportFilenameTemplate(text)
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Tokens: {date}, {stem}, {sequence}, {ext}")
-                    wrapMode: Text.WordWrap
-                    color: Theme.placeholderTextColor
-                }
-            }
-            ImportSection {
-                Layout.fillWidth: true
-                visible: root.presenter.imports.importMode !== "add"
-                title: qsTr("Second copy")
-                expanded: false
-                RowLayout {
-                    Layout.fillWidth: true
-                    CustomButton {
-                        objectName: "importChooseSecondCopy"
-                        Layout.fillWidth: true
-                        text: qsTr("Choose Second Copy…")
-                        onClicked: root.chooseSecondCopyRequested()
-                    }
-                    CustomButton {
-                        objectName: "importClearSecondCopy"
-                        visible: root.presenter.imports.importSecondCopyDestination.length > 0
-                        text: qsTr("Clear")
-                        onClicked: root.presenter.imports.setImportSecondCopyDestination("")
-                    }
-                }
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: root.presenter.imports.importSecondCopyDestination.length ? root.presenter.imports.importSecondCopyDestination : qsTr("No second copy selected")
-                    wrapMode: Text.WrapAnywhere
-                    color: Theme.placeholderTextColor
                 }
             }
         }

@@ -35,6 +35,20 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
     };
     bind_browser(&source_folders);
     bind_browser(&destination_folders);
+    connect(&source_folders, &FilesystemBrowserModel::folderRevealed, this,
+            [this](int row)
+            {
+                const auto path =
+                    source_folders
+                        .data(source_folders.index(row, 0), FilesystemBrowserModel::PathRole)
+                        .toString();
+                if (!import_page_open_ || pending_source_restore_.isEmpty() ||
+                    path != pending_source_restore_ || path != draft.source_root)
+                    return;
+                // Clear before activation, which can synchronously rebuild the model.
+                pending_source_restore_.clear();
+                source_folders.activateFolder(path);
+            });
     connect(this, &StudioImportWorkspace::importPageChanged, this,
             &StudioImportWorkspace::refreshImportDestinationPreview);
     connect(&candidates, &ImportCandidateListModel::selectionChanged, this,
@@ -91,7 +105,8 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
                 return import_page_open_ && scan && !import_work_active_ &&
                        !import_preflight_active_ && scan->catalogRevision() &&
                        draft.mode != QLatin1String("add") && !draft.destination.isEmpty() &&
-                       draft.destination_error.isEmpty() && candidates.selectedCount() > 0;
+                       draft.destination_error.isEmpty() && candidates.selectedCount() > 0 &&
+                       (!draft.second_copy_enabled || !draft.second_copy_destination.isEmpty());
             },
             [this]
             {
@@ -103,10 +118,12 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
                                         QString::number(*scan->catalogRevision())},
                                        {QStringLiteral("source"), draft.source_root},
                                        {QStringLiteral("destination"), draft.destination},
-                                       {QStringLiteral("second"), draft.second_copy_destination},
+                                       {QStringLiteral("second"),
+                                        draft.second_copy_enabled ? draft.second_copy_destination :
+                                                                    QString{}},
                                        {QStringLiteral("mode"), draft.mode},
                                        {QStringLiteral("organization"), draft.organization},
-                                       {QStringLiteral("name"), draft.filename_pattern},
+                                       {QStringLiteral("name"), importFilenameTemplate()},
                                        {QStringLiteral("generation"),
                                         QString::number(candidates.generation())},
                                        {QStringLiteral("selectionRevision"),
@@ -246,8 +263,9 @@ ImportRequest StudioImportWorkspace::plannedImportRequest() const
     if (request.mode != ImportTransferMode::kAdd)
     {
         request.destination_directory = utf8_from_qstring(draft.destination);
-        request.filename_template = utf8_from_qstring(draft.filename_pattern);
-        request.second_copy_directory = utf8_from_qstring(draft.second_copy_destination);
+        request.filename_template = utf8_from_qstring(importFilenameTemplate());
+        if (draft.second_copy_enabled)
+            request.second_copy_directory = utf8_from_qstring(draft.second_copy_destination);
     }
     request.recursive = false;
     request.defer_previews = true;
