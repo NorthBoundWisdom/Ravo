@@ -2,11 +2,8 @@
 
 ## Goal
 
-Create or open a local library, add or copy photos through the import workspace,
+Create or open a local library, add, copy or move photos and videos through the import workspace,
 and confirm that the first previews appear in Gallery.
-
-**Last reviewed:** 2026-09-02 against the current Studio and catalog service
-contracts.
 
 ## Applies to
 
@@ -38,7 +35,7 @@ suggested filename `Ravo Library.sqlite`. A new catalog starts empty.
 3. Confirm the selection and wait for the Import and Previews meters to finish.
 4. Select a thumbnail to open its preview, or double-click it to enter Loupe.
 
-The file dialog lists common raster and RAW extensions. **All files** can be
+The file dialog lists supported raster, RAW and video candidates. **All files** can be
 used when a valid supported file has an uncommon suffix.
 
 ## Import a folder
@@ -83,7 +80,9 @@ Ravo considers these raster extensions as import candidates:
 | PNG | `.png` | RGB PNG input with supported color metadata. |
 | TIFF | `.tif`, `.tiff` | Supported baseline TIFF layouts only; multipage, tiled, floating-point, and other unsupported layouts fail explicitly. |
 | Other raster | `.bmp`, `.gif`, `.webp` | Decode depends on the matching Qt runtime plugin and valid file content. |
+| HEIC/HEIF | `.heic`, `.heif` | Primary photographs through the native provider on macOS 14+. |
 | RAW | Common LibRaw files such as `.arw`, `.cr2`, `.cr3`, `.nef`, `.dng`, `.raf`, `.orf`, and `.rw2` | The actual sensor/container must be supported by the pinned LibRaw path. First-frame Develop decode supports validated RGB Bayer and X-Trans CFA data. |
+| Video | `.mov`, `.mp4`, `.m4v` | Supported H.264, HEVC and standard ProRes; supported AAC/PCM or no audio. Videos support review, playback and original-file export. |
 
 The scanner also recognizes additional RAW suffixes handled by the current
 source. A suffix alone does not guarantee a successful import: malformed data,
@@ -95,7 +94,7 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 - The catalog stores the normalized original path, media type, dimensions when
   available, capture metadata when readable, and a content fingerprint.
 - Review state starts at rating `0`, no color label, and Keep/not rejected.
-- A baseline recipe is synthesized for the asset. RAW assets receive a colour
+- A baseline recipe is synthesized for a photo. RAW assets receive a colour
   calibration that later edits stack on: as-shot white balance, the camera
   input matrix from the file, Sigmoid Standard SDR, and a mild Lab unsharp
   mask (amount 0.5, radius 2, threshold 0.5). That is Ravo's default
@@ -112,10 +111,21 @@ or an unsupported RAW sensor returns a structured unsupported or failed result.
 - Add and Copy do not alter the source. Move removes the source media, XMP, and
   JPEG companion only after every requested copy verifies and the primary asset
   is cataloged; a cleanup failure keeps the safe source bytes and is reported.
+- Videos receive metadata, a poster thumbnail and a duration badge. Open them
+  in Loupe for playback; photo Develop controls remain unavailable. A Live
+  Photo MOV is treated as an independent video rather than automatically
+  associated with its still photograph.
 
 ## Progress and results
 
-During a batch, the left panel can show separate Import and Previews progress.
+The import workspace shows the current scan/check stage, candidate photo/video
+counts, total bytes, duplicates and unavailable items. Hover an unavailable
+item or disabled import mode for its explanation. An unsupported supplemental
+audio track can be a warning when another supported track exists; it does not
+by itself make the whole video unavailable.
+
+During execution, the left panel shows Import stage/progress and separate
+background Previews progress.
 Click the **x** beside an active bar to cancel that work.
 The final Studio status has the form:
 
@@ -133,7 +143,8 @@ Keep the exact error text when troubleshooting.
 - Selecting a photo loads its thumbnail and, when needed, a larger preview.
 - Restarting Studio and reopening the same `.sqlite` file restores the catalog
   records; missing previews can be rebuilt from still-readable originals.
-- For a durable copy of catalog state, use the verified CLI backup workflow in
+- For a durable copy of catalog state, configure **Settings → Catalog & Backup**
+  or use the verified CLI backup workflow in
   [File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md);
   copying only the SQLite filename while Studio is active is not that workflow.
 
@@ -153,7 +164,7 @@ cannot regenerate until the original is available at the recorded path. See
 
 ### Can I import a whole folder without copying it?
 
-Yes. Folder import is reference-only. Make sure the folder remains readable at
+Yes. Choose **Add**. Make sure the folder remains readable at
 its current location before using the library on another machine.
 
 ### Does Ravo migrate a darktable catalog?

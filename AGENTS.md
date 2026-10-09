@@ -88,7 +88,7 @@ More-specific implementation and validation rules for this boundary live in
    current product execution, then read [`DevDocs/TODO.md`](DevDocs/TODO.md).
    Three-platform package evidence is [`DevDocs/Packaging.md`](DevDocs/Packaging.md)
    and does not block other product work. Leftover algorithm ports are closed
-   by ADR-0106. GPU remains deferred; policy lives in
+   by ADR-0106. GPU admission remains bounded by CPU correctness; policy lives in
    [`DevDocs/MIGRATION.md`](DevDocs/MIGRATION.md). Do not port OpenCL.
 4. Before cross-layer changes, make ownership, lifecycle, thread boundaries,
    and the minimum validation set explicit.

@@ -1,27 +1,8 @@
 # Ravo product execution TODO
 
-> **Status:** ordered residual queue
->
-> **Updated:** 2026-09-05
->
-> **Review basis:** `main` through LOCAL-01 C2, EDITIN-01 C2 (+ macOS installed-
-> package TIFF matrix residual closed on report `20260905_024633`; Win/Linux
-> package matrix still open), CULL-01 keyboard C2 + analysis decode-path / Exact-vs-Near cancel residual,
-> OFFLINE-01 C2, DISPLAY-01 C2, INGEST-01 C2 Studio filesystem-card + ptp-stub
-> ingest (native adapters residual), IQ-01 C2 fixture evaluation, and IQ-00 macOS
-> contract expansions (CPU gold + Metal admitted-stage interactive packed-delta
-> contracted; non-admitted interactive hybrid + full corpus/Win-Linux residual;
-> Win/Linux not claimed). REL-01 has macOS desensitized evidence on `07dbb9ef` (report
-> `20260905_020736`), packaged-CLI Add/Copy + XMP deepen on `e1a68eeb` (report
-> `20260905_023651`), plus contract/packaged deepen for disconnect/reconnect,
-> ENOSPC injection harness, Move, missing-volume fail-closed on report
-> `20260905_024633` (PNG/TIFF-in-corpus, X-Trans, Win/Linux still residual; rating-via-XMP
-> closed by contract on this SHA; not C3). Current-schema upgrade fail-injection
-> recoverability contracted (`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`).
-> REL-02 has a macOS Release DMG package-smoke tranche on
-> `e1a68eeb` (report `20260905_023651`); Windows ZIP / Linux AppImage+DEB, upgrade-failure
-> host matrix, and full REL matrices remain open. The next free ADR number is **0166**, but new product
-> ADRs are frozen by the work-in-progress rule below.
+The queue prioritises source safety, catalog durability, colour correctness,
+responsiveness and release qualification. Current capabilities and evidence
+belong to the authorities linked below; historical run logs belong in Git/CI.
 
 This file contains only unfinished product work, dependencies, risks,
 verification, and acceptance gates. Current behavior belongs in
@@ -186,71 +167,17 @@ on every main tip; repair forward rather than rewriting published history.
 - package/release operates only from a successful same-SHA workflow;
 - published main history is repaired forward rather than rewritten.
 
-## COR-01 — Reviewed correctness defects before further feature breadth
+## COR-01 — Reviewed mutation regression gate
 
-**Status:** Closed for LOCAL/CULL/OFFLINE/aHash reviewed defects and the four
-follow-on residuals (instance-id high-water + recipe save revision binding;
-owned-mask GC; export-usable catalog identity; offline proxy publish inject).
-Remaining evidence that does **not** block LOCAL-01 C2 chrome start:
-reopen/backup/restore corpus scenarios under REL-01.
-
-### LOCAL-01 instance and mask mutation safety
-
-- [x] `delete_exposure_instance` /
-  `delete_color_balance_rgb_instance` validate `instance_id` before sole-
-  instance collapse; stale/wrong IDs reject.
-- [x] Sole disabled/bypassed collapse resets legacy fields to documented
-  identity (no silent re-activation). Studio disables Delete when only one
-  instance remains.
-- [x] Instance IDs never reuse deleted numeric suffixes (`*_instance_id_high_water`);
-  recipe/develop saves bind `RecipeSaveOptions.expected_revision` (Studio passes
-  observed catalog revision). Stale id after delete cannot address a new instance.
-- [x] `clone_mask_subgraph` stages the full clone and appends atomically;
-  cycle/missing child leave `DevelopParams.masks` unchanged.
-- [x] Deleting an instance removes only its exclusively owned Studio mask
-  subgraph; shared/external masks are retained. No owned-mask orphan accumulation.
-
-### CULL-01 catalog mutation atomicity
-
-- [x] `commit_review`: review state + revision in one repository transaction
-  (`apply_cull_review`, `set_picked`).
-- [x] Cancellation checked before publication; post-publication returns
-  committed result.
-- [x] Recovery-sidecar failure reports `catalog_committed=true` +
-  `recovery_retryable` (does not pretend the review never happened).
-- [x] Auto-advance order computed before mutation.
-- [x] Failure-injection tests: revision bump, commit abort, cancel before
-  publish, stale revision (existing).
-
-### OFFLINE-01 manifest and publication safety
-
-- [x] Bounded `from_chars` parsing (no throwing `stoll`/`stoull`); schema,
-  asset id, hash, dims, profile, path-under-support-root validated.
-- [x] Corrupt manifests surfaced in `list_offline_edit_proxies().corrupt`.
-- [x] Staging tree + atomic replace; failure retains prior good proxy.
-- [x] Original export-usable requires catalog identity match (size/mtime/
-  fingerprint), not file presence alone; export refuses `source_identity_mismatch`.
-  Explicit reconnect remains the verified clear path.
-- [x] Publish-boundary failure injection (`set_before_offline_proxy_publish`)
-  retains the prior verified proxy.
-- [x] `pixel_provenance=recipe_baked_srgb8`; Develop applies identity on proxy
-  consume (ADR-0146 COR-01 note). No double-grade.
-
-### aHash near-dup bounds (ADR-0149 / COR-01)
-
-- [x] Hard `max_assets` upper bound (default 4096); fail-closed
-  `near_dup_asset_bound_exceeded`.
-- [x] Non-authoritative heuristic documented; pairwise max-edge groups (no
-  transitive union beyond Hamming).
-
-**Acceptance gate (tranche):**
-
-- wrong IDs, cycles, missing children, corrupt manifests, path escape,
-  cancellation before publish, injected review failures, and near-dup bound
-  have regression tests;
-- every listed error path either changes nothing or returns exact committed
-  state for the closed items above;
-- residual reopen/backup/restore corpus evidence remains under REL-01.
+- Exercise the existing instance-ID, mask ownership, catalog transaction,
+  cancellation, proxy publication and near-duplicate bounds contracts whenever
+  these owners change. Preserve their failure-injection and committed-state
+  assertions.
+- Complete mixed-corpus reopen/backup/restore qualification under REL-01.
+  Unit/contract coverage does not close that corpus gate.
+- Keep durable mutation invariants and regression scope in
+  [ARCHITECTURE.md](ARCHITECTURE.md) and [TESTING.md](TESTING.md), rather than
+  retaining completed implementation checklists here.
 
 ## REL-01 — Real mixed-photo corpus, source safety, and recovery
 
@@ -820,39 +747,19 @@ A skipped test is not a pass. An unsupported state is explicit. A fallback is
 named, observable, quality-bounded, and accepted by contract; otherwise fail
 closed.
 
-## Import reliability tranche evidence (plan `7c284cf` / local `main`)
+## Import qualification gaps
 
-Executable evidence for this hardening round (not “commit title = done”):
-
-| Item | Implementation path | Test identity / coverage | Run (local) | Residual |
-| --- | --- | --- | --- | --- |
-| 01–02 | `DevDocs/TODO.md` EOF; `studio_live_control_test` QML contract | Static whitespace; `StudioQmlContract.ImportUsesOneWorkspace…` | mac_clang_debug + prior CI | none for gate restore |
-| 03 | independent selection oracle | `ImportCandidateListModel.SelectionOracleMatchesModel` | unit | none |
-| 04 | production window keys; deepen: filename host + Select All gate | `ProductionWindowRoutesGridKeys`; `FilenameTemplateSelectAllDoesNotMutateCandidates` | desktop command tests | **BLOCKED residual:** full ImportPage+GeoControls TextField key routing still Studio smoke, not this suite |
-| 05 | `ImportCandidateGrid` no passive `forceActiveFocus`; deepen host | `LateModelUpdateDoesNotStealTextFocusContract`; `FirstCandidatesDoNotStealFilenameTemplateFocus` | desktop command tests | full page GeoControls load not claimed here |
-| 06–07 | membership revision; lightweight preview keys | destination-preview + model tests | desktop command tests | none for those contracts |
-| 08–10 | thumbnail checkpoints, replenish, pixel+wakeup coalesce | `StudioImportThumbnailScheduler.*` | desktop command tests | decoder RSS ≠ model pixel budget |
-| 11 | stopped/post-reject/QPointer owners | scheduler destroy/generation discard tests | desktop command tests | desktop TSan admission remains in [architecture qualification](TODO_ARCHITECTURE_REFACTOR.md) |
-| 12–15 | `check_packaged_runtime.py` identity + catalog create/import/probe/list + isolation | `Ravo/tools/test_check_packaged_runtime.py` | unittest (no Qt); real `ravo` catalog stages PASS on mac debug CLI at `d809cb66` | **UNTESTED:** AppImage FUSE; native display; dpkg install; host package rehearsal digests |
-| 16 | scan orchestration in `StudioImportScanController` | workspace/roundtrip suites still green | mac_clang_debug | ImportDraft string enums not further constrained this round |
-| 17 | destroy/reopen + cancel-late | `StudioImportRoundtrip.DestroyAndReopen…`; `CancelledPreflight…` | desktop command tests | private corpus / C3 not claimed |
-| 18 | this matrix | docs only | n/a | rule protection / CI run links must be read back from GitHub; not substituted by prose |
-
-## Import hardening closed vs residual (c94850e follow-up)
-
-Closed on executable evidence (local mac `mac_clang_debug` / unittest; baseline was `c94850e0`):
-
-| ID | Topic | Evidence |
-| --- | --- | --- |
-| F1 | CLI/Studio identity | `f8ffe260` + `PackagedIdentityResolutionTests` |
-| F3 | Observation budget | `2075f900` + `StudioImportThumbnailScheduler` diagnostic tests |
-| F7 | Gate cancel sync | `7aa78fa6` + gate cancel/shutdown tests (**TSan UNTESTED**) |
-| F2 | Demand vs eviction | `27f966cf`/`653cd10b` OverBudget 300/256 + set compares |
-| F4 | Membership revision deltas | `ce9c91c1` + `SelectionRevisionUsesExactDeltaWithoutFullScan` |
-| F6 | Window key entry | `fd5b24e3` QWindow entry + Select All host (**full ImportPage+GeoControls in command-test binary UNTESTED**) |
-| F5 | Packaged catalog stages | `d809cb66` real CLI PASS create/import/probe/reopen |
-| CI | Package rehearsal | `af61a522` workflow_dispatch (dispatch itself UNTESTED this session) |
-
-Still unfinished product work stays in the queues below — do not re-list closed controller/oracle/reopen items.
-
-Language rules: component harness ≠ window/page acceptance; queued wakeup ≠ race proof without hang gate; offscreen smoke ≠ native packaged plugins; in-memory session ≠ catalog reopen (17 covers reopen); synthetic PNG ≠ real corpus.
+- Qualify production Import keyboard/text-focus interactions on each supported
+  host, including GeoControls fields and filename-template Select All. Component
+  harnesses and offscreen smoke do not establish native packaged interaction.
+- Keep decoder peak RSS separate from bounded model-thumbnail accounting.
+  Corpus, thermal and close/join qualification follow
+  [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md).
+- Audit remaining string-valued Import draft inputs before claiming complete
+  typed-state admission; preserve strict command validation.
+- Run current-SHA packaged import/reopen tests with AppImage FUSE, DEB install
+  and native display under REL-02. Reproduce output digests and runtime identity
+  from final artifacts; prior local CLI runs are not that evidence.
+- Retain instrumented-Qt TSan and private-corpus gaps in their owning
+  architecture/release queues. A queued wakeup is not race proof, synthetic PNG
+  is not a real corpus, and process lifetime is not catalog reopen.

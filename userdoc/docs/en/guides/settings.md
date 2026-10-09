@@ -1,98 +1,89 @@
 # Settings
 
-## Goal
+Open **File → Settings**, press **Cmd/Ctrl+,**, or search for **Settings** in the
+command palette. Choose a category on the left; a narrow window uses the
+category selector at the top. The content scrolls when it does not fit.
+Use **Back** or `Esc` to return to the workspace.
 
-Change the current Studio interface language and understand what Settings does
-and does not configure in this baseline.
+## General: language
 
-**Last reviewed:** 2026-08-31 against the current Studio language manager and
-Settings page.
+Choose the interface language. Studio supports English, German, Spanish,
+French, Brazilian Portuguese, Simplified Chinese, Traditional Chinese,
+Japanese and Korean. A successful change applies immediately and is remembered
+for the next launch.
 
-## Applies to
+Language affects interface labels, menus and shortcuts, not image rendering.
+Unsupported languages, a missing translation package, or a settings-write
+failure produce an error and retain the previous active setting.
 
-- Ravo Studio.
+## Workspace: panel sizes
 
-## Prerequisites
+Set the left panel width, right panel width and filmstrip height. Changes save
+automatically for this user across catalogs. You can also drag the side
+dividers and the filmstrip's top edge in the ordinary workspace.
 
-- Ravo Studio is running.
+**Reset panel sizes** restores the defaults: left 240 px, right 320 px and
+filmstrip 108 px. The controls enforce the supported size bounds. A write
+failure remains visible; a small window can constrain the displayed layout
+without changing the saved preference.
 
-## Open Settings
+## Catalog & Backup: automatic backups
 
-Choose **File → Settings**, or use the command palette to search for
-**Settings…**. Press **Back** or `Esc` to return to the workspace.
+These settings belong to the **currently open catalog**. Open a library before
+configuring its backup policy.
 
-## Current settings
+1. Choose **Enable automatic backups**.
+2. Choose an existing **Backup folder**, or enter its local path.
+3. Set **Interval (minutes)** and **Backups to keep**.
+4. Choose **Save backup settings**.
 
-### Language
+Intervals range from 15 to 525,600 minutes, and retention from 1 to 100 backups.
+A daily schedule is 1,440 minutes. Configuration can also be saved while
+disabled. Turning the checkbox off takes effect only after saving.
 
-Studio currently supports:
+The page shows the saved enabled state, last verified backup and its size,
+next scheduled run, and the last failure. **Run backup now** uses the saved,
+enabled policy; save or reload a dirty draft before running. Active work
+reports its stage and offers cancellation where supported.
 
-- **English** (`en_US`)
-- **German** (`de_DE`)
-- **Spanish** (`es_ES`)
-- **French** (`fr_FR`)
-- **Brazilian Portuguese** (`pt_BR`)
-- **Simplified Chinese** (`zh_CN`)
-- **Traditional Chinese** (`zh_TW`)
-- **Japanese** (`ja_JP`)
-- **Korean** (`ko_KR`)
+**Reload saved settings** discards the draft. A failed save preserves your
+inputs. If another policy update conflicts with the draft, reload the stored
+policy before saving again. Switching catalogs resets the form for the new
+catalog.
 
-Choose a language from the Language control. The selection is persisted in the
-desktop settings and the QML interface is retranslated immediately. Machine
-errors from the catalog and engine remain in their structured source form; they
-are not hidden by translation.
+Automatic backups run while Studio is open; this is not an operating-system
+background scheduler. Backups contain catalog state and recovery records,
+excluding original photos/videos and rebuildable preview caches. Back up
+original media separately.
 
-If a stored value is malformed, Studio removes it and starts in English. A
-failed settings write leaves the previous language active and reports the
-failure; unsupported requested languages likewise do not change the stored
-value.
+Manual create/verify/restore remains under **File → Recovery**.
+Read [File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md)
+before restoring or moving a library.
 
-If the requested translation package was not included in a build, selecting
-that language shows a clear package-missing error. Reinstall or rebuild the
-translation target before retrying.
+## Assistant: connection
 
-### Assistant
+The optional floating Assistant panel uses the HTTP endpoint you configure.
+Set:
 
-The Assistant panel uses an OpenAI-compatible HTTP endpoint. Settings stores:
+| Setting | Meaning |
+| --- | --- |
+| URL | OpenAI-compatible API base; default `https://api.x.ai/v1` |
+| Model | Provider model identifier; default `grok-4.5` |
+| API key | Stored per-user key; an empty value uses `XAI_API_KEY` from the process environment at send time |
+| Show | Reveal the key while editing the field |
 
-- **URL** — API base, default `https://api.x.ai/v1`
-- **Model** — model identifier, default `grok-4.5`
-- **API key** — optional stored secret. If empty, Studio uses the process
-  environment `XAI_API_KEY` at send time only.
+The connection settings are per user, separate from catalog backups and photo
+recipes. Invalid URL/model values are rejected. Keys are not included in
+Studio machine snapshots or ordinary logs; local settings storage is not an
+OS-keychain guarantee.
 
-Invalid URL or model values are rejected and do not overwrite a good stored
-value. A malformed stored URL or model is removed and replaced with the
-default. The key is never written to logs.
+Open the panel with **View → Assistant** or the command palette. It has no
+default keyboard shortcut. Requests go to the chosen external provider; the
+local library/edit/export workflow does not require the Assistant.
 
-Open or hide the floating panel from the top toolbar **Assistant** button
-(next to Gallery/Edit), **View → Assistant**, or `Cmd/Ctrl+Shift+A`. It does
-not block Gallery or Edit. Ask about the selected photo or a Develop edit; it
-does not change the catalog by itself.
+## Settings and task options
 
-## What is not a Studio setting yet
-
-The Settings page does not provide monitor-profile guessing or general
-photo-library synchronization. Color management is chosen per recipe in the
-Edit pane.
-
-## Result
-
-Studio uses the selected supported language on the next launch and in the
-current window after a successful switch.
-
-## Common questions
-
-### Which languages are supported?
-
-The Studio translation contract includes English, German, Spanish, French,
-Brazilian Portuguese, Simplified and Traditional Chinese, Japanese, and Korean.
-
-### Why did a language switch fail?
-
-The requested language may be unsupported, or the build may be missing its
-produced `.qm` package. The error text identifies the condition.
-
-### Does changing the language change photo rendering?
-
-No. It changes labels and command presentation only. Recipes and rendered
-pixels are independent of UI language.
+Import source/destination choices, organisation and preview policy remain in
+the import workspace. Export format, size and privacy remain in the export
+form. Photo colour/profile choices remain in Edit. Settings does not turn these
+task inputs into global photo-rendering defaults.

@@ -23,7 +23,7 @@ paths.
 3. Confirm the asset appears in Gallery and its folder appears in the Library
    tree.
 4. Select the asset and enter Loupe.
-5. Exercise Fit, Fill, 1:1, pan, the left navigator, and click-to-1:1 on the
+5. Exercise Fit, 30%, 1:1, pan, the left navigator, and click-to-1:1 on the
    photo (the click animates; a second click restores the previous zoom).
 6. Switch the right scope through Histogram, Waveform, Parade, Vectorscope, and Split.
 7. Set a rating, a color label, and Reject/Keep; confirm the tile updates.

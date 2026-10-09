@@ -48,7 +48,7 @@ expressions, unknown tokens, and platform-reserved names are rejected.
 
 | Format | What Ravo writes | Current options and boundary |
 | --- | --- | --- |
-| PNG | Opaque rendered RGB pixels with resolved color metadata when supported. | Default is 8-bit compression 5. Studio and CLI expose bit depth 8|16 and compression 0–9. `--png-bit-depth 16` writes engine-owned 16-bit samples. An 8-bit source is rejected rather than padded with invented precision. |
+| PNG | Opaque rendered RGB pixels with resolved color metadata when supported. | Default is 8-bit compression 5. Studio and CLI expose bit depth 8 or 16 and compression 0–9. `--png-bit-depth 16` writes engine-owned 16-bit samples. An 8-bit source is rejected rather than padded with invented precision. |
 | JPEG | Opaque rendered RGB pixels through the pinned JPEG encoder. | Quality 5–100, default 95. Subsampling `auto`, `444`, `440`, `422`, or `420`. Studio and CLI expose both. |
 | TIFF | Classic little-endian, top-left, contiguous rendered output. | Default is unsigned 8-bit, Deflate with horizontal predictor, level 6, RGB, and 300 DPI. Studio and CLI can request uint16, float16, or float32, compression, level, conditional grayscale, and 72–9600 DPI. |
 | Original copy | The original source bytes copied to a new destination. | No Develop rendering or re-encoding occurs. The source is never rewritten. |
@@ -57,9 +57,9 @@ Rendered export uses the active catalog recipe. A RAW export uses the processed
 CPU RAW path; an original copy remains byte-for-byte source content.
 
 Supported output profiles are resolved from the recipe. Ravo retains the
-declared RGB profile in supported PNG, JPEG, and TIFF output paths. It does not
-infer a monitor profile. Rendered JPEG/PNG/TIFF keep validated capture time and
-GPS from the Catalog in Full mode. Without location removes GPS from every
+declared RGB profile in supported PNG, JPEG, and TIFF output paths. Export
+profiles are independent of monitor presentation. Rendered JPEG/PNG/TIFF keep
+validated capture time and GPS from the Catalog in Full mode. Without location removes GPS from every
 metadata container while retaining other public fields. No public metadata
 omits Exif/XMP/IPTC and TIFF public directory fields but retains ICC because it
 describes pixel color. Original copy is exact bytes and therefore rejects
@@ -69,6 +69,23 @@ For TIFF, the current catalog title/description/creator/copyright values can be
 written into bounded baseline directory fields. The title field is deliberately
 not mapped to a TIFF title tag; absent values are omitted and an explicitly empty
 value has defined empty-field behavior.
+
+## Companion JPEG and file-size targets
+
+For a RAW+JPEG shoot, select the RAW assets and choose **Export Companion
+JPEG...** from the photo context menu. Ravo checks the whole selection for
+same-directory, same-stem JPEGs and copies them unchanged. Missing companions
+offer **Export from RAW**, which opens ordinary JPEG export only after
+confirmation. Ambiguous companions and existing outputs remain failures.
+
+JPEG export can target a maximum complete file size in decimal MB. Ravo renders
+once, then reduces encoder quality within the chosen quality ceiling while
+keeping pixel dimensions. ICC and metadata count toward the limit. If even
+minimum quality cannot meet it, nothing is published. The CLI uses
+`--jpeg-max-bytes N`; zero disables the limit, and the upper bound is 512 MB.
+
+Videos offer original copy only. Rendered photo formats, resize and metadata
+stripping do not apply to video or an exact companion copy.
 
 ## CLI encoder options
 

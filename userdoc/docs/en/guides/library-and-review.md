@@ -220,8 +220,9 @@ inspect or synchronize it explicitly. The CLI can also create and independently
 verify an immutable catalog backup that includes the database snapshot and
 recovery mirrors but excludes originals and rebuildable previews.
 
-Studio exposes recovery status/sync, backup create/verify/restore, scheduled
-retention, and selected/all preview rebuild under **File → Recovery**. Use the
+Studio exposes recovery status/sync, manual backup create/verify/restore,
+and selected/all preview rebuild under **File → Recovery**. Automatic schedule,
+retention and backup status are in **Settings → Catalog & Backup**. Use the
 same CLI commands and safety boundaries in
 [File paths, backups, and recovery](../troubleshooting/file-paths-and-recovery.md).
 

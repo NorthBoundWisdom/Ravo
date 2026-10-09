@@ -52,8 +52,8 @@ navigator rectangle to pan.
 
 Hovering the photo (not the surrounding letterbox) shows a magnifying glass.
 Click the photo to animate to **1:1** with the clicked point kept under the
-cursor. Click again to animate back to the Fit, Fill, or custom zoom that was
-current before 1:1. Wheel, Fit, Fill, and the 1:1 control still jump to the
+cursor. Click again to animate back to the Fit, 30%, or custom zoom that was
+current before 1:1. Wheel, Fit, 30%, and the 1:1 control still jump to the
 requested zoom. Crop mode keeps pointer ownership for crop gestures.
 Double-clicking the Loupe image returns to Gallery.
 
@@ -68,7 +68,7 @@ The left panel provides these modes:
 | Mode | Behavior |
 | --- | --- |
 | Fit | Shows the complete preview inside the available surface. |
-| Fill | Fills the available surface while preserving the image aspect ratio; edges may be outside the viewport. |
+| 30% | Displays the viewport long edge at 30% of the photo long edge, with pan when the image exceeds the viewport. This can exceed native-pixel scale. |
 | 1:1 | Shows one image pixel at the actual preview scale; panning is expected for large images. |
 
 The mouse wheel adjusts a custom zoom around the current view. The command
@@ -81,6 +81,9 @@ keeps the current pan. Every navigator seek and direct drag stops at the image
 bounds; crop mode temporarily gives drag ownership to the crop overlay.
 
 ## Preview scopes
+
+For photo scopes, use the current published image. Video playback is described
+separately below and does not enable photo Develop tools.
 
 The top of the right Inspector contains the scope panel. Histogram is the
 default. The triangle control at the top-left of the plot opens a menu to
@@ -111,18 +114,36 @@ If the source path is no longer readable, the thumbnail and image surface show
 and recipe are retained, but a new preview or export cannot be produced until
 the original is available at its recorded path.
 
+## Video playback
+
+Supported videos have a poster thumbnail and duration badge. Select a video
+and enter Loupe; it opens paused. Use Play/Pause, the seek control, volume and
+mute to review it. Changing selection or leaving Loupe releases the playback
+source, and an old frame cannot replace the newly selected item.
+
+Playback uses the same SDR colour presentation as the poster. HLG/PQ source
+video is mapped to SDR; this is not native HDR output. Warnings can explain an
+ignored supplemental audio track. If an audio device is unavailable, Studio
+reports it; explicitly mute to review without sound.
+
+Photo Develop, presets and masks are unavailable for video. Export offers an
+original copy, preserving the source media and all tracks. See the
+[format matrix](../qa/format-coverage.md) for codec/container restrictions.
+
 ## Result
 
 You can move from a library-wide view to a pixel-level review without changing
-the source file. Fit/Fill/1:1, click-to-1:1, pan, the navigator, and all five
+the source file. Fit/30%/1:1, click-to-1:1, pan, the navigator, and all five
 scopes operate on the current preview.
 
 ## Common questions
 
-### Why is 1:1 not the same as the camera's original resolution?
+### Does 1:1 keep the whole RAW resident at full resolution?
 
-1:1 refers to the current Ravo preview. Preview generation may fit an image to
-the requested preview size; it is not an unbounded raw sensor viewer.
+Pixel inspection requests the current viewport through the preview/ROI path.
+It does not require the entire RAW image to remain decoded at full resolution.
+The navigator and scopes describe the published preview; loading and resource
+limits remain visible rather than promising an unbounded sensor viewer.
 
 ### Why do the scopes change after I switch from Gallery to Loupe?
 

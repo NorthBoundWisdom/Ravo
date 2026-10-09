@@ -397,7 +397,7 @@ does not rewrite the preview cache as a new edit.
 
 For a simultaneous comparison, press the **Y|Y** toolbar button or `Y`. Studio
 shows the immutable product baseline on the left and the live edited preview on
-the right. Both panes share Fit/Fill/1:1, zoom, and pan. This comparison is
+the right. Both panes share Fit/30%/1:1, zoom, and pan. This comparison is
 transient and closes when the selection changes, Edit closes, or crop,
 white-balance pick, or mask editing takes the image surface.
 

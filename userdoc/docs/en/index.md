@@ -1,119 +1,83 @@
-# Ravo User Handbook
+# Welcome to Ravo
 
-Ravo is an open-source RAW photo editor, local photo library manager, and
-non-destructive color grading application for Windows, macOS, and Linux. It is a
-complete C++20 and Qt 6 redesign that takes the photo workflow and image
-processing of darktable 0.9 as its reference, and it is under active
-development.
+Ravo Studio brings your photo library, RAW editing and video browsing into one
+local workspace. Import a shoot, review the frames, refine a look and export
+the finished selection. Your catalog and original media stay on storage you
+control.
 
-Ravo Studio brings cataloging, browsing, culling and review, non-destructive
-Develop, and export into one desktop workspace. The `ravo` command-line client
-exposes the same catalog and image engine for scripts, CI, and headless
-workflows.
+[Download a release](https://github.com/NorthBoundWisdom/Ravo/releases/latest)
+or [install and launch](quick-start/install-and-launch.md). This handbook
+describes the current development branch; release notes identify the features
+in each published build.
 
 <!-- RAVO_DOCS_BUILD_METADATA -->
 
-## Three things to know first
+## Start with a shoot
 
-- Import defaults to **Add**, which records and reads the existing source
-  without changing it. The same workspace can explicitly **Copy** or **Move**
-  into an organized tree, apply a bounded rename template, and write a verified
-  second copy. Move is the only mode that removes source files, and only after
-  every requested copy verifies and the primary path is cataloged.
-- The library is a local SQLite file. Rebuildable preview PNGs live outside
-  the database, beside it in a `<catalog>.preview/` directory. Catalog-owned
-  recovery JSON lives separately under `<catalog>.ravo/sidecars/`.
-- Editing is non-destructive. Develop settings are stored as versioned recipes;
-  previews and exports use the same CPU image engine.
+1. **[Import](quick-start/first-launch-and-import.md)** — Add files in place,
+   Copy into an organised folder or explicitly Move after verification.
+2. **[Review](guides/library-and-review.md)** — use ratings, colours,
+   Pick/Reject, keywords, folders and collections to find your selection.
+3. **[Inspect](guides/viewer-and-scopes.md)** — use Loupe, Fit/30%/1:1,
+   comparison, the navigator and photographic scopes.
+4. **[Develop](guides/develop.md)** — shape exposure, white balance, tone,
+   colour and detail; use local masks to refine an area.
+5. **[Deliver](guides/export-and-share.md)** — export JPEG, PNG, TIFF or an
+   original copy with explicit format, size and privacy choices.
 
-!!! note
+For a guided first session, follow the
+[five-minute tour](quick-start/five-minute-tour.md).
 
-    This handbook describes the current repository-backed development baseline.
-    The repository workflow defines macOS, Windows, and Linux preset variants,
-    but the generated preset file and final installation acceptance are
-    platform-specific. Use the validation status in the build you received
-    rather than assuming that one platform's result applies to all others.
+## Keep photos and videos together
 
-## What you can do today
+Supported MOV/MP4/M4V videos appear beside photographs, with poster thumbnails
+and duration badges. Open a video in Loupe to play, pause, seek, change volume
+or mute. Video export currently copies the original file; photo Develop tools
+and video transcoding do not apply.
 
-- Create or open a local library and import individual files or directories.
-- Browse a Gallery grid, select one or more photos, and inspect a primary photo
-  in Loupe.
-- Use Fit, Fill, 1:1, click-to-1:1, pan, a navigator, an RGB histogram, and an RGB parade.
-- Rate photos from 0 to 5, apply color labels, reject or keep photos, search and
-  filter by media/edit/review/tag/folder/capture fields, and sort deterministically.
-- Edit a selected photo with geometry, profile, exposure, color, detail,
-  effects, RAW repair, lens, and tone controls.
-- Compare Before and After as a toggle or synchronized left/right view, reset
-  controls or sections, undo and redo changes, create snapshots, and restore
-  recipe history.
-- Save selected modified parameters as a managed preset, or copy an explicit
-  parameter subset to another photo without resetting unrelated edits.
-- Store catalog tags and writable metadata without changing the source file.
-- Export a rendered photo as PNG, JPEG, or TIFF, or make an exact original
-  copy. Existing destination files are never overwritten implicitly.
-- Run the same catalog, preview, recipe, and export paths through `ravo`.
-- Inspect or synchronize recovery generations; create, verify, restore, and
-  schedule immutable catalog backups; rebuild previews; and explicitly relink
-  a missing stable folder. Backups exclude originals and previews.
-- Switch Studio among English, German, Spanish, French, Brazilian Portuguese,
-  Simplified or Traditional Chinese, Japanese, and Korean.
-- Open a floating Assistant panel and configure its URL, model, and API key in
-  Settings.
+The [format coverage matrix](qa/format-coverage.md) explains RAW, raster,
+HEIC/HEIF and video boundaries. A recognised extension is a candidate, not a
+guarantee that every camera mode or codec variant is supported.
 
-## Quick entry points
+## Know what is saved
 
-- [Install and launch](quick-start/install-and-launch.md) — build the current
-  source tree and start Ravo Studio.
-- [First launch and import](quick-start/first-launch-and-import.md) — create a
-  library and bring in photos or a folder.
-- [Five-minute tour](quick-start/five-minute-tour.md) — exercise the shortest
-  useful Studio path.
-- [Library and review](guides/library-and-review.md) — organize, filter, rate,
-  tag, and remove photos safely.
-- [Viewer and scopes](guides/viewer-and-scopes.md) — use Gallery, Loupe, zoom,
-  pan, and the right-side scopes.
-- [Develop](guides/develop.md) — make and recover non-destructive edits.
-- [Export and sharing](guides/export-and-share.md) — choose an output format
-  and understand conflict behavior.
-- [CLI](guides/cli.md) — automate inspection, catalog operations, recipes,
-  preview diagnostics, recovery/backup, and export.
-- [File paths, backups, and recovery](troubleshooting/file-paths-and-recovery.md)
-  — distinguish originals, catalog state, recovery mirrors, previews, and
-  verified backups.
+- **Originals:** Add and Copy preserve source media. Move removes sources only
+  after requested copies verify and the primary is cataloged.
+- **Edits and organisation:** a local SQLite catalog stores recipes, review
+  state, tags and history. Non-destructive editing leaves original content intact.
+- **Previews:** rebuildable image caches are separate from the catalog.
+- **Recovery and backups:** catalog-owned recovery records and verified backups
+  preserve catalog state. They exclude original media and preview caches.
 
-## Recommended reading order
+Configure **[Settings → Catalog & Backup](guides/settings.md#catalog-backup-automatic-backups)**
+for an automatic schedule, retention and backup status. Schedules run while
+Studio is open. Keep a separate backup of your original photos and videos.
 
-1. [Install and launch](quick-start/install-and-launch.md)
-2. [First launch and import](quick-start/first-launch-and-import.md)
-3. [Five-minute tour](quick-start/five-minute-tour.md)
-4. [Library and review](guides/library-and-review.md)
-5. [Viewer and scopes](guides/viewer-and-scopes.md)
-6. [Develop](guides/develop.md)
-7. [Export and sharing](guides/export-and-share.md)
-8. [Settings](guides/settings.md)
-9. [File paths, backups, and recovery](troubleshooting/file-paths-and-recovery.md)
-10. [Troubleshooting import failures](troubleshooting/import-failures.md)
+Read [File paths, backups, and recovery](troubleshooting/file-paths-and-recovery.md)
+before relocating or restoring a library.
 
-## How this handbook is organized
+## Make the workspace comfortable
 
-- **Quick Start** covers source-build launch, library creation, import, and the
-  first complete loop.
-- **Guides** are organized around user tasks rather than C++ targets.
-- **Troubleshooting** explains supported boundaries, missing originals, output
-  conflicts, and structured CLI failures.
-- **QA Appendix** contains a compact smoke path and format matrix for validating
-  a build.
+[Settings](guides/settings.md) groups language, saved panel dimensions,
+current-catalog backups and the optional Assistant connection. Nine interface
+languages are available. [Shortcuts and the command palette](guides/shortcuts.md)
+help you reach commands quickly and explain unavailable actions.
 
-## Scope and safety
+## Automate a workflow
 
-Ravo Studio is an independent Qt Quick application with a C++ service and CPU
-engine. The old GTK application from leftover darktable is read-only migration evidence
-and is not a supported Ravo dependency or runtime. Ravo does not open an old
-catalog in place. For historical sidecars, use the strict CLI XMP import path
-described in [the CLI guide](guides/cli.md); unsupported history is reported as
-unsupported rather than silently approximated.
+The [CLI guide](guides/cli.md) covers JSON results, catalog inspection, edits,
+video frame artifacts, export, backups and revision-checked local Studio
+control. Scripts use the same catalog and image services as the desktop app.
 
-When an operation, profile, file container, or legacy history cannot be
-represented by the current contract, Ravo returns a visible failure. That is a
-product boundary, not a request to overwrite the source with a fallback.
+## If something needs attention
+
+- [Import failures](troubleshooting/import-failures.md)
+- [Known limitations](troubleshooting/known-limitations.md)
+- [Glossary](troubleshooting/glossary.md)
+- [User-run smoke test](qa/smoke-test.md)
+- [Regression checklist](qa/regression-checklist.md)
+
+Ravo is in active development before 1.0. Hardware, package and real-corpus
+qualification remain specific to the source SHA and host. An unsupported
+operation reports a reason; a successful test on one platform does not qualify
+every other platform.

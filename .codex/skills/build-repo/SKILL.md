@@ -202,7 +202,8 @@ Do not hide a failure by turning off a required feature.
   smallest real create/open/import/view desktop acceptance after the headless tests pass.
 - Broad core changes: run the complete Ravo unit/contract set unless the user explicitly limits
   the turn to compilation.
-- GPU or performance changes: follow `DevDocs/GPU_Baseline.md` with a Release build.
+- GPU or performance changes: follow `DevDocs/MIGRATION.md` admission policy and
+  `DevDocs/TESTING.md` contracts with a Release build.
 
 Report the host configuration, targets, tests, result, and any checks not run. A missing
 dependency or asset is a limitation, not a passing result.

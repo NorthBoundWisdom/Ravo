@@ -9,7 +9,7 @@ algorithm, public JSON, dependency or new product capability change is admitted.
 
 The 2026-10-08 authorization waives waiting for the external gates below during
 the current local refactor tranche. They remain **Waived / External gap /
-Untested**, never Passed: Windows/Linux toolchains and denied Windows CI logs;
+Untested**, never Passed: unavailable local Windows/Linux toolchains;
 private corpus, ICC/GPU, thermal, native-display and physical hardware evidence;
 desktop TSan without instrumented Qt; and installed-package acceptance requiring
 signing authorization or a real deployment environment. Local completion does
@@ -27,12 +27,10 @@ not close these long-term gates or authorize removal of this queue.
   static gates and focused checks; repeat full applicable suites when the
   shared-surface/lifecycle change requires them. Do not enlarge timing windows
   or weaken pixel assertions to hide host load.
-- Resolve the baseline Windows Release CI failures in the four
-  `StudioLibraryPaging` tests before claiming a green platform baseline.
-  Baseline CI run `37586731106` remains failed; job metadata is readable but
-  run and individual-job log retrieval return HTTP 403 with the current account.
-  Obtain runner diagnostics and a matching Windows toolchain before accepting
-  a proposed repair as platform evidence.
+- Qualify Windows/Linux refactor behavior against the current source SHA's
+  complete CI suites. Diagnose active failures from their individual job logs;
+  historical failed runs and earlier access restrictions do not establish the
+  current platform baseline. Local macOS results do not replace those runs.
 - Desktop TSan remains unqualified: queued-handoff reports reproduce with a
   Qt-only payload. Obtain a matching instrumented Qt SDK and rerun the
   unsuppressed Import/Inspect/command/lifecycle gates; joined executor/service

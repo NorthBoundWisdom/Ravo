@@ -5,9 +5,6 @@
 Identify current product boundaries before treating an explicit unsupported
 result as a regression.
 
-**Last reviewed:** 2026-09-03 against the current migration status and product
-baseline.
-
 ## Current boundaries
 
 ### Local-only library
@@ -17,11 +14,25 @@ local preview cache. Catalog-owned recovery mirrors and verified CLI backups
 are local filesystem artifacts. There is no cloud catalog, remote publishing,
 or automatic cross-machine relinking.
 
-### No legacy catalog migration
+### Foreign catalogs need explicit conversion
 
-Ravo's catalog schema is independent. It does not open the old application's
-catalog in place. Use source-file import and the strict CLI XMP conversion path
-where the particular legacy state is representable.
+Ravo's schema is independent. Supported closed Lightroom Classic catalogs can
+be converted into a new empty Ravo catalog using **File → Import Lightroom
+Catalog** or `catalog convert-foreign`. The reader maps a bounded set of paths,
+ratings, flags, labels and keywords and reports omitted fields. Lightroom
+Develop history, snapshots, collections, virtual copies and arbitrary vendor
+schemas are not a full migration contract. The vendor catalog is never modified
+or opened in place. Capture One binaries/directories remain unsupported.
+
+### Video is a library/playback workflow
+
+Supported MOV/MP4/M4V video can be imported, reviewed and played in Loupe.
+Videos cannot enter photo Develop, apply photo presets/masks, trim, transcode or
+use rendered JPEG/PNG/TIFF export; original copy preserves all source tracks.
+HLG/PQ is presented as SDR. Native HDR output, unsupported Dolby Vision profiles,
+ProRes RAW and automatic Live Photo pairing are not supported. A supported audio
+track may coexist with unsupported supplemental audio; unsupported-only audio
+is an explicit failure. Format recognition does not qualify every camera mode.
 
 ### Strict legacy XMP compatibility
 
@@ -86,7 +97,7 @@ uses that GPU. `catalog probe --json` and `catalog preview --json` report
 
 ### Original-safe editing
 
-Import, review, Develop, preview, and rendered export do not write back to the
+Add/Copy import, review, Develop, preview, and rendered export do not write back to the
 source file. The explicit **Delete from Disk** command is the one destructive
 source-file action and requires confirmation.
 
@@ -111,8 +122,9 @@ RAW/raster originals.
 
 Studio exports one active photo through a save-file dialog or an explicit
 multi-selection through a folder plus filename template. CLI exposes the same
-bounded batch contract. There is no persistent background export queue,
-remembered last codec value, or reusable export-option preset.
+bounded batch contract. CLI export-preset and export-job contracts can save
+explicit options and inspect jobs. The ordinary Studio export form does not
+provide a persistent background queue or global remembered last-codec preference.
 
 ### Output precision and metadata
 
@@ -122,8 +134,10 @@ fabricating precision. Validated capture time and GPS from the Catalog are
 embedded on rendered JPEG/PNG/TIFF under explicit full, no-location, or none
 privacy.
 Ravo intentionally does not automatically read, attach, generate, watch, or
-merge adjacent interchange sidecars. Use the explicit strict CLI XMP conversion
-when needed; rendered XMP is embedded in the destination. Catalog-owned
+merge adjacent interchange sidecars. Use `catalog xmp-status`, `xmp-import`
+and `xmp-export` for supported CRS/IPTC/keyword interchange with explicit
+conflict resolution. Historic recipe import remains a separate strict converter;
+rendered XMP is embedded in the destination. Catalog-owned
 `.ravo.json` recovery mirrors are generated under the catalog support
 directory, but they are durability artifacts and never implicit edit input.
 Full historic edit-history packet attachment remains outside the current

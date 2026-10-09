@@ -1,255 +1,109 @@
 # Ravo developer documentation
 
-Settings categories, catalog-scoped backup drafts and persisted workspace layout
-are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with workflow validation in
-[TESTING.md](TESTING.md) and usage in [Ravo/README.md](../Ravo/README.md).
+Start with the [product overview](../README.md) for the photographer-facing
+workflow, the [user handbook](../userdoc/README.md) for task instructions, and
+the [capability reference](../Ravo/README.md) for the current source baseline,
+build commands and CLI.
 
-FFmpeg Qt-kit resolution and Linux multimedia runtime requirements are defined
-in [Dependency_Workflow.md](Dependency_Workflow.md) and [Packaging.md](Packaging.md).
-Software-buffer colour-range qualification follows
-[ADR-0165](adr/0165-video-library-and-playback.md).
-
-Video library, frame artifacts and playback ownership are specified in
-[ADR-0165](adr/0165-video-library-and-playback.md) and
-[ARCHITECTURE.md](ARCHITECTURE.md). Validation is in [TESTING.md](TESTING.md),
-runtime ownership in [Dependency_Workflow.md](Dependency_Workflow.md), and host/corpus
-qualification in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
-Import media/size statistics, stage progress and scoped FFmpeg diagnostics are owned by
-[ARCHITECTURE.md](ARCHITECTURE.md), with synthetic edge-case validation in
-[TESTING.md](TESTING.md).
-The same authorities define independent video matrix/transfer/primaries handling,
-including iPhone SDR BT.601/P3 D65 and old metadata re-probing.
-
-Studio's shared visual-control ownership is defined in
-[ARCHITECTURE.md](ARCHITECTURE.md); full production QML auditing and offscreen
-control interactions are covered by [TESTING.md](TESTING.md).
-
-Closed Lightroom Classic catalog import, source preservation and conversion
-limits are defined in [ADR-0164](adr/0164-lightroom-catalog-reader.md), with
-usage in [Ravo/README.md](../Ravo/README.md).
-
-Metadata-only import folder planning, provisional v2 counts and independent
-worker ownership are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with
-service/CLI/scheduling contracts in [TESTING.md](TESTING.md).
-
-Studio Light's Sigmoid baseline policy is recorded in
-[MIGRATION.md](MIGRATION.md); recipe preservation and 30% viewport zoom are
-specified in [ARCHITECTURE.md](ARCHITECTURE.md) and validated by
-[TESTING.md](TESTING.md).
-
-Library view/selection resume, thumbnail/navigator stability, photo switching
-without stretching, standard controls,
-pinned Develop tools, directly visible global operation-instance controls,
-local mask geometry/coverage feedback, curve gesture ownership
-and stable-identity page location are owned by
-[ARCHITECTURE.md](ARCHITECTURE.md), with startup/service/CLI contracts in
-[TESTING.md](TESTING.md) and current behavior in [Ravo/README.md](../Ravo/README.md).
-
-Display-resolution Develop interaction is specified by the 2026-10-02
-amendment to [ADR-0087](adr/0087-progressive-develop-preview.md), with current
-ownership in [ARCHITECTURE.md](ARCHITECTURE.md) and validation in [TESTING.md](TESTING.md).
-Crop-aware prepared source density and exact final cache dimensions are also
-specified in those authorities; previews are bounded by native source pixels.
-Bounded, pixel-exact ICC row parallelism and the monitor-bound exposure latency
-probe are documented in [ARCHITECTURE.md](ARCHITECTURE.md) and
-[TESTING.md](TESTING.md).
-Pinned crop controls, Auto Level, and the reduced crop surround are specified
-by the presentation amendment to [ADR-0161](adr/0161-full-source-crop-workspace.md).
-
-Same-size inspect-pan GPU source ownership is specified in
-[ARCHITECTURE.md](ARCHITECTURE.md), with CPU-gold pan/cache regression contracts
-in [TESTING.md](TESTING.md). Sparse filmstrip metadata demand and deferred
-row selection share those ownership and validation authorities.
-
-[ADR-0163](adr/0163-hdr-panorama-derived-assets.md) admits exposure-bracket merge
-and planar panorama. Ownership is in [ARCHITECTURE.md](ARCHITECTURE.md), usage in
-[Ravo/README.md](../Ravo/README.md), and validation in [TESTING.md](TESTING.md).
-
-[ADR-0162](adr/0162-versioned-raw-rendering-profiles.md) defines the future RAW
-calibration/default-rendering boundary; [profile execution gates](TODO_RAW_RENDERING_PROFILES.md)
-track its pending implementation. Current runtime behavior remains in the
-architecture and product README.
-
-Companion JPEG preflight and JPEG file-size limits are recorded in [ARCHITECTURE.md](ARCHITECTURE.md),
-its validation contract in [TESTING.md](TESTING.md), and user-facing behavior
-in [Ravo/README.md](../Ravo/README.md).
-
-Gallery thumbnail listing and demand lifecycle is recorded in
-[ARCHITECTURE.md](ARCHITECTURE.md); reset-order, sparse-page cache recovery and
-production Gallery image-readiness coverage are recorded in [TESTING.md](TESTING.md).
-
-`DevDocs/` is the repository-owned source for architecture, product planning,
-validation, dependency, packaging, compliance, and historical migration
-records. Component `README.md` files remain beside the code they describe, and
-`AGENTS.md` files remain at their scope roots for tool discovery.
-CI compiler-cache restore and immediate save after successful compilation are
-specified in [TESTING.md](TESTING.md); the build/cache/package ordering is
-specified in [Packaging.md](Packaging.md).
-
-Ravo's product north star is a professional, cross-platform photo manager and
-non-destructive editor for working photographers, with optional AI-assisted
-culling, retouching, and colour work that remains reviewable, reversible,
-private by default, and reproducible enough to audit.
-
-Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.md),
-including inline counts, asynchronous branch reveal after listings settle, and
-remembered destination/organization choices without importing, with overlay lifecycle
-and QML presentation coverage in [TESTING.md](TESTING.md). Those authorities also
-specify cancellable source enumeration, nonmodal progressive destination planning,
-bounded capture-metadata reuse and source-folder context commands.
-Ordinary folder Add/Copy/Move admission, explicit ingest source protection and
-disabled-button hover explanations use the same architecture and testing authorities.
-Import's always-visible preview settings, C++-owned filename component builder
-and optional second-copy checkbox
-are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with opt-in/original-name,
-extension, byte-preservation and production layout coverage in [TESTING.md](TESTING.md).
-Color Harmonizer's inverse dt-UCS exception semantics and optimized
-Clang coverage are recorded in [ARCHITECTURE.md](ARCHITECTURE.md) and
-[TESTING.md](TESTING.md).
-The asynchronous GPU preview handoff and its owned-pixel lifetime are specified
-in those same architecture and testing authorities.
-Library thumbnail-progress visibility and stable rail geometry are also recorded
-in those authorities.
+This directory holds engineering authorities and unfinished execution work.
+It does not duplicate the handbook or serve as a chronological change log.
 
 ## Document authority
 
-Service capability/resource ownership, bounded Preview buffers, Import workspace,
-Library/Develop/Inspect/Export presenters, comparison frame identity and shared
-cancellation generations are specified in
-[ARCHITECTURE.md](ARCHITECTURE.md), with lifecycle and regression coverage in
-[TESTING.md](TESTING.md). Historical migration records do not form a current
-implementation checklist; current product execution stays in [TODO.md](TODO.md).
-Remaining architecture-refactor qualification gates are in
-[TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) within that queue.
+| Question | Authority |
+| --- | --- |
+| What can the current product do? | [Ravo/README.md](../Ravo/README.md) |
+| Where does state live, and who owns work and resources? | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Which historical behavior is accepted, removed or unsupported? | [MIGRATION.md](MIGRATION.md) |
+| What establishes correctness and regression coverage? | [TESTING.md](TESTING.md) |
+| How are dependencies resolved and published? | [Dependency_Workflow.md](Dependency_Workflow.md) |
+| How are packages built, deployed and qualified? | [Packaging.md](Packaging.md) |
+| Which licences and notices ship? | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
+| What design decisions constrain implementation? | [ADR index](adr/README.md) |
+| What should happen next? | [TODO.md](TODO.md) |
+| Which broader product questions remain undecided? | [ProductRoadmap.md](ProductRoadmap.md) |
 
-Burst Compare availability and stack/selection lifetimes are specified in
-[ARCHITECTURE.md](ARCHITECTURE.md), with regression coverage in
-[TESTING.md](TESTING.md) and the service contract in
-[ADR-0155](adr/0155-cull-burst-stack-compare-pair.md).
+## Current implementation entry points
 
-Full-source crop rotation and its output-frame mapping are specified in
-[ADR-0161](adr/0161-full-source-crop-workspace.md).
+The architecture and testing authorities cover:
 
-Foreground preview/import isolation and photo-scoped edit conflicts are specified
-in [ADR-0160](adr/0160-foreground-preview-and-import-isolation.md).
+- Catalog durability, explicit XMP interchange, source-safe Add/Copy/Move,
+  staged import planning, duplicate detection and cancellation.
+- Gallery/Inspect/Develop ownership, preview scheduling, immutable CPU/GPU
+  image publication, colour management, masks and revision-bound controls.
+- Video metadata, FFmpeg decoding, SDR frame artifacts, Qt Multimedia playback,
+  mapped frame colour ranges and selection-bound teardown.
+- Settings navigation, per-user language and workspace layout, current-catalog
+  automatic-backup drafts and the existing recovery task owner.
+- Shared menus, shortcuts and controls; complete localisation; local Studio
+  sessions and CLI acceptance without UI automation.
 
-The Global/Mask Develop workspace and Recipe v4 local groups are specified in
-[ADR-0158](adr/0158-mask-scoped-develop-workspace.md); current ownership is in
-[ARCHITECTURE.md](ARCHITECTURE.md) and validation policy in
-[TESTING.md](TESTING.md).
+For video scope, begin with
+[ADR-0165](adr/0165-video-library-and-playback.md). Explicit Qt-kit runtime
+resolution and Linux PipeWire/VA-API requirements belong to
+[Dependency Workflow](Dependency_Workflow.md) and [Packaging](Packaging.md).
 
-| Document | Owns | Does not own |
-| --- | --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Current target boundaries, image-pipeline defaults, ownership, lifecycle, threads, data, and failure behavior | Future work or run diaries |
-| [MIGRATION.md](MIGRATION.md) | Accepted capability history, removed leftovers, and retirement decisions | Product backlog |
-| [ProductRoadmap.md](ProductRoadmap.md) | Outcome order, product principles, and cross-layer decisions not ready for execution | Task-level status |
-| [TODO.md](TODO.md) | Product execution queue: corpus/latency, Gallery evidence, professional workflow, and AI | Completed behavior, durable decisions, or package closeout |
-| [TESTING.md](TESTING.md) | Test layers, fixtures, deterministic contracts, performance probes, and validation depth | Product priority |
-| [adr/README.md](adr/README.md) | Accepted architecture decisions and supersession history | Mutable implementation status |
+For source-safe Lightroom Classic import, begin with
+[ADR-0164](adr/0164-lightroom-catalog-reader.md). For mask-scoped Develop,
+begin with [ADR-0158](adr/0158-mask-scoped-develop-workspace.md).
 
-Product execution belongs only in [TODO.md](TODO.md).
-Export form defaults and size-selection ownership are documented in
-[Ravo/README.md](../Ravo/README.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
-Gallery's bounded persistent display-thumbnail cache, automatic eviction recovery,
-and worker lifecycle are
-specified in [ARCHITECTURE.md](ARCHITECTURE.md).
-Studio's supported photo shortcuts are listed in [Ravo/README.md](../Ravo/README.md);
-command ownership and transactional keyboard review belong to
-[ARCHITECTURE.md](ARCHITECTURE.md).
-Immediate photo click-to-1:1 and view restoration are specified in
-[ADR-0076](adr/0076-photo-inspect-toggle-actual-size.md), with current ownership
-and input tests in architecture and testing above.
-Three-platform package evidence belongs in [Packaging.md](Packaging.md) (includes packaged-runtime checker + `package_rehearsal`).
-That document also owns Linux ICU runtime bundling and the package-local
-SONAME and origin-relative executable search-path verification gates;
-build-host libraries cannot substitute for payload files.
+## Execution documents
 
-The import workspace, exact-content classification with visible disabled duplicate
-photos, remembered source/destination paths in Home and mounted-volume folder
-trees, and the
-Home non-recursive scan safeguard, read-only destination folder/count previews,
-independent folder loading, enumeration-first placeholders and ordered,
-catalog-independent thumbnail scheduling are defined by
-[ADR-0102](adr/0102-planned-managed-import-workspace.md), with typed
-desktop preference ownership in [ADR-0066](adr/0066-typed-desktop-language-setting.md).
-Their current contracts and reproducible validation live in architecture and testing above.
-Import scan and execution exclude the current catalog's preview and support
-trees; path identity and regression coverage live in those same authorities.
-They also define Import's source-file context menu and its generation-bound
-candidate identity, isolated from Gallery commands.
-Import readiness after enumeration, immediate Gallery handoff and viewport-first/background thumbnail
-scheduling are specified in architecture, with the blocked-worker tests in testing.
-Embedded Exif altitude defaults and strict malformed-tag handling are owned by
-the Engine metadata reader, documented in architecture and testing above.
-Gallery folder publication, background monitor-thumbnail presentation and its
-private-catalog latency probe are documented in those same authorities.
-They also define cache-first RAW selection, settled-frame reuse on Develop
-entry, and camera-JPEG-first Import thumbnails.
-RAW black-level normalization and preview-cache invalidation are specified in
-[ARCHITECTURE.md](ARCHITECTURE.md), with synthetic DNG coverage in
-[TESTING.md](TESTING.md).
-The same authorities define owned CPU/GPU inspect-ROI publication and hidden-image
-source gating.
-Startup splash ownership, main-window handoff and geometry isolation are also
-specified in [ARCHITECTURE.md](ARCHITECTURE.md); their lifecycle and offscreen
-validation are specified in [TESTING.md](TESTING.md).
-Those authorities also define per-user side-panel/filmstrip size persistence,
-bounded layout intents, and settings-failure/offscreen validation.
-Import source restoration, unavailable-source tree collapse and superseded
-restore rejection are specified in the same architecture/testing authorities.
-Review-bar vector flag presentation and its existing command ownership are
-specified in [ARCHITECTURE.md](ARCHITECTURE.md).
-HEIC/HEIF macOS decode and deterministic import file identity follow
-[ADR-0159](adr/0159-owned-heic-macos-decode.md) and the same architecture/testing
-authorities; native dependency ownership is in
-[Dependency_Workflow.md](Dependency_Workflow.md).
+| Document | Unfinished work |
+| --- | --- |
+| [TODO.md](TODO.md) | Ordered product, correctness, performance and release gates |
+| [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) | Remaining ownership/refactor qualification |
+| [TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md) | RAW rendering/profile qualification |
+| [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md) | Video host, audio, corpus and package qualification |
+| [ProductRoadmap.md](ProductRoadmap.md) | Product-level questions requiring a bounded decision |
+
+A green build is not a substitute for the corpus, platform or package evidence
+required by a specific gate. Do not mark unrun or conditionally skipped
+qualification as passed.
 
 ## Operations and compliance
 
-| Document | Scope |
-| --- | --- |
-| [Dependency_Workflow.md](Dependency_Workflow.md) | FreeCM source roots, local integration, refresh, and publication order |
-| [Packaging.md](Packaging.md) | CI Qt/Python prerequisites, Linux desktop runtime dependencies, five platform/architecture combinations, seven release artifacts, and fresh-runner native startup gates |
-| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Tracked third-party attribution and licence notices packaged with Ravo |
+The source-root workflow keeps ignored active locks and managed checkouts
+separate from the published pinned template. Dependency repositories are
+published and verified before the parent records a new SHA.
 
-The following remain separate owners and are not folded into `DevDocs/`:
+The package graph produces macOS ARM64/Intel DMGs, Windows x86_64 ZIP and
+Linux x86_64/ARM64 AppImage/DEB packages. Tagged release publication requires the
+same successful source SHA and clean-runner final-package startup. Runtime,
+signing and host requirements remain in [Packaging.md](Packaging.md).
 
-- `Ravo/README.md`: current user-visible and machine-visible capability baseline;
-- `userdoc/`: publishable user handbook;
-- `FreeCM/`: independent submodule;
-- `.codex/skills/`: executable agent workflows.
+Repository constraints are in [AGENTS.md](../AGENTS.md) and
+[Ravo/AGENTS.md](../Ravo/AGENTS.md). Agent skills live under `.codex/skills/`
+and `.grok/skills/`; FreeCM is an independent submodule.
 
 ## Planning flow
 
-A product idea moves through one direction only:
-
 ```text
-ProductRoadmap -> dated ADR -> TODO -> code/tests -> current authorities
+Product question → dated ADR → unfinished TODO → implementation and tests
+                 → current capability/architecture/testing authorities
 ```
 
-1. Keep an undecided cross-layer capability in `ProductRoadmap.md`.
-2. Before implementation, accept a dated ADR that names the user outcome,
-   owner, persisted or machine contract, cancellation/failure behavior,
-   privacy and security constraints where relevant, and validation gate.
-3. Add only the unfinished execution slice to `TODO.md`.
-4. On completion, move durable facts to code, tests, `Ravo/README.md`,
-   `ARCHITECTURE.md`, or `TESTING.md`, then delete the completed TODO item.
-5. Record removed or explicitly rejected legacy behavior in `MIGRATION.md`.
+Keep undecided cross-layer capabilities in the roadmap. An accepted decision
+names ownership, persistence, lifecycle, failure/cancellation, resource and
+privacy boundaries, and a validation gate before implementation starts.
+
+On completion, move durable facts into code, tests and the relevant authority;
+remove completed execution items. Record deliberately removed or unsupported
+historical behavior in the migration ledger.
 
 ## Maintenance rules
 
-1. Keep one authority per topic. Do not duplicate current behavior across the
-   roadmap, TODO, architecture, and migration documents.
-2. TODO entries contain only unfinished work, dependencies, risks, concrete
-   validation, and acceptance gates. They do not contain completed checklists.
-3. Do not use target dates as a substitute for evidence. Priorities are ordered
-   by user outcome, dependency, and release risk.
-4. Remove obsolete plans, historical run diaries, and concept mockups instead
-   of archiving competing descriptions.
-5. Keep transient reports, private-corpus results, screenshots, and machine-
-   local measurements outside the repository unless a stable test fixture or
-   generated evidence owner explicitly requires them.
-6. Update generated output, including third-party notices, only through its
-   owning script.
-7. For documentation-only changes, verify real paths, relative links, commands,
-   terminology, and whitespace; do not claim an unrun platform check passed.
+- Keep one stable authority for each topic; link to it rather than copying a
+  second version of its contracts.
+- Write task instructions in the handbook and product introductions in the
+  root README. Keep implementation detail out of ordinary user instructions.
+- TODOs contain unfinished work, risks, dependencies and acceptance gates.
+  Avoid completed checklists, run diaries and transient measurements.
+- Rename or delete documents with all tracked references updated in the same
+  change. Do not leave redirects or duplicate old-name copies.
+- Update generated material through its owning generator, including
+  translations and build/package templates.
+- Keep private reports, source media, local paths, active locks, presets and
+  build output out of tracked documentation.
+- Validate links, commands, facts and whitespace; report unavailable platforms
+  and missing evidence explicitly.

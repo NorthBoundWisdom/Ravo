@@ -153,7 +153,11 @@ ravo catalog backup-policy --catalog "/work/Ravo Library.sqlite" \
 ravo catalog backup-run --catalog "/work/Ravo Library.sqlite" --json
 ```
 
-Studio exposes the same schedule. Retention deletes only canonical scheduled
+Studio exposes the same schedule in **Settings → Catalog & Backup**. Choose
+an existing folder, interval and retention, then save. The page shows last
+verification, size, next run and failure, and offers Run Now. Schedules execute
+while Studio is open; they do not install an operating-system background task.
+Retention deletes only canonical scheduled
 artifacts that reverify as the current catalog; unknown, changed, symlink, or
 user-created paths are retained.
 

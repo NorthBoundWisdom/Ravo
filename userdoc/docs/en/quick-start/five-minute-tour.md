@@ -24,9 +24,9 @@ QML workspace.
 1. In **Library**, select a folder or **All Photographs**.
 2. Click one thumbnail. Confirm that the left panel shows the folder tree, the
    center shows the Gallery, and the right panel shows photo details and scopes.
-3. Set a rating or color label in the bottom review bar. Toggle **Keep / Reject**
+3. Set a rating or color label in the bottom review bar. Try **Pick / Reject / Unflag**
    once, then return the photo to the state you want to keep.
-4. Double-click the thumbnail, or choose **View → Loupe**. Try **Fit**, **Fill**,
+4. Double-click the thumbnail, or choose **View → Loupe**. Try **Fit**, **30%**,
    and **1:1**. Click the photo to animate to 1:1, then click again to restore
    the previous zoom. At a non-grid zoom, pan the image and use the navigator in the
    left panel to move to another area.

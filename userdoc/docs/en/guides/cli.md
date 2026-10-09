@@ -244,6 +244,42 @@ ravo catalog list --catalog "/work/Ravo Library.sqlite" \
   --tag landscape --json
 ```
 
+## Video metadata and frame artifacts
+
+Import video with the ordinary Add/Copy/Move catalog workflow. Inspect an
+explicit asset and publish a bounded SDR PNG with:
+
+```text
+ravo catalog video-info --catalog "/work/Ravo Library.sqlite" --asset-id <video-id> --json
+ravo catalog video-frame --catalog "/work/Ravo Library.sqlite" \
+  --asset-id <video-id> --time-us 500000 --max-edge 1600 \
+  --output "/work/new-video-frame.png" --json
+```
+
+The timestamp is in microseconds. The output must be absent; JSON reports the
+actual frame timestamp and an immutable artifact's dimensions, MIME type,
+profile and SHA-256. This command does not create a photo Develop recipe or
+transcode the original video.
+
+For a running Studio, read `studio state` first. Its `video` object uses
+`ravo.studio.video/v1` and includes asset, generation, state, position/duration
+in milliseconds, volume, mute and warnings. A playback command must carry the
+observed session, selection and video generation:
+
+```text
+ravo studio video --session-id <session> --asset-id <video-id> \
+  --action mute --value true --expect-session-revision <observed> \
+  --expect-selection-revision <observed> --expect-video-generation <observed> --json
+```
+
+Actions are `play`, `pause`, `seek`, `volume` and `mute`. Seek uses milliseconds,
+volume uses 0–1, and mute uses a JSON boolean. Stale requests reject before
+dispatch. Read state again after a mutation.
+
+Studio state also includes `ravo.studio.settings/v1` navigation and a
+`ravo.studio.backup_settings/v1` draft for the current catalog. Assistant keys
+and connection credentials are excluded.
+
 ## Inspect recovery state and create a catalog backup
 
 Every durable asset, review, metadata, recipe, or history mutation advances an

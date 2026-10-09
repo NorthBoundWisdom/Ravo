@@ -1,12 +1,14 @@
 # Ravo User Handbook
 
-`userdoc/` is the source for the English Ravo end-user handbook. It documents
-the current source-backed behavior of Ravo Studio and the supported `ravo` CLI.
+`userdoc/` is the source for Ravo's English handbook: installation, a first
+shoot, photo/video review, non-destructive editing, delivery and recovery.
+Read the [published handbook](https://northboundwisdom.github.io/Ravo/) or the
+Markdown pages below.
 
-The handbook follows the current development baseline. It is not a promise that
-every migration item in the repository is already a finished darktable
-replacement, and it does not document a leftover GTK application as a
-supported runtime.
+The handbook follows the current source baseline. Published downloads may lag
+the development branch; release notes identify the features in each package.
+Developer architecture and qualification belong in `DevDocs/`, while this
+handbook explains user choices and their results.
 
 ## Read the handbook
 
@@ -19,7 +21,8 @@ Start with [the handbook home page](docs/en/index.md), then follow:
 5. [Viewer and scopes](docs/en/guides/viewer-and-scopes.md)
 6. [Develop](docs/en/guides/develop.md)
 7. [Export and sharing](docs/en/guides/export-and-share.md)
-8. [File paths, backups, and recovery](docs/en/troubleshooting/file-paths-and-recovery.md)
+8. [Settings and automatic backups](docs/en/guides/settings.md)
+9. [File paths, backups, and recovery](docs/en/troubleshooting/file-paths-and-recovery.md)
 
 The [CLI guide](docs/en/guides/cli.md) is the best entry point for automation
 and headless workflows.

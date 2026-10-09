@@ -5,8 +5,6 @@
 Find Studio actions quickly from the keyboard and understand when a command is
 disabled.
 
-**Last reviewed:** 2026-09-03 against the current Studio command registry.
-
 ## Command palette
 
 Open the command palette with:
@@ -36,7 +34,7 @@ modifier.
 | Export Selected | `Cmd/Ctrl+Shift+E` |
 | Close Window | `Cmd/Ctrl+W` |
 | Settings | `Cmd/Ctrl+,` |
-| Assistant | `Cmd/Ctrl+Shift+A` (also the top-toolbar Assistant button) |
+| Assistant | View menu or command palette; no default shortcut |
 | Select All | `Cmd/Ctrl+A` |
 | Quit Ravo Studio | `Cmd/Ctrl+Q` |
 | Undo | `Cmd/Ctrl+Z` |
@@ -45,20 +43,20 @@ modifier.
 | Paste Parameters | `Cmd/Ctrl+Alt+V` |
 | Paste Parameters to Selection | `Cmd/Ctrl+Alt+Shift+V` |
 | Reset All Edits | `Cmd/Ctrl+Shift+R` |
-| Gallery | `Cmd/Ctrl+1` or `G` |
-| Loupe | `Cmd/Ctrl+2`, `E`, or Return. While Crop & Rotate is active, these apply the crop and stay in Edit. |
-| Edit | `Cmd/Ctrl+3` or `D` |
-| Fit | `Cmd/Ctrl+0` or `F` |
-| Fill | `Cmd/Ctrl+9` |
-| Actual Size | `Cmd/Ctrl+Alt+0` or `Shift+1` |
+| Gallery | `Cmd/Ctrl+Alt+1` or `G` |
+| Loupe | `E` or Return. While Crop & Rotate is active, these apply the crop and stay in Edit. |
+| Edit | `Cmd/Ctrl+Alt+2` or `D` |
+| Fit / 30% | View menu or on-screen zoom controls; no default shortcut |
+| Actual Size | `Cmd/Ctrl+Alt+0`; `Z` or Space toggles the current view |
 | Before / After | `\` |
 | Left / Right comparison | `Y` |
 | Photo information overlay | `I` |
 | Previous / Next Photo | Left / Right Arrow |
 | Crop & Rotate | `R` |
 | Rotate Left / Right | `Cmd/Ctrl+[` / `Cmd/Ctrl+]` |
-| Flip Horizontal / Vertical | `Cmd/Ctrl+Shift+H` / `Cmd/Ctrl+Shift+V` |
-| Reject | `X` |
+| Flip Horizontal | `Cmd/Ctrl+Shift+H` |
+| Flip Vertical | Photo menu or command palette; no default shortcut |
+| Pick / Reject / Unflag | `P` / `X` / `U` |
 | Remove from Catalog | Delete or Backspace |
 
 The exact native modifier label is rendered by Qt, so macOS menus show Command
@@ -66,7 +64,8 @@ where the cross-platform command definition uses Ctrl.
 
 ## Selection shortcuts
 
-- `Cmd/Ctrl+A` selects every photo currently loaded in Gallery and the filmstrip.
+- `Cmd/Ctrl+A` selects items in the active workspace. In Import it highlights
+  candidates; the checkbox action determines which eligible candidates will import.
 - `Cmd`/`Ctrl`-click adds or removes a photo from the selection.
 - `Shift`-click selects a range from the selection anchor.
 - `Shift+Left` and `Shift+Right` extend the selection to the previous or next

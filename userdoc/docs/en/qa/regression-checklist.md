@@ -28,10 +28,19 @@ contracts.
 - [ ] Remove from Catalog and confirm the original remains.
 - [ ] Test Delete from Disk only with disposable source data.
 
+## Video
+
+- [ ] Import a supported video; verify its poster, duration and warning details.
+- [ ] Enter Loupe, play/pause, seek and mute; leave the view and change selection.
+- [ ] Confirm late frames cannot replace the current selection.
+- [ ] Verify supported SDR and HLG/PQ-to-SDR presentation against frame artifacts.
+- [ ] Confirm photo Develop and rendered-photo export are unavailable for video.
+- [ ] Export an original copy and compare source/output bytes.
+
 ## Viewer and Develop
 
 - [ ] Open Gallery, Loupe, and Edit.
-- [ ] Exercise Fit, Fill, 1:1, click-to-1:1 restore (smooth zoom, not a camera jump), wheel zoom, pan, and navigator seeking.
+- [ ] Exercise Fit, 30%, 1:1, click-to-1:1 restore, wheel zoom, pan, and navigator seeking.
 - [ ] Switch Histogram, Waveform, Parade, Vectorscope, and Split scopes.
 - [ ] Confirm a missing original shows Missing without losing catalog state.
 - [ ] Commit a geometry, Light, and Color change.
@@ -59,6 +68,15 @@ contracts.
       complete recipe.
 - [ ] Create, list, and restore a labeled snapshot.
 - [ ] Close and reopen; confirm recipe, history, and Edited state persist.
+
+## Settings
+
+- [ ] Open every category at narrow and wide window sizes; verify scrolling.
+- [ ] Switch language and reopen; verify the saved choice and required catalogs.
+- [ ] Change/reset panel dimensions and reopen; verify persistence.
+- [ ] Configure, save, enable/disable and run the current catalog's backup policy.
+- [ ] Verify failed save preserves inputs and a catalog switch rejects a late folder result.
+- [ ] Confirm last verification, size, next run and failures are shown in Settings.
 
 ## Recovery and backup
 
