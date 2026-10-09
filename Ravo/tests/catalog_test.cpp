@@ -1172,6 +1172,22 @@ TEST_F(CatalogServiceTest, CatalogBackupFailureAndCancellationMatrixPublishesNot
 TEST_F(CatalogServiceTest, ScheduledBackupsPersistPolicyAndRetainOnlyVerifiedOwnedArtifacts)
 {
     ASSERT_TRUE(open_service(true));
+    CatalogBackupPolicy disabled_policy;
+    disabled_policy.enabled = false;
+    disabled_policy.interval_minutes = 43;
+    disabled_policy.retention_count = 4;
+    auto disabled = service->recovery().set_backup_policy(disabled_policy, 1000);
+    ASSERT_TRUE(disabled) << disabled.error().message;
+    EXPECT_FALSE(disabled.value().next_run_unix_ms);
+    service.reset();
+    sqlite_repository = nullptr;
+    ASSERT_TRUE(open_service(false));
+    auto disabled_reopened = service->recovery().backup_policy();
+    ASSERT_TRUE(disabled_reopened) << disabled_reopened.error().message;
+    EXPECT_FALSE(disabled_reopened.value().enabled);
+    EXPECT_TRUE(disabled_reopened.value().destination_directory.empty());
+    EXPECT_EQ(disabled_reopened.value().interval_minutes, 43);
+    EXPECT_EQ(disabled_reopened.value().retention_count, 4);
     const auto photo = root / "scheduled-backup-source.jpg";
     QImage image(20, 16, QImage::Format_RGB888);
     image.setColorSpace(QColorSpace(QColorSpace::SRgb));

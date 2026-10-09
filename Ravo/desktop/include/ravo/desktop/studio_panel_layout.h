@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QVariantMap>
 
 namespace ravo
 {
@@ -16,6 +17,7 @@ class StudioPanelLayout final : public QObject
     Q_PROPERTY(int rightWidth READ rightWidth NOTIFY layoutChanged)
     Q_PROPERTY(int filmstripHeight READ filmstripHeight NOTIFY layoutChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY errorChanged)
+    Q_PROPERTY(QVariantMap constraints READ constraints CONSTANT)
 
 public:
     explicit StudioPanelLayout(QObject *parent = nullptr);
@@ -40,6 +42,8 @@ public:
     Q_INVOKABLE bool setSideWidths(int left, int right);
     Q_INVOKABLE bool setFilmstripHeight(int height);
     Q_INVOKABLE bool flush();
+    Q_INVOKABLE void resetToDefaults();
+    [[nodiscard]] QVariantMap constraints() const;
 
 signals:
     void layoutChanged();
@@ -50,9 +54,9 @@ private:
     void setError(QString message);
     QTimer persist_timer_;
     bool dirty_ = false;
-    int left_width_ = 240;
-    int right_width_ = 320;
-    int filmstrip_height_ = 108;
+    int left_width_;
+    int right_width_;
+    int filmstrip_height_;
     QString last_error_;
 };
 

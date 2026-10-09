@@ -11,15 +11,21 @@ namespace ravo
 namespace
 {
 constexpr auto kLayoutKey = "desktop/panel-layout/v1";
+constexpr int kLeftMin = 160, kLeftMax = 640, kRightMin = 260, kRightMax = 800;
+constexpr int kBottomMin = 88, kBottomMax = 400;
+constexpr int kDefaultLeft = 240, kDefaultRight = 320, kDefaultBottom = 108;
 bool valid_sizes(int left, int right, int bottom)
 {
-    return left >= 160 && left <= 640 && right >= 260 && right <= 800 && bottom >= 88 &&
-           bottom <= 400;
+    return left >= kLeftMin && left <= kLeftMax && right >= kRightMin && right <= kRightMax &&
+           bottom >= kBottomMin && bottom <= kBottomMax;
 }
 } // namespace
 
 StudioPanelLayout::StudioPanelLayout(QObject *parent)
     : QObject(parent)
+    , left_width_(kDefaultLeft)
+    , right_width_(kDefaultRight)
+    , filmstrip_height_(kDefaultBottom)
 {
     persist_timer_.setSingleShot(true);
     persist_timer_.setInterval(200);
@@ -27,6 +33,20 @@ StudioPanelLayout::StudioPanelLayout(QObject *parent)
     if (QCoreApplication::instance())
         connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this,
                 [this]() { static_cast<void>(flush()); });
+}
+
+QVariantMap StudioPanelLayout::constraints() const
+{
+    return {{"leftMin", kLeftMin},   {"leftMax", kLeftMax},        {"rightMin", kRightMin},
+            {"rightMax", kRightMax}, {"filmstripMin", kBottomMin}, {"filmstripMax", kBottomMax}};
+}
+
+void StudioPanelLayout::resetToDefaults()
+{
+    left_width_ = kDefaultLeft;
+    right_width_ = kDefaultRight;
+    filmstrip_height_ = kDefaultBottom;
+    changed();
 }
 
 StudioPanelLayout::~StudioPanelLayout()

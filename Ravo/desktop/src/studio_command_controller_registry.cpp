@@ -158,6 +158,7 @@ StudioCommandController::StudioCommandController(StudioPresenter &presenter, QOb
     connect(presenter_.inspect(), &StudioInspectPresenter::zoomChanged, this, changed);
     connect(presenter_.develop(), &StudioDevelopPresenter::editChanged, this, changed);
     connect(presenter_.develop(), &StudioDevelopPresenter::copiedParametersChanged, this, changed);
+    backup_settings_ = std::make_unique<StudioBackupSettings>(presenter_, *this, this);
 }
 
 StudioCommandController::~StudioCommandController() = default;

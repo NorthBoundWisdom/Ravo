@@ -90,7 +90,13 @@ bool workspace_supports(const WorkspaceSupport support, const CommandWorkspace w
 State resolve_state(const StudioPresenter &presenter, const Condition condition,
                     const bool settings_open, const QString &command_id)
 {
-    if (settings_open && condition != Condition::kAlways)
+    const bool settings_backup =
+        settings_open && (command_id == QLatin1String(command::kLibraryBackupSchedule) ||
+                          command_id == QLatin1String(command::kLibraryBackupSchedulePath) ||
+                          command_id == QLatin1String(command::kLibraryBackupScheduleDisable) ||
+                          command_id == QLatin1String(command::kLibraryBackupScheduleRun) ||
+                          command_id == QLatin1String(command::kLibraryCancelOperation));
+    if (settings_open && !settings_backup && condition != Condition::kAlways)
         return {false, tr_command(QStringLiteral("Close Settings to use this command."))};
     const auto workspace = active_command_workspace(presenter);
     if (workspace == CommandWorkspace::kImport && presenter.imports()->importInteractionBlocked() &&
@@ -99,7 +105,7 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
         command_id != QLatin1String(command::kWindowQuit) &&
         command_id != QLatin1String(command::kWindowDismiss))
         return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
-    if (!command_id.isEmpty() &&
+    if (!settings_backup && !command_id.isEmpty() &&
         !workspace_supports(command_workspace_support(command_id), workspace))
     {
         switch (workspace)
@@ -177,8 +183,9 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kCatalogReady:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
-        return ready ? State{} :
-                       State{false, tr_command(QStringLiteral("Wait for library work to finish."))};
+        return ready && !presenter.catalogOperationActive() ?
+                   State{} :
+                   State{false, tr_command(QStringLiteral("Wait for library work to finish."))};
     case Condition::kLoadedPhotos:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};

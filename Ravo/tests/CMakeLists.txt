@@ -457,6 +457,7 @@ add_executable(ravo_desktop_command_tests
   studio_offline_edit_qml_contract_test.cpp
   studio_live_control_test.cpp
   studio_assistant_test.cpp
+  studio_backup_settings_test.cpp
   studio_window_geometry_test.cpp
   studio_startup_test.cpp
   studio_library_resume_test.cpp
@@ -497,7 +498,8 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_LIBRARY_FILTER_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibraryFilterBar.qml"
   RAVO_STUDIO_GALLERY_REVIEW_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"
   RAVO_STUDIO_EXPORT_OPTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ExportOptionsDialog.qml"
-  RAVO_STUDIO_BACKUP_SCHEDULE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/BackupScheduleDialog.qml"
+  RAVO_STUDIO_BACKUP_SCHEDULE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsBackupSection.qml"
+  RAVO_STUDIO_SETTINGS_ASSISTANT_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsAssistantSection.qml"
   RAVO_STUDIO_EDIT_IN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/EditInDialog.qml"
   RAVO_STUDIO_OFFLINE_EDIT_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/OfflineEditDialog.qml"
   RAVO_STUDIO_AI_PROPOSAL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AiProposalDialog.qml"

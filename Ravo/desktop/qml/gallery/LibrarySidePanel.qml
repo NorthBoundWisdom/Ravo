@@ -113,12 +113,6 @@ Rectangle {
         }
     }
 
-    function backupTime(unixMs) {
-        if (!unixMs || unixMs <= 0)
-            return qsTr("Never");
-        return new Date(unixMs).toLocaleString(Qt.locale(), Locale.ShortFormat);
-    }
-
     function showFolderMenu(row) {
         folderMenu.folderUri = row.folderUri;
         folderMenu.folderId = row.folderId;
@@ -127,16 +121,6 @@ Rectangle {
         folderMenu.hasChildren = row.hasChildren;
         folderMenu.collapsed = row.collapsed;
         folderMenu.popup();
-    }
-
-    function backupBytes(bytes) {
-        if (!bytes || bytes <= 0)
-            return qsTr("0 B");
-        if (bytes < 1024)
-            return qsTr("%1 B").arg(bytes);
-        if (bytes < 1024 * 1024)
-            return qsTr("%1 KiB").arg((bytes / 1024).toFixed(1));
-        return qsTr("%1 MiB").arg((bytes / (1024 * 1024)).toFixed(1));
     }
 
     Connections {
@@ -249,58 +233,6 @@ Rectangle {
                 cancellable: true
                 onCancelRequested: if (root.commands)
                     root.commands.run(root.commands.ids.libraryCancelOperation)
-            }
-        }
-
-        ColumnLayout {
-            id: backupStatus
-            objectName: "libraryBackupStatus"
-            readonly property var value: root.presenter ? root.presenter.backupScheduleStatus : ({})
-            Layout.fillWidth: true
-            Layout.leftMargin: Fonts.standardMargin
-            Layout.rightMargin: Fonts.standardMargin
-            Layout.bottomMargin: Fonts.size8
-            spacing: 2
-            visible: !root.developOpen && root.presenter && root.presenter.catalogOpen && value.loaded
-
-            RowLayout {
-                Layout.fillWidth: true
-                CustomLabel {
-                    Layout.fillWidth: true
-                    text: qsTr("Scheduled backups")
-                    font.bold: true
-                }
-                CustomLabel {
-                    text: backupStatus.value.enabled ? qsTr("On") : qsTr("Off")
-                    color: backupStatus.value.enabled ? Theme.accentColor : Theme.placeholderTextColor
-                }
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                text: qsTr("Last verified: %1 · %2").arg(root.backupTime(backupStatus.value.lastSuccessUnixMs)).arg(root.backupBytes(backupStatus.value.lastBackupBytes))
-                color: Theme.placeholderTextColor
-                elide: Text.ElideRight
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                visible: backupStatus.value.enabled === true
-                text: qsTr("Next: %1 · Keep %2").arg(root.backupTime(backupStatus.value.nextRunUnixMs)).arg(backupStatus.value.retentionCount)
-                color: Theme.placeholderTextColor
-                elide: Text.ElideRight
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                visible: String(backupStatus.value.destination || "").length > 0
-                text: String(backupStatus.value.destination || "")
-                color: Theme.placeholderTextColor
-                elide: Text.ElideMiddle
-            }
-            CustomLabel {
-                Layout.fillWidth: true
-                visible: String(backupStatus.value.lastError || "").length > 0
-                text: qsTr("Last failure: %1").arg(String(backupStatus.value.lastError || ""))
-                color: Theme.errorColor
-                wrapMode: Text.WordWrap
             }
         }
 

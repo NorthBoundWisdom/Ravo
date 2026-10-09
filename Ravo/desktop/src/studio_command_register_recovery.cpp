@@ -76,16 +76,20 @@ void StudioCommandController::registerRecoveryCommands(const command_registratio
             if (!error.isEmpty())
                 return error;
             const auto values = argument.toMap();
-            static const QSet<QString> allowed{QStringLiteral("directory"),
-                                               QStringLiteral("intervalMinutes"),
-                                               QStringLiteral("retentionCount")};
+            static const QSet<QString> allowed{
+                QStringLiteral("directory"), QStringLiteral("intervalMinutes"),
+                QStringLiteral("retentionCount"), QStringLiteral("enabled")};
             for (auto it = values.constBegin(); it != values.constEnd(); ++it)
                 if (!allowed.contains(it.key()))
                     return tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
                                           "StudioCommands", "Unknown command argument field: %1.")))
                         .arg(it.key());
+            if (values.contains(QStringLiteral("enabled")) &&
+                values.value(QStringLiteral("enabled")).metaType().id() != QMetaType::Bool)
+                return QStringLiteral("Backup enabled state must be boolean.");
             if (values.value(QStringLiteral("directory")).metaType().id() != QMetaType::QString ||
-                values.value(QStringLiteral("directory")).toString().trimmed().isEmpty())
+                (values.value(QStringLiteral("enabled"), true).toBool() &&
+                 values.value(QStringLiteral("directory")).toString().trimmed().isEmpty()))
                 return tr_command(QString::fromUtf8(
                     QT_TRANSLATE_NOOP("StudioCommands", "Backup directory must not be empty.")));
             const auto interval = values.value(QStringLiteral("intervalMinutes"));
@@ -110,7 +114,8 @@ void StudioCommandController::registerRecoveryCommands(const command_registratio
             presenter_.configureBackupSchedule(
                 values.value(QStringLiteral("directory")).toString(),
                 values.value(QStringLiteral("intervalMinutes")).toInt(),
-                values.value(QStringLiteral("retentionCount")).toInt(), true);
+                values.value(QStringLiteral("retentionCount")).toInt(),
+                values.value(QStringLiteral("enabled"), true).toBool());
         });
     add(command::kLibraryBackupScheduleDisable, Condition::kCatalogReady, no_argument,
         [this](const QVariant &, const QString &) { presenter_.disableBackupSchedule(); });

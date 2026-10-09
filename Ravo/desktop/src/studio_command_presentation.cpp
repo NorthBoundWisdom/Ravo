@@ -334,6 +334,27 @@ void StudioCommandController::setSettingsOpen(const bool open)
     refresh();
 }
 
+QString StudioCommandController::settingsSection() const
+{
+    return settings_section_;
+}
+StudioBackupSettings *StudioCommandController::backupSettings() const
+{
+    return backup_settings_.get();
+}
+bool StudioCommandController::selectSettingsSection(const QString &section)
+{
+    if (section != QLatin1String("general") && section != QLatin1String("workspace") &&
+        section != QLatin1String("backup") && section != QLatin1String("assistant"))
+        return false;
+    if (settings_section_ != section)
+    {
+        settings_section_ = section;
+        refresh();
+    }
+    return true;
+}
+
 void StudioCommandController::setAssistantOpen(const bool open)
 {
     if (assistant_open_ == open)

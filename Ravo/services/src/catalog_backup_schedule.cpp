@@ -109,12 +109,9 @@ Result<CatalogBackupPolicy> RecoveryService::set_backup_policy(CatalogBackupPoli
     if (!current)
         return current.error();
     current.value().enabled = policy.enabled;
-    if (policy.enabled || !policy.destination_directory.empty())
-    {
-        current.value().destination_directory = std::move(policy.destination_directory);
-        current.value().interval_minutes = policy.interval_minutes;
-        current.value().retention_count = policy.retention_count;
-    }
+    current.value().destination_directory = std::move(policy.destination_directory);
+    current.value().interval_minutes = policy.interval_minutes;
+    current.value().retention_count = policy.retention_count;
     current.value().next_run_unix_ms =
         current.value().enabled ?
             std::optional<std::int64_t>{next_run(now_unix_ms, current.value().interval_minutes)} :

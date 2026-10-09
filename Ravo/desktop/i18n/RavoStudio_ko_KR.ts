@@ -110,57 +110,6 @@ Diff: %6</source>
         </message>
     </context>
     <context>
-        <name>BackupScheduleDialog</name>
-        <message>
-            <source>Scheduled Backups</source>
-            <translation>정기 백업</translation>
-        </message>
-        <message>
-            <source>Every 15 minutes</source>
-            <translation>15분마다</translation>
-        </message>
-        <message>
-            <source>Hourly</source>
-            <translation>매시간</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>매일</translation>
-        </message>
-        <message>
-            <source>Weekly</source>
-            <translation>매주</translation>
-        </message>
-        <message>
-            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
-            <translation>Ravo가 검증된 카탈로그 백업을 만드는 주기와 보관할 백업 수를 선택합니다. 다음 단계에서 대상 폴더를 선택합니다.</translation>
-        </message>
-        <message>
-            <source>Frequency</source>
-            <translation>주기</translation>
-        </message>
-        <message>
-            <source>Backup frequency</source>
-            <translation>백업 주기</translation>
-        </message>
-        <message>
-            <source>Keep backups</source>
-            <translation>보관할 백업 수</translation>
-        </message>
-        <message>
-            <source>Backup retention count</source>
-            <translation>백업 보관 개수</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>취소</translation>
-        </message>
-        <message>
-            <source>Choose Folder…</source>
-            <translation>폴더 선택…</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Original</source>
@@ -3892,26 +3841,6 @@ Diff: %6</source>
     <context>
         <name>LibrarySidePanel</name>
         <message>
-            <source>Never</source>
-            <translation>없음</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
-        </message>
-        <message>
-            <source>%1 B</source>
-            <translation>%1 B</translation>
-        </message>
-        <message>
-            <source>%1 KiB</source>
-            <translation>%1 KiB</translation>
-        </message>
-        <message>
-            <source>%1 MiB</source>
-            <translation>%1 MiB</translation>
-        </message>
-        <message>
             <source>Library</source>
             <translation>라이브러리</translation>
         </message>
@@ -3926,30 +3855,6 @@ Diff: %6</source>
         <message>
             <source>Import previews</source>
             <translation>가져오기 미리보기</translation>
-        </message>
-        <message>
-            <source>Scheduled backups</source>
-            <translation>정기 백업</translation>
-        </message>
-        <message>
-            <source>On</source>
-            <translation>켜짐</translation>
-        </message>
-        <message>
-            <source>Off</source>
-            <translation>꺼짐</translation>
-        </message>
-        <message>
-            <source>Last verified: %1 · %2</source>
-            <translation>마지막 검증: %1 · %2</translation>
-        </message>
-        <message>
-            <source>Next: %1 · Keep %2</source>
-            <translation>다음: %1 · %2개 보관</translation>
-        </message>
-        <message>
-            <source>Last failure: %1</source>
-            <translation>마지막 실패: %1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -4700,23 +4605,7 @@ Diff: %6</source>
         </message>
     </context>
     <context>
-        <name>SettingsPage</name>
-        <message>
-            <source>Back</source>
-            <translation>뒤로</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>설정</translation>
-        </message>
-        <message>
-            <source>Ravo Studio uses a single dark workspace modeled on a photography library.</source>
-            <translation>Ravo Studio는 사진 라이브러리를 본뜬 단일 어두운 작업 공간을 사용합니다.</translation>
-        </message>
-        <message>
-            <source>Language</source>
-            <translation>언어</translation>
-        </message>
+        <name>SettingsAssistantSection</name>
         <message>
             <source>Assistant</source>
             <translation>어시스턴트</translation>
@@ -4740,6 +4629,160 @@ Diff: %6</source>
         <message>
             <source>Show</source>
             <translation>표시</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsBackupSection</name>
+        <message>
+            <source>Never</source>
+            <translation>없음</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
+            <source>Automatic backups</source>
+            <translation>자동 백업</translation>
+        </message>
+        <message>
+            <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
+            <translation>이 설정은 현재 카탈로그에 적용됩니다. 백업에는 카탈로그와 편집 기록이 포함되지만 원본 미디어와 미리 보기 캐시는 제외됩니다. 예약 백업은 Studio가 열려 있는 동안 실행됩니다.</translation>
+        </message>
+        <message>
+            <source>Enable automatic backups</source>
+            <translation>자동 백업 활성화</translation>
+        </message>
+        <message>
+            <source>Backup folder</source>
+            <translation>백업 폴더</translation>
+        </message>
+        <message>
+            <source>Choose folder…</source>
+            <translation>폴더 선택…</translation>
+        </message>
+        <message>
+            <source>Interval (minutes)</source>
+            <translation>간격(분)</translation>
+        </message>
+        <message>
+            <source>Backups to keep</source>
+            <translation>유지할 백업 수</translation>
+        </message>
+        <message>
+            <source>Saving…</source>
+            <translation>저장 중…</translation>
+        </message>
+        <message>
+            <source>Save backup settings</source>
+            <translation>백업 설정 저장</translation>
+        </message>
+        <message>
+            <source>Reload saved settings</source>
+            <translation>저장된 설정 다시 불러오기</translation>
+        </message>
+        <message>
+            <source>Unsaved changes</source>
+            <translation>저장하지 않은 변경 사항</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>켜짐</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>꺼짐</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>마지막 검증: %1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>다음: %1 · %2개 보관</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>마지막 실패: %1</translation>
+        </message>
+        <message>
+            <source>Run backup now</source>
+            <translation>지금 백업</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>취소</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsPage</name>
+        <message>
+            <source>General</source>
+            <translation>일반</translation>
+        </message>
+        <message>
+            <source>Workspace</source>
+            <translation>작업 공간</translation>
+        </message>
+        <message>
+            <source>Catalog &amp; Backup</source>
+            <translation>카탈로그 및 백업</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>뒤로</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>설정</translation>
+        </message>
+        <message>
+            <source>Application preferences apply to all catalogs.</source>
+            <translation>앱 환경 설정은 모든 카탈로그에 적용됩니다.</translation>
+        </message>
+        <message>
+            <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
+            <translation>패널 크기는 자동으로 저장됩니다. 가장자리를 드래그하여 조정할 수도 있습니다.</translation>
+        </message>
+        <message>
+            <source>Left panel width</source>
+            <translation>왼쪽 패널 너비</translation>
+        </message>
+        <message>
+            <source>Right panel width</source>
+            <translation>오른쪽 패널 너비</translation>
+        </message>
+        <message>
+            <source>Filmstrip height</source>
+            <translation>필름스트립 높이</translation>
+        </message>
+        <message>
+            <source>px</source>
+            <translation>px</translation>
+        </message>
+        <message>
+            <source>Reset panel sizes</source>
+            <translation>패널 크기 초기화</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>언어</translation>
+        </message>
+        <message>
+            <source>Assistant</source>
+            <translation>어시스턴트</translation>
         </message>
     </context>
     <context>
@@ -4807,6 +4850,25 @@ Diff: %6</source>
         <message>
             <source>Assistant response contained no text.</source>
             <translation>어시스턴트 응답에 텍스트가 없습니다.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioBackupSettings</name>
+        <message>
+            <source>Open a catalog to configure automatic backups.</source>
+            <translation>자동 백업을 설정하려면 카탈로그를 여세요.</translation>
+        </message>
+        <message>
+            <source>Saving backup settings…</source>
+            <translation>백업 설정 저장 중…</translation>
+        </message>
+        <message>
+            <source>No changes to save.</source>
+            <translation>저장할 변경 사항이 없습니다.</translation>
+        </message>
+        <message>
+            <source>Backup policy changed. Reload settings before saving.</source>
+            <translation>백업 정책이 변경되었습니다. 저장하기 전에 설정을 다시 불러오세요.</translation>
         </message>
     </context>
     <context>
@@ -5127,10 +5189,6 @@ Diff: %6</source>
             <translation>카탈로그 백업 복원…</translation>
         </message>
         <message>
-            <source>Enable Scheduled Backups...</source>
-            <translation>정기 백업 사용…</translation>
-        </message>
-        <message>
             <source>Run Scheduled Backup Now</source>
             <translation>지금 정기 백업 실행</translation>
         </message>
@@ -5397,6 +5455,10 @@ Diff: %6</source>
         <message>
             <source>Import...</source>
             <translation>가져오기…</translation>
+        </message>
+        <message>
+            <source>Automatic Backup Settings...</source>
+            <translation>자동 백업 설정...</translation>
         </message>
         <message>
             <source>Paste Parameters</source>

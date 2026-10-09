@@ -12,6 +12,7 @@
 #include <QVariantMap>
 
 #include "ravo/foundation/error.h"
+#include "ravo/desktop/studio_backup_settings.h"
 
 // studio_command_registration.h is desktop-src private; forward the helpers
 // type via a nested include path from the implementation TUs only.
@@ -43,6 +44,8 @@ class StudioCommandController final : public QObject
     Q_PROPERTY(
         bool textInputActive READ textInputActive WRITE setTextInputActive NOTIFY commandsChanged)
     Q_PROPERTY(bool settingsOpen READ settingsOpen WRITE setSettingsOpen NOTIFY commandsChanged)
+    Q_PROPERTY(QString settingsSection READ settingsSection NOTIFY commandsChanged)
+    Q_PROPERTY(ravo::StudioBackupSettings *backupSettings READ backupSettings CONSTANT)
     Q_PROPERTY(
         bool assistantOpen READ assistantOpen WRITE setAssistantOpen NOTIFY assistantOpenChanged)
     Q_PROPERTY(bool photoInfoVisible READ photoInfoVisible NOTIFY photoInfoVisibleChanged)
@@ -60,6 +63,9 @@ public:
     [[nodiscard]] bool paletteOpen() const noexcept;
     [[nodiscard]] bool textInputActive() const noexcept;
     [[nodiscard]] bool settingsOpen() const noexcept;
+    [[nodiscard]] QString settingsSection() const;
+    [[nodiscard]] StudioBackupSettings *backupSettings() const;
+    Q_INVOKABLE bool selectSettingsSection(const QString &section);
     [[nodiscard]] bool assistantOpen() const noexcept;
     [[nodiscard]] bool photoInfoVisible() const noexcept;
     [[nodiscard]] bool modalOpen() const noexcept;
@@ -122,10 +128,12 @@ private:
 
     StudioPresenter &presenter_;
     std::unique_ptr<Impl> impl_;
+    std::unique_ptr<StudioBackupSettings> backup_settings_;
     QString palette_query_;
     bool palette_open_ = false;
     bool text_input_active_ = false;
     bool settings_open_ = false;
+    QString settings_section_{QStringLiteral("general")};
     bool assistant_open_ = false;
     bool photo_info_visible_ = false;
     bool modal_open_ = false;

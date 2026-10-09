@@ -4,6 +4,8 @@ import QtQuick.Dialogs
 Item {
     id: root
 
+    required property var presenter
+
     property string dialogTitle: qsTr("Select Folder")
     property url currentFolder: ""
 
@@ -16,7 +18,11 @@ Item {
         title: root.dialogTitle
         currentFolder: root.currentFolder
         onAccepted: {
-            root.folderAccepted(root.toLocalFile(selectedFolder));
+            const path = root.toLocalFile(selectedFolder);
+            if (path.length > 0)
+                root.folderAccepted(path);
+            else
+                root.folderRejected();
             folderDialog.close();
         }
         onRejected: {
@@ -30,13 +36,7 @@ Item {
     }
 
     function toLocalFile(urlValue) {
-        if (urlValue === undefined || urlValue === null)
-            return "";
-        if (typeof urlValue === "string")
-            return urlValue.startsWith("file://") ? Qt.urlToLocalFile(urlValue) : urlValue;
-        if (urlValue.toLocalFile)
-            return urlValue.toLocalFile();
-        return String(urlValue);
+        return root.presenter.folderLocalPath(String(urlValue));
     }
 
     function openDialog() {

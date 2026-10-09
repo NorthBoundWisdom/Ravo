@@ -409,6 +409,12 @@ Current implementation status:
   `preview-rebuild` repairs selected or all rebuildable cache entries. Studio
   exposes the same recovery, backup, restore, rebuild, progress, and
   cancellation owners (ADR-0097/0099).
+  Studio Settings groups language, workspace panel sizes, catalog automatic
+  backups and assistant connection preferences. Automatic backup settings apply
+  to the open catalog: choose an existing folder, interval and retention count,
+  then save. Settings also shows last verification/failure and supports Run Now
+  and cancellation. Scheduled backups run while Studio is open and exclude
+  original media and preview caches. The Library sidebar omits backup status.
   Schema v8 persists a verified backup schedule with last success, next run,
   bytes, failure, and safe retention. Only strict, reverified current-catalog
   artifacts are quarantined, reverified, and deleted; unknown paths remain.

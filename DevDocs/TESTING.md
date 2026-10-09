@@ -40,6 +40,16 @@ Native 4:2:2 checks require full-height chroma and reject short buffers. P016
 checks require complete interleaved 16-bit UV and preserve expected RGB values.
 Original fixtures are owned by the generator.
 
+`ravo_video_software_playback` repeats the unchanged poster/playback pixel
+contract with Qt's hardware decoder list explicitly empty, so hardware
+availability cannot conceal software YUVJ range-normalization errors. The
+ordinary test remains enabled too. `test_video_dependencies.py` exercises the
+production Windows CMake resolver with isolated DLL/tool fixtures, including
+missing runtime, empty exports and failed tools. Native MSVC CI validates real
+DLL export inspection, generated import linkage and execution. Linux CI and
+clean-package hosts install the declared PipeWire/VA-API dependencies; CLI
+stdout/stderr assertions are not loosened or filtered.
+
 `StudioVideoTest` uses the production C++ controller and real CLI subprocesses
 for play/pause/seek/volume/mute, owned-pixel comparison with the shared HDR
 renderer, view release and cancellation during close. No UI automation or
@@ -394,8 +404,14 @@ catalog. `RAVO_TEST_GPU_OUTPUT_DIRECTORY` optionally receives new CPU/GPU/Loupe
 PNG artifacts for inspection.
 `StudioLibraryProgress` covers small batches, batches completed before the reveal
 delay, sustained work, the low-count tail and rapid replacements. Production QML
-smoke also measures the Library header height and backup section position across
+smoke also measures the Library header height and navigator position across
 hidden, visible and completed thumbnail-progress states.
+`StudioBackupSettingsTest` covers command-owned Settings drafts, save failure,
+invalid inputs, late folder selection, real backup execution, disable/reopen and
+CLI policy readback. `WindowGeometryTest` covers panel reset persistence.
+Production Settings smoke loads all four categories at narrow and wide sizes;
+it checks native folder URL conversion with Unicode, spaces and escaped path
+characters. Localization smoke repeats the production load for every manifest locale.
 The ordinary Studio QML smoke logs after presenter destruction has cancelled
 and joined its workers, so an early logging shutdown fails the real executable
 smoke. It checks a temporary directory's real disclosure handler,
@@ -944,6 +960,16 @@ binding, intent forwarding, and state presentation; GoogleTest service/contract
 tests still validate business outcomes.
 
 ## Catalog contract
+
+Mutation regression coverage preserves monotonic operation-instance IDs,
+revision-bound recipe saves, atomic mask-graph clones and exclusive-node
+cleanup. Review changes and the catalog revision publish in one transaction;
+pre-publication cancellation changes nothing, while recovery-mirror failure
+reports committed catalog state and retryability. Offline-proxy tests bound
+manifest parsing, reject path escapes and source identity changes, and inject
+publication failure without losing the prior verified proxy. Near-duplicate
+tests enforce bounded, non-authoritative pairwise suggestions. These contracts
+remain separate from mixed-corpus reopen/backup/restore qualification.
 
 The SQLite adapter tests at least:
 

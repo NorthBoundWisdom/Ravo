@@ -110,57 +110,6 @@ Diff: %6</source>
         </message>
     </context>
     <context>
-        <name>BackupScheduleDialog</name>
-        <message>
-            <source>Scheduled Backups</source>
-            <translation>定时备份</translation>
-        </message>
-        <message>
-            <source>Every 15 minutes</source>
-            <translation>每 15 分钟</translation>
-        </message>
-        <message>
-            <source>Hourly</source>
-            <translation>每小时</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>每天</translation>
-        </message>
-        <message>
-            <source>Weekly</source>
-            <translation>每周</translation>
-        </message>
-        <message>
-            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
-            <translation>选择 Ravo 创建已验证图库备份的频率以及保留数量。下一步将选择目标文件夹。</translation>
-        </message>
-        <message>
-            <source>Frequency</source>
-            <translation>频率</translation>
-        </message>
-        <message>
-            <source>Backup frequency</source>
-            <translation>备份频率</translation>
-        </message>
-        <message>
-            <source>Keep backups</source>
-            <translation>保留备份</translation>
-        </message>
-        <message>
-            <source>Backup retention count</source>
-            <translation>备份保留数量</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>取消</translation>
-        </message>
-        <message>
-            <source>Choose Folder…</source>
-            <translation>选择文件夹…</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Snapshot #%1</source>
@@ -3892,26 +3841,6 @@ Diff: %6</source>
     <context>
         <name>LibrarySidePanel</name>
         <message>
-            <source>Never</source>
-            <translation>从未</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
-        </message>
-        <message>
-            <source>%1 B</source>
-            <translation>%1 B</translation>
-        </message>
-        <message>
-            <source>%1 KiB</source>
-            <translation>%1 KiB</translation>
-        </message>
-        <message>
-            <source>%1 MiB</source>
-            <translation>%1 MiB</translation>
-        </message>
-        <message>
             <source>Library</source>
             <translation>图库</translation>
         </message>
@@ -3926,30 +3855,6 @@ Diff: %6</source>
         <message>
             <source>Import previews</source>
             <translation>导入预览</translation>
-        </message>
-        <message>
-            <source>Scheduled backups</source>
-            <translation>定时备份</translation>
-        </message>
-        <message>
-            <source>On</source>
-            <translation>开</translation>
-        </message>
-        <message>
-            <source>Off</source>
-            <translation>关</translation>
-        </message>
-        <message>
-            <source>Last verified: %1 · %2</source>
-            <translation>上次验证：%1 · %2</translation>
-        </message>
-        <message>
-            <source>Next: %1 · Keep %2</source>
-            <translation>下次：%1 · 保留 %2 个</translation>
-        </message>
-        <message>
-            <source>Last failure: %1</source>
-            <translation>上次失败：%1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -4700,23 +4605,7 @@ Diff: %6</source>
         </message>
     </context>
     <context>
-        <name>SettingsPage</name>
-        <message>
-            <source>Back</source>
-            <translation>返回</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>设置</translation>
-        </message>
-        <message>
-            <source>Ravo Studio uses a single dark workspace modeled on a photography library.</source>
-            <translation>Ravo Studio 使用以摄影图库为设计理念的单一深色工作区。</translation>
-        </message>
-        <message>
-            <source>Language</source>
-            <translation>语言</translation>
-        </message>
+        <name>SettingsAssistantSection</name>
         <message>
             <source>Assistant</source>
             <translation>助手</translation>
@@ -4740,6 +4629,160 @@ Diff: %6</source>
         <message>
             <source>Show</source>
             <translation>显示</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsBackupSection</name>
+        <message>
+            <source>Never</source>
+            <translation>从未</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
+            <source>Automatic backups</source>
+            <translation>自动备份</translation>
+        </message>
+        <message>
+            <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
+            <translation>这些设置适用于当前目录库。备份包含目录库与编辑历史，不含原始媒体和预览缓存。定时备份仅在 Studio 运行时执行。</translation>
+        </message>
+        <message>
+            <source>Enable automatic backups</source>
+            <translation>启用自动备份</translation>
+        </message>
+        <message>
+            <source>Backup folder</source>
+            <translation>备份文件夹</translation>
+        </message>
+        <message>
+            <source>Choose folder…</source>
+            <translation>选择文件夹…</translation>
+        </message>
+        <message>
+            <source>Interval (minutes)</source>
+            <translation>间隔（分钟）</translation>
+        </message>
+        <message>
+            <source>Backups to keep</source>
+            <translation>保留备份数量</translation>
+        </message>
+        <message>
+            <source>Saving…</source>
+            <translation>正在保存…</translation>
+        </message>
+        <message>
+            <source>Save backup settings</source>
+            <translation>保存备份设置</translation>
+        </message>
+        <message>
+            <source>Reload saved settings</source>
+            <translation>重新加载已保存设置</translation>
+        </message>
+        <message>
+            <source>Unsaved changes</source>
+            <translation>有未保存的更改</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>开</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>关</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>上次验证：%1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>下次：%1 · 保留 %2 个</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>上次失败：%1</translation>
+        </message>
+        <message>
+            <source>Run backup now</source>
+            <translation>立即备份</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsPage</name>
+        <message>
+            <source>General</source>
+            <translation>常规</translation>
+        </message>
+        <message>
+            <source>Workspace</source>
+            <translation>工作区</translation>
+        </message>
+        <message>
+            <source>Catalog &amp; Backup</source>
+            <translation>目录库与备份</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>返回</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>设置</translation>
+        </message>
+        <message>
+            <source>Application preferences apply to all catalogs.</source>
+            <translation>应用偏好设置适用于所有目录库。</translation>
+        </message>
+        <message>
+            <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
+            <translation>面板尺寸自动保存，也可以拖动边缘调整。</translation>
+        </message>
+        <message>
+            <source>Left panel width</source>
+            <translation>左侧面板宽度</translation>
+        </message>
+        <message>
+            <source>Right panel width</source>
+            <translation>右侧面板宽度</translation>
+        </message>
+        <message>
+            <source>Filmstrip height</source>
+            <translation>胶片栏高度</translation>
+        </message>
+        <message>
+            <source>px</source>
+            <translation>像素</translation>
+        </message>
+        <message>
+            <source>Reset panel sizes</source>
+            <translation>重置面板尺寸</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>语言</translation>
+        </message>
+        <message>
+            <source>Assistant</source>
+            <translation>助手</translation>
         </message>
     </context>
     <context>
@@ -4807,6 +4850,25 @@ Diff: %6</source>
         <message>
             <source>Assistant response contained no text.</source>
             <translation>助手响应不包含文本。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioBackupSettings</name>
+        <message>
+            <source>Open a catalog to configure automatic backups.</source>
+            <translation>请打开目录库以配置自动备份。</translation>
+        </message>
+        <message>
+            <source>Saving backup settings…</source>
+            <translation>正在保存备份设置…</translation>
+        </message>
+        <message>
+            <source>No changes to save.</source>
+            <translation>没有需要保存的更改。</translation>
+        </message>
+        <message>
+            <source>Backup policy changed. Reload settings before saving.</source>
+            <translation>备份策略已更改。请重新加载设置后再保存。</translation>
         </message>
     </context>
     <context>
@@ -5107,10 +5169,6 @@ Diff: %6</source>
             <translation>恢复图库备份…</translation>
         </message>
         <message>
-            <source>Enable Scheduled Backups...</source>
-            <translation>启用定时备份…</translation>
-        </message>
-        <message>
             <source>Run Scheduled Backup Now</source>
             <translation>立即运行定时备份</translation>
         </message>
@@ -5273,6 +5331,10 @@ Diff: %6</source>
         <message>
             <source>Import...</source>
             <translation>导入…</translation>
+        </message>
+        <message>
+            <source>Automatic Backup Settings...</source>
+            <translation>自动备份设置...</translation>
         </message>
         <message>
             <source>Apply Recipe Style...</source>

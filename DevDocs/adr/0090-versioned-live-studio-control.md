@@ -36,7 +36,10 @@ user changes photos while an agent is deciding what to edit.
   state revisions, catalog path/revision, primary and selected assets, browse
   mode, current/saved canonical recipes, baseline-relative modified
   operations, pending changes, and the current preview's bounded identity.
-  Assistant URL/model/key and all other settings are absent.
+  Assistant URL/model/key are absent. The 2026-10-10 Settings extension exposes
+  only versioned navigation and current-catalog backup draft state
+  (`ravo.studio.settings/v1`, `ravo.studio.backup_settings/v1`); credentials and
+  unrelated per-user preferences remain absent.
 - A Develop mutation carries the observed session revision, selection revision,
   and asset ID. The controller rejects stale, wrong-asset, busy, unavailable,
   duplicate, non-finite, unknown, and out-of-range requests before mutation.

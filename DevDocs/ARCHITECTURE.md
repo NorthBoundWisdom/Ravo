@@ -22,6 +22,12 @@ FFmpeg's default diagnostic output. Cancellation and exceptions unwind scopes.
 Deprecated YUVJ layouts are normalized to their identical YUV layout with an
 explicit full-range flag before constructing swscale; range is not inferred
 from a discarded format name or silently changed to limited range.
+The mapped Qt software-buffer contract is distinct: Qt 6.11.2 converts YUVJ420P
+to limited-range YUV420P and drops matrix/range/transfer tags. Desktop marks
+that unlabelled normalized buffer as limited range. Explicit range and hardware
+NV12 keep their declared interpretation. The direct decoder still supplies
+full range for native YUVJ source planes; both paths must match poster pixels
+([ADR-0165](adr/0165-video-library-and-playback.md)).
 Unsupported auxiliary streams are discarded for probing; supported audio is
 selected explicitly for playback. A video with audio but no supported audio
 track fails rather than silently playing without sound. Original bytes remain
@@ -1029,6 +1035,21 @@ unique quarantine, verifies identity again, and only then removes it. Unknown,
 changed, malformed, symlink, active, and user-created paths remain. Studio and
 CLI display the persisted last verified success, next run, bytes, and failure
 without owning retention policy (ADR-0101).
+
+Studio Settings groups application language, persisted panel dimensions,
+current-catalog automatic backups, and assistant connection preferences.
+`StudioCommandController` owns Settings navigation and a GUI-thread
+`StudioBackupSettings` draft. The draft observes persisted policy, preserves
+failed inputs, rejects concurrent policy changes, and invalidates outstanding
+folder selections when the catalog changes. QML only forwards edits and intents.
+Saving, running, and cancelling backup work use the existing command/executor
+and RecoveryService owners. Policy replacement saves disabled configurations as
+well as enabled ones; disabling alone passes the existing full policy. Retention
+and success/failure history remain service-owned. The versioned live-session
+`settings` snapshot exposes navigation and the backup draft without assistant
+credentials. Backup status belongs to Settings, not the Library sidebar.
+Panel sizes continue to use `StudioPanelLayout` with the same bounds, debounce,
+error reporting and flush-on-destruction lifecycle; Settings can reset them.
 
 ### Folder identity and relink
 

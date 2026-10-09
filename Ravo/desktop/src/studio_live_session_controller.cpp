@@ -286,6 +286,7 @@ Result<void> StudioLiveSessionController::start()
     connect(presenter_.inspect(), &StudioInspectPresenter::previewChanged, this, changed);
     connect(presenter_.inspect(), &StudioInspectPresenter::identityChanged, this, changed);
     connect(&commands_, &StudioCommandController::commandsChanged, this, changed);
+    connect(commands_.backupSettings(), &StudioBackupSettings::changed, this, changed);
     refresh();
 
     auto server = LocalControlServer::start(descriptor_, [this](const LiveControlRequest &request)
@@ -525,6 +526,10 @@ JsonValue StudioLiveSessionController::snapshot() const
         {"preview", std::move(preview)},
         {"video", presenter_.video()->jsonSnapshot()},
         {"import", presenter_.imports()->jsonSnapshot()},
+        {"settings", JsonValue::Object{{"schema", "ravo.studio.settings/v1"},
+                                       {"open", commands_.settingsOpen()},
+                                       {"section", utf8_from_qstring(commands_.settingsSection())},
+                                       {"backup", commands_.backupSettings()->jsonSnapshot()}}},
         {"process_id", JsonValue::number(std::to_string(descriptor_.process_id))},
         {"protocol", descriptor_.protocol},
         {"recipe", std::move(recipe)},

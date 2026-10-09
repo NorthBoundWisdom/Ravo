@@ -57,7 +57,8 @@ void qml_register_types_GeoControls_AppShell();
 namespace ravo
 {
 [[nodiscard]] bool smoke_video_playback(const QString &input);
-}
+[[nodiscard]] bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &commands);
+} // namespace ravo
 
 namespace
 {
@@ -754,11 +755,11 @@ int main(int argc, char *argv[])
     }
     if (smoke)
     {
-        const bool loaded = smoke_startup_splash(engine) &&
-                            smoke_panel_layout(engine, panel_layout) &&
-                            smoke_export_options(engine) &&
-                            ravo::smoke_photo_merge_dialog(engine, command_controller) &&
-                            ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
+        const bool loaded =
+            smoke_startup_splash(engine) && smoke_panel_layout(engine, panel_layout) &&
+            smoke_export_options(engine) && ravo::smoke_settings(engine, command_controller) &&
+            ravo::smoke_photo_merge_dialog(engine, command_controller) &&
+            ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

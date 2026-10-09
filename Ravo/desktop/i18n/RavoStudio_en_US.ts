@@ -110,57 +110,6 @@ Diff: %6</translation>
         </message>
     </context>
     <context>
-        <name>BackupScheduleDialog</name>
-        <message>
-            <source>Scheduled Backups</source>
-            <translation>Scheduled Backups</translation>
-        </message>
-        <message>
-            <source>Every 15 minutes</source>
-            <translation>Every 15 minutes</translation>
-        </message>
-        <message>
-            <source>Hourly</source>
-            <translation>Hourly</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>Daily</translation>
-        </message>
-        <message>
-            <source>Weekly</source>
-            <translation>Weekly</translation>
-        </message>
-        <message>
-            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
-            <translation>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</translation>
-        </message>
-        <message>
-            <source>Frequency</source>
-            <translation>Frequency</translation>
-        </message>
-        <message>
-            <source>Backup frequency</source>
-            <translation>Backup frequency</translation>
-        </message>
-        <message>
-            <source>Keep backups</source>
-            <translation>Keep backups</translation>
-        </message>
-        <message>
-            <source>Backup retention count</source>
-            <translation>Backup retention count</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Cancel</translation>
-        </message>
-        <message>
-            <source>Choose Folder…</source>
-            <translation>Choose Folder…</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Snapshot #%1</source>
@@ -3892,26 +3841,6 @@ Diff: %6</translation>
     <context>
         <name>LibrarySidePanel</name>
         <message>
-            <source>Never</source>
-            <translation>Never</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
-        </message>
-        <message>
-            <source>%1 B</source>
-            <translation>%1 B</translation>
-        </message>
-        <message>
-            <source>%1 KiB</source>
-            <translation>%1 KiB</translation>
-        </message>
-        <message>
-            <source>%1 MiB</source>
-            <translation>%1 MiB</translation>
-        </message>
-        <message>
             <source>Library</source>
             <translation>Library</translation>
         </message>
@@ -3926,30 +3855,6 @@ Diff: %6</translation>
         <message>
             <source>Import previews</source>
             <translation>Import previews</translation>
-        </message>
-        <message>
-            <source>Scheduled backups</source>
-            <translation>Scheduled backups</translation>
-        </message>
-        <message>
-            <source>On</source>
-            <translation>On</translation>
-        </message>
-        <message>
-            <source>Off</source>
-            <translation>Off</translation>
-        </message>
-        <message>
-            <source>Last verified: %1 · %2</source>
-            <translation>Last verified: %1 · %2</translation>
-        </message>
-        <message>
-            <source>Next: %1 · Keep %2</source>
-            <translation>Next: %1 · Keep %2</translation>
-        </message>
-        <message>
-            <source>Last failure: %1</source>
-            <translation>Last failure: %1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -4700,23 +4605,7 @@ Diff: %6</translation>
         </message>
     </context>
     <context>
-        <name>SettingsPage</name>
-        <message>
-            <source>Back</source>
-            <translation>Back</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Settings</translation>
-        </message>
-        <message>
-            <source>Ravo Studio uses a single dark workspace modeled on a photography library.</source>
-            <translation>Ravo Studio uses a single dark workspace modeled on a photography library.</translation>
-        </message>
-        <message>
-            <source>Language</source>
-            <translation>Language</translation>
-        </message>
+        <name>SettingsAssistantSection</name>
         <message>
             <source>Assistant</source>
             <translation>Assistant</translation>
@@ -4740,6 +4629,160 @@ Diff: %6</translation>
         <message>
             <source>Show</source>
             <translation>Show</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsBackupSection</name>
+        <message>
+            <source>Never</source>
+            <translation>Never</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
+            <source>Automatic backups</source>
+            <translation>Automatic backups</translation>
+        </message>
+        <message>
+            <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
+            <translation>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</translation>
+        </message>
+        <message>
+            <source>Enable automatic backups</source>
+            <translation>Enable automatic backups</translation>
+        </message>
+        <message>
+            <source>Backup folder</source>
+            <translation>Backup folder</translation>
+        </message>
+        <message>
+            <source>Choose folder…</source>
+            <translation>Choose folder…</translation>
+        </message>
+        <message>
+            <source>Interval (minutes)</source>
+            <translation>Interval (minutes)</translation>
+        </message>
+        <message>
+            <source>Backups to keep</source>
+            <translation>Backups to keep</translation>
+        </message>
+        <message>
+            <source>Saving…</source>
+            <translation>Saving…</translation>
+        </message>
+        <message>
+            <source>Save backup settings</source>
+            <translation>Save backup settings</translation>
+        </message>
+        <message>
+            <source>Reload saved settings</source>
+            <translation>Reload saved settings</translation>
+        </message>
+        <message>
+            <source>Unsaved changes</source>
+            <translation>Unsaved changes</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>On</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Off</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>Last verified: %1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>Next: %1 · Keep %2</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>Last failure: %1</translation>
+        </message>
+        <message>
+            <source>Run backup now</source>
+            <translation>Run backup now</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsPage</name>
+        <message>
+            <source>General</source>
+            <translation>General</translation>
+        </message>
+        <message>
+            <source>Workspace</source>
+            <translation>Workspace</translation>
+        </message>
+        <message>
+            <source>Catalog &amp; Backup</source>
+            <translation>Catalog &amp; Backup</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>Back</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Settings</translation>
+        </message>
+        <message>
+            <source>Application preferences apply to all catalogs.</source>
+            <translation>Application preferences apply to all catalogs.</translation>
+        </message>
+        <message>
+            <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
+            <translation>Panel sizes are saved automatically. You can also resize them by dragging their edges.</translation>
+        </message>
+        <message>
+            <source>Left panel width</source>
+            <translation>Left panel width</translation>
+        </message>
+        <message>
+            <source>Right panel width</source>
+            <translation>Right panel width</translation>
+        </message>
+        <message>
+            <source>Filmstrip height</source>
+            <translation>Filmstrip height</translation>
+        </message>
+        <message>
+            <source>px</source>
+            <translation>px</translation>
+        </message>
+        <message>
+            <source>Reset panel sizes</source>
+            <translation>Reset panel sizes</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>Language</translation>
+        </message>
+        <message>
+            <source>Assistant</source>
+            <translation>Assistant</translation>
         </message>
     </context>
     <context>
@@ -4807,6 +4850,25 @@ Diff: %6</translation>
         <message>
             <source>Assistant response contained no text.</source>
             <translation>Assistant response contained no text.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioBackupSettings</name>
+        <message>
+            <source>Open a catalog to configure automatic backups.</source>
+            <translation>Open a catalog to configure automatic backups.</translation>
+        </message>
+        <message>
+            <source>Saving backup settings…</source>
+            <translation>Saving backup settings…</translation>
+        </message>
+        <message>
+            <source>No changes to save.</source>
+            <translation>No changes to save.</translation>
+        </message>
+        <message>
+            <source>Backup policy changed. Reload settings before saving.</source>
+            <translation>Backup policy changed. Reload settings before saving.</translation>
         </message>
     </context>
     <context>
@@ -5107,10 +5169,6 @@ Diff: %6</translation>
             <translation>Restore Catalog Backup...</translation>
         </message>
         <message>
-            <source>Enable Scheduled Backups...</source>
-            <translation>Enable Scheduled Backups...</translation>
-        </message>
-        <message>
             <source>Run Scheduled Backup Now</source>
             <translation>Run Scheduled Backup Now</translation>
         </message>
@@ -5273,6 +5331,10 @@ Diff: %6</translation>
         <message>
             <source>Import...</source>
             <translation>Import...</translation>
+        </message>
+        <message>
+            <source>Automatic Backup Settings...</source>
+            <translation>Automatic Backup Settings...</translation>
         </message>
         <message>
             <source>Apply Recipe Style...</source>

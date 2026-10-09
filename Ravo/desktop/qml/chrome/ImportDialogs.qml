@@ -18,6 +18,7 @@ Item {
     }
     FolderDialogPage {
         id: source
+        presenter: root.presenter
         dialogTitle: qsTr("Choose Import Source")
         onFolderAccepted: function (path) {
             root.presenter.imports.setImportSourceRoot(path);
@@ -25,6 +26,7 @@ Item {
     }
     FolderDialogPage {
         id: destination
+        presenter: root.presenter
         dialogTitle: qsTr("Choose Import Destination")
         onFolderAccepted: function (path) {
             root.presenter.imports.setImportDestination(path);
@@ -32,6 +34,7 @@ Item {
     }
     FolderDialogPage {
         id: secondCopy
+        presenter: root.presenter
         dialogTitle: qsTr("Choose Import Second Copy")
         onFolderAccepted: function (path) {
             root.presenter.imports.setImportSecondCopyDestination(path);

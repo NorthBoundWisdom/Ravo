@@ -201,6 +201,23 @@ TEST_F(WindowGeometryTest, InvalidPanelSizesDoNotReplaceStoredPreference)
     EXPECT_EQ(reopened.filmstripHeight(), 400);
 }
 
+TEST_F(WindowGeometryTest, SettingsResetPersistsDefaultPanelSizes)
+{
+    StudioPanelLayout layout;
+    ASSERT_TRUE(layout.initialize());
+    ASSERT_TRUE(layout.setSideWidths(400, 500));
+    ASSERT_TRUE(layout.setFilmstripHeight(250));
+    EXPECT_EQ(layout.constraints().value("leftMin").toInt(), 160);
+    EXPECT_EQ(layout.constraints().value("rightMax").toInt(), 800);
+    layout.resetToDefaults();
+    ASSERT_TRUE(layout.flush());
+    StudioPanelLayout reopened;
+    ASSERT_TRUE(reopened.initialize());
+    EXPECT_EQ(reopened.leftWidth(), 240);
+    EXPECT_EQ(reopened.rightWidth(), 320);
+    EXPECT_EQ(reopened.filmstripHeight(), 108);
+}
+
 TEST_F(WindowGeometryTest, MalformedPanelLayoutFailsExplicitly)
 {
     for (const QVariant &stored : {QVariant(QStringLiteral("broken")),

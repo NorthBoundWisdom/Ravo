@@ -110,57 +110,6 @@ Différence : %6</translation>
         </message>
     </context>
     <context>
-        <name>BackupScheduleDialog</name>
-        <message>
-            <source>Scheduled Backups</source>
-            <translation>Sauvegardes planifiées</translation>
-        </message>
-        <message>
-            <source>Every 15 minutes</source>
-            <translation>Toutes les 15 minutes</translation>
-        </message>
-        <message>
-            <source>Hourly</source>
-            <translation>Toutes les heures</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>Tous les jours</translation>
-        </message>
-        <message>
-            <source>Weekly</source>
-            <translation>Toutes les semaines</translation>
-        </message>
-        <message>
-            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
-            <translation>Choisissez la fréquence à laquelle Ravo crée une sauvegarde vérifiée du catalogue et le nombre de sauvegardes vérifiées à conserver. Vous choisirez ensuite le dossier de destination.</translation>
-        </message>
-        <message>
-            <source>Frequency</source>
-            <translation>Fréquence</translation>
-        </message>
-        <message>
-            <source>Backup frequency</source>
-            <translation>Fréquence des sauvegardes</translation>
-        </message>
-        <message>
-            <source>Keep backups</source>
-            <translation>Sauvegardes à conserver</translation>
-        </message>
-        <message>
-            <source>Backup retention count</source>
-            <translation>Nombre de sauvegardes conservées</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>Annuler</translation>
-        </message>
-        <message>
-            <source>Choose Folder…</source>
-            <translation>Choisir un dossier…</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Original</source>
@@ -3892,26 +3841,6 @@ Différence : %6</translation>
     <context>
         <name>LibrarySidePanel</name>
         <message>
-            <source>Never</source>
-            <translation>Jamais</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 o</translation>
-        </message>
-        <message>
-            <source>%1 B</source>
-            <translation>%1 o</translation>
-        </message>
-        <message>
-            <source>%1 KiB</source>
-            <translation>%1 Kio</translation>
-        </message>
-        <message>
-            <source>%1 MiB</source>
-            <translation>%1 Mio</translation>
-        </message>
-        <message>
             <source>Library</source>
             <translation>Bibliothèque</translation>
         </message>
@@ -3926,30 +3855,6 @@ Différence : %6</translation>
         <message>
             <source>Import previews</source>
             <translation>Aperçus d’importation</translation>
-        </message>
-        <message>
-            <source>Scheduled backups</source>
-            <translation>Sauvegardes planifiées</translation>
-        </message>
-        <message>
-            <source>On</source>
-            <translation>Activées</translation>
-        </message>
-        <message>
-            <source>Off</source>
-            <translation>Désactivées</translation>
-        </message>
-        <message>
-            <source>Last verified: %1 · %2</source>
-            <translation>Dernière vérification : %1 · %2</translation>
-        </message>
-        <message>
-            <source>Next: %1 · Keep %2</source>
-            <translation>Prochaine : %1 · Conserver %2</translation>
-        </message>
-        <message>
-            <source>Last failure: %1</source>
-            <translation>Dernier échec : %1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -4700,23 +4605,7 @@ Différence : %6</translation>
         </message>
     </context>
     <context>
-        <name>SettingsPage</name>
-        <message>
-            <source>Back</source>
-            <translation>Retour</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>Paramètres</translation>
-        </message>
-        <message>
-            <source>Ravo Studio uses a single dark workspace modeled on a photography library.</source>
-            <translation>Ravo Studio utilise un espace de travail sombre inspiré d’une bibliothèque photo.</translation>
-        </message>
-        <message>
-            <source>Language</source>
-            <translation>Langue</translation>
-        </message>
+        <name>SettingsAssistantSection</name>
         <message>
             <source>Assistant</source>
             <translation>Assistant</translation>
@@ -4740,6 +4629,160 @@ Différence : %6</translation>
         <message>
             <source>Show</source>
             <translation>Afficher</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsBackupSection</name>
+        <message>
+            <source>Never</source>
+            <translation>Jamais</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 o</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 o</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 Kio</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 Mio</translation>
+        </message>
+        <message>
+            <source>Automatic backups</source>
+            <translation>Sauvegardes automatiques</translation>
+        </message>
+        <message>
+            <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
+            <translation>Ces réglages s’appliquent au catalogue actuel. Les sauvegardes incluent le catalogue et l’historique des retouches, mais excluent les médias originaux et les caches d’aperçu. Les sauvegardes planifiées s’exécutent lorsque Studio est ouvert.</translation>
+        </message>
+        <message>
+            <source>Enable automatic backups</source>
+            <translation>Activer les sauvegardes automatiques</translation>
+        </message>
+        <message>
+            <source>Backup folder</source>
+            <translation>Dossier de sauvegarde</translation>
+        </message>
+        <message>
+            <source>Choose folder…</source>
+            <translation>Choisir un dossier…</translation>
+        </message>
+        <message>
+            <source>Interval (minutes)</source>
+            <translation>Intervalle (minutes)</translation>
+        </message>
+        <message>
+            <source>Backups to keep</source>
+            <translation>Sauvegardes à conserver</translation>
+        </message>
+        <message>
+            <source>Saving…</source>
+            <translation>Enregistrement…</translation>
+        </message>
+        <message>
+            <source>Save backup settings</source>
+            <translation>Enregistrer les réglages de sauvegarde</translation>
+        </message>
+        <message>
+            <source>Reload saved settings</source>
+            <translation>Recharger les réglages enregistrés</translation>
+        </message>
+        <message>
+            <source>Unsaved changes</source>
+            <translation>Modifications non enregistrées</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>Activées</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>Désactivées</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>Dernière vérification : %1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>Prochaine : %1 · Conserver %2</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>Dernier échec : %1</translation>
+        </message>
+        <message>
+            <source>Run backup now</source>
+            <translation>Sauvegarder maintenant</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>Annuler</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsPage</name>
+        <message>
+            <source>General</source>
+            <translation>Général</translation>
+        </message>
+        <message>
+            <source>Workspace</source>
+            <translation>Espace de travail</translation>
+        </message>
+        <message>
+            <source>Catalog &amp; Backup</source>
+            <translation>Catalogue et sauvegarde</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>Retour</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>Paramètres</translation>
+        </message>
+        <message>
+            <source>Application preferences apply to all catalogs.</source>
+            <translation>Les préférences de l’application s’appliquent à tous les catalogues.</translation>
+        </message>
+        <message>
+            <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
+            <translation>La taille des panneaux est enregistrée automatiquement. Vous pouvez aussi la modifier en faisant glisser leurs bords.</translation>
+        </message>
+        <message>
+            <source>Left panel width</source>
+            <translation>Largeur du panneau gauche</translation>
+        </message>
+        <message>
+            <source>Right panel width</source>
+            <translation>Largeur du panneau droit</translation>
+        </message>
+        <message>
+            <source>Filmstrip height</source>
+            <translation>Hauteur du bandeau de photos</translation>
+        </message>
+        <message>
+            <source>px</source>
+            <translation>px</translation>
+        </message>
+        <message>
+            <source>Reset panel sizes</source>
+            <translation>Réinitialiser la taille des panneaux</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>Langue</translation>
+        </message>
+        <message>
+            <source>Assistant</source>
+            <translation>Assistant</translation>
         </message>
     </context>
     <context>
@@ -4807,6 +4850,25 @@ Différence : %6</translation>
         <message>
             <source>Assistant response contained no text.</source>
             <translation>La réponse de l’assistant ne contenait aucun texte.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioBackupSettings</name>
+        <message>
+            <source>Open a catalog to configure automatic backups.</source>
+            <translation>Ouvrez un catalogue pour configurer les sauvegardes automatiques.</translation>
+        </message>
+        <message>
+            <source>Saving backup settings…</source>
+            <translation>Enregistrement des réglages de sauvegarde…</translation>
+        </message>
+        <message>
+            <source>No changes to save.</source>
+            <translation>Aucune modification à enregistrer.</translation>
+        </message>
+        <message>
+            <source>Backup policy changed. Reload settings before saving.</source>
+            <translation>La politique de sauvegarde a changé. Rechargez les réglages avant d’enregistrer.</translation>
         </message>
     </context>
     <context>
@@ -5127,10 +5189,6 @@ Différence : %6</translation>
             <translation>Restaurer la sauvegarde du catalogue…</translation>
         </message>
         <message>
-            <source>Enable Scheduled Backups...</source>
-            <translation>Activer les sauvegardes planifiées…</translation>
-        </message>
-        <message>
             <source>Run Scheduled Backup Now</source>
             <translation>Exécuter la sauvegarde planifiée maintenant</translation>
         </message>
@@ -5397,6 +5455,10 @@ Différence : %6</translation>
         <message>
             <source>Import...</source>
             <translation>Importer…</translation>
+        </message>
+        <message>
+            <source>Automatic Backup Settings...</source>
+            <translation>Réglages des sauvegardes automatiques...</translation>
         </message>
         <message>
             <source>Paste Parameters</source>

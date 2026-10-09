@@ -157,7 +157,7 @@ TEST(StudioQmlContract, AssistantPanelIsFloatingAndSettingsOwnUrlAndModel)
     EXPECT_FALSE(panel_source.contains(QStringLiteral("Overlay.overlay")));
     EXPECT_FALSE(panel_source.contains(QStringLiteral("XMLHttpRequest")));
 
-    QFile settings(QStringLiteral(RAVO_STUDIO_SETTINGS_PAGE_QML));
+    QFile settings(QStringLiteral(RAVO_STUDIO_SETTINGS_ASSISTANT_QML));
     ASSERT_TRUE(settings.open(QIODevice::ReadOnly | QIODevice::Text))
         << settings.errorString().toStdString();
     const auto settings_source = QString::fromUtf8(settings.readAll());

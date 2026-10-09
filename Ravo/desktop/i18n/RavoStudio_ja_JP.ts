@@ -110,57 +110,6 @@ Diff: %6</source>
         </message>
     </context>
     <context>
-        <name>BackupScheduleDialog</name>
-        <message>
-            <source>Scheduled Backups</source>
-            <translation>定期バックアップ</translation>
-        </message>
-        <message>
-            <source>Every 15 minutes</source>
-            <translation>15 分ごと</translation>
-        </message>
-        <message>
-            <source>Hourly</source>
-            <translation>1 時間ごと</translation>
-        </message>
-        <message>
-            <source>Daily</source>
-            <translation>毎日</translation>
-        </message>
-        <message>
-            <source>Weekly</source>
-            <translation>毎週</translation>
-        </message>
-        <message>
-            <source>Choose how often Ravo creates a verified catalog backup and how many verified backups it keeps. You will choose the destination folder next.</source>
-            <translation>Ravo が検証済みカタログバックアップを作成する頻度と、保持する数を選択します。次に保存先フォルダーを選択します。</translation>
-        </message>
-        <message>
-            <source>Frequency</source>
-            <translation>頻度</translation>
-        </message>
-        <message>
-            <source>Backup frequency</source>
-            <translation>バックアップ頻度</translation>
-        </message>
-        <message>
-            <source>Keep backups</source>
-            <translation>保持するバックアップ数</translation>
-        </message>
-        <message>
-            <source>Backup retention count</source>
-            <translation>バックアップ保持数</translation>
-        </message>
-        <message>
-            <source>Cancel</source>
-            <translation>キャンセル</translation>
-        </message>
-        <message>
-            <source>Choose Folder…</source>
-            <translation>フォルダーを選択…</translation>
-        </message>
-    </context>
-    <context>
         <name>DevelopHistoryPanel</name>
         <message>
             <source>Original</source>
@@ -3892,26 +3841,6 @@ Diff: %6</source>
     <context>
         <name>LibrarySidePanel</name>
         <message>
-            <source>Never</source>
-            <translation>なし</translation>
-        </message>
-        <message>
-            <source>0 B</source>
-            <translation>0 B</translation>
-        </message>
-        <message>
-            <source>%1 B</source>
-            <translation>%1 B</translation>
-        </message>
-        <message>
-            <source>%1 KiB</source>
-            <translation>%1 KiB</translation>
-        </message>
-        <message>
-            <source>%1 MiB</source>
-            <translation>%1 MiB</translation>
-        </message>
-        <message>
             <source>Library</source>
             <translation>LibrarySidePanel::Library</translation>
         </message>
@@ -3926,30 +3855,6 @@ Diff: %6</source>
         <message>
             <source>Import previews</source>
             <translation>読み込みプレビュー</translation>
-        </message>
-        <message>
-            <source>Scheduled backups</source>
-            <translation>定期バックアップ</translation>
-        </message>
-        <message>
-            <source>On</source>
-            <translation>オン</translation>
-        </message>
-        <message>
-            <source>Off</source>
-            <translation>オフ</translation>
-        </message>
-        <message>
-            <source>Last verified: %1 · %2</source>
-            <translation>最終検証：%1 · %2</translation>
-        </message>
-        <message>
-            <source>Next: %1 · Keep %2</source>
-            <translation>次回：%1 · %2 個を保持</translation>
-        </message>
-        <message>
-            <source>Last failure: %1</source>
-            <translation>前回の失敗：%1</translation>
         </message>
         <message>
             <source>No photo</source>
@@ -4700,26 +4605,10 @@ Diff: %6</source>
         </message>
     </context>
     <context>
-        <name>SettingsPage</name>
-        <message>
-            <source>Back</source>
-            <translation>戻る</translation>
-        </message>
-        <message>
-            <source>Settings</source>
-            <translation>設定</translation>
-        </message>
-        <message>
-            <source>Ravo Studio uses a single dark workspace modeled on a photography library.</source>
-            <translation>Ravo Studio は、写真ライブラリをモデルにした単一の暗いワークスペースを使用します。</translation>
-        </message>
-        <message>
-            <source>Language</source>
-            <translation>言語</translation>
-        </message>
+        <name>SettingsAssistantSection</name>
         <message>
             <source>Assistant</source>
-            <translation>SettingsPage::Assistant</translation>
+            <translation>アシスタント</translation>
         </message>
         <message>
             <source>OpenAI-compatible endpoint used by the floating Assistant panel. The default is the xAI API.</source>
@@ -4740,6 +4629,160 @@ Diff: %6</source>
         <message>
             <source>Show</source>
             <translation>Show</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsBackupSection</name>
+        <message>
+            <source>Never</source>
+            <translation>なし</translation>
+        </message>
+        <message>
+            <source>0 B</source>
+            <translation>0 B</translation>
+        </message>
+        <message>
+            <source>%1 B</source>
+            <translation>%1 B</translation>
+        </message>
+        <message>
+            <source>%1 KiB</source>
+            <translation>%1 KiB</translation>
+        </message>
+        <message>
+            <source>%1 MiB</source>
+            <translation>%1 MiB</translation>
+        </message>
+        <message>
+            <source>Automatic backups</source>
+            <translation>自動バックアップ</translation>
+        </message>
+        <message>
+            <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
+            <translation>これらの設定は現在のカタログに適用されます。バックアップにはカタログと編集履歴が含まれますが、元のメディアとプレビューキャッシュは含まれません。定期バックアップは Studio の起動中に実行されます。</translation>
+        </message>
+        <message>
+            <source>Enable automatic backups</source>
+            <translation>自動バックアップを有効にする</translation>
+        </message>
+        <message>
+            <source>Backup folder</source>
+            <translation>バックアップフォルダー</translation>
+        </message>
+        <message>
+            <source>Choose folder…</source>
+            <translation>フォルダーを選択…</translation>
+        </message>
+        <message>
+            <source>Interval (minutes)</source>
+            <translation>間隔（分）</translation>
+        </message>
+        <message>
+            <source>Backups to keep</source>
+            <translation>保持するバックアップ数</translation>
+        </message>
+        <message>
+            <source>Saving…</source>
+            <translation>保存中…</translation>
+        </message>
+        <message>
+            <source>Save backup settings</source>
+            <translation>バックアップ設定を保存</translation>
+        </message>
+        <message>
+            <source>Reload saved settings</source>
+            <translation>保存済み設定を再読み込み</translation>
+        </message>
+        <message>
+            <source>Unsaved changes</source>
+            <translation>未保存の変更</translation>
+        </message>
+        <message>
+            <source>On</source>
+            <translation>オン</translation>
+        </message>
+        <message>
+            <source>Off</source>
+            <translation>オフ</translation>
+        </message>
+        <message>
+            <source>Last verified: %1 · %2</source>
+            <translation>最終検証：%1 · %2</translation>
+        </message>
+        <message>
+            <source>Next: %1 · Keep %2</source>
+            <translation>次回：%1 · %2 個を保持</translation>
+        </message>
+        <message>
+            <source>Last failure: %1</source>
+            <translation>前回の失敗：%1</translation>
+        </message>
+        <message>
+            <source>Run backup now</source>
+            <translation>今すぐバックアップ</translation>
+        </message>
+        <message>
+            <source>Cancel</source>
+            <translation>キャンセル</translation>
+        </message>
+    </context>
+    <context>
+        <name>SettingsPage</name>
+        <message>
+            <source>General</source>
+            <translation>一般</translation>
+        </message>
+        <message>
+            <source>Workspace</source>
+            <translation>ワークスペース</translation>
+        </message>
+        <message>
+            <source>Catalog &amp; Backup</source>
+            <translation>カタログとバックアップ</translation>
+        </message>
+        <message>
+            <source>Back</source>
+            <translation>戻る</translation>
+        </message>
+        <message>
+            <source>Settings</source>
+            <translation>設定</translation>
+        </message>
+        <message>
+            <source>Application preferences apply to all catalogs.</source>
+            <translation>アプリの環境設定はすべてのカタログに適用されます。</translation>
+        </message>
+        <message>
+            <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
+            <translation>パネルのサイズは自動保存されます。端をドラッグして変更することもできます。</translation>
+        </message>
+        <message>
+            <source>Left panel width</source>
+            <translation>左パネルの幅</translation>
+        </message>
+        <message>
+            <source>Right panel width</source>
+            <translation>右パネルの幅</translation>
+        </message>
+        <message>
+            <source>Filmstrip height</source>
+            <translation>フィルムストリップの高さ</translation>
+        </message>
+        <message>
+            <source>px</source>
+            <translation>px</translation>
+        </message>
+        <message>
+            <source>Reset panel sizes</source>
+            <translation>パネルのサイズをリセット</translation>
+        </message>
+        <message>
+            <source>Language</source>
+            <translation>言語</translation>
+        </message>
+        <message>
+            <source>Assistant</source>
+            <translation>SettingsPage::Assistant</translation>
         </message>
     </context>
     <context>
@@ -4807,6 +4850,25 @@ Diff: %6</source>
         <message>
             <source>Assistant response contained no text.</source>
             <translation>Assistant の応答にはテキストが含まれていませんでした。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioBackupSettings</name>
+        <message>
+            <source>Open a catalog to configure automatic backups.</source>
+            <translation>自動バックアップを設定するにはカタログを開いてください。</translation>
+        </message>
+        <message>
+            <source>Saving backup settings…</source>
+            <translation>バックアップ設定を保存中…</translation>
+        </message>
+        <message>
+            <source>No changes to save.</source>
+            <translation>保存する変更はありません。</translation>
+        </message>
+        <message>
+            <source>Backup policy changed. Reload settings before saving.</source>
+            <translation>バックアップポリシーが変更されました。保存する前に設定を再読み込みしてください。</translation>
         </message>
     </context>
     <context>
@@ -5127,10 +5189,6 @@ Diff: %6</source>
             <translation>カタログバックアップを復元…</translation>
         </message>
         <message>
-            <source>Enable Scheduled Backups...</source>
-            <translation>定期バックアップを有効化…</translation>
-        </message>
-        <message>
             <source>Run Scheduled Backup Now</source>
             <translation>定期バックアップを今すぐ実行</translation>
         </message>
@@ -5397,6 +5455,10 @@ Diff: %6</source>
         <message>
             <source>Import...</source>
             <translation>読み込み…</translation>
+        </message>
+        <message>
+            <source>Automatic Backup Settings...</source>
+            <translation>自動バックアップ設定...</translation>
         </message>
         <message>
             <source>Paste Parameters</source>

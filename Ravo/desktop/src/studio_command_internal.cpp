@@ -383,17 +383,17 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("recovery"), QStringLiteral("restore")}, QStringLiteral("file.recovery"),
         50, true);
     add(command::kLibraryBackupSchedule, command::kLibraryBackupSchedule,
-        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Enable Scheduled Backups...")), file,
-        {QStringLiteral("automatic"), QStringLiteral("retention")}, QStringLiteral("file.recovery"),
-        55, true);
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Automatic Backup Settings...")),
+        file, {QStringLiteral("automatic"), QStringLiteral("retention")},
+        QStringLiteral("file.recovery"), 55, false);
     add(command::kLibraryBackupScheduleRun, command::kLibraryBackupScheduleRun,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Run Scheduled Backup Now")), file,
         {QStringLiteral("automatic"), QStringLiteral("backup")}, QStringLiteral("file.recovery"),
-        56, true);
+        56, false);
     add(command::kLibraryBackupScheduleDisable, command::kLibraryBackupScheduleDisable,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Disable Scheduled Backups")), file,
         {QStringLiteral("automatic"), QStringLiteral("backup")}, QStringLiteral("file.recovery"),
-        57, true);
+        57, false);
     add(command::kLibraryPreviewRebuildSelected, command::kLibraryPreviewRebuildSelected,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Rebuild Selected Previews")), file,
         {QStringLiteral("cache"), QStringLiteral("thumbnail")}, QStringLiteral("file.recovery"), 60,

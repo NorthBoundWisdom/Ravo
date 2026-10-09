@@ -942,11 +942,12 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             auto *header = window->findChild<QQuickItem *>(QStringLiteral("libraryHeader"));
             auto *progress =
                 window->findChild<QQuickItem *>(QStringLiteral("libraryPreviewProgress"));
-            auto *backup = window->findChild<QQuickItem *>(QStringLiteral("libraryBackupStatus"));
-            if (!header || !progress || !backup)
+            auto *navigator = window->findChild<QQuickItem *>(QStringLiteral("libraryNavigator"));
+            if (!header || !progress || !navigator ||
+                window->findChild<QQuickItem *>(QStringLiteral("libraryBackupStatus")))
                 return false;
             const auto header_height = header->height();
-            const auto backup_y = backup->y();
+            const auto navigator_y = navigator->y();
             const auto check_progress = [&](int total, int completed, bool active, bool expected)
             {
                 QQmlProperty::write(progress, "total", total);
@@ -956,7 +957,7 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 QTimer::singleShot(650, &progress_layout, &QEventLoop::quit);
                 progress_layout.exec();
                 return progress->property("revealed").toBool() == expected &&
-                       header->height() == header_height && backup->y() == backup_y;
+                       header->height() == header_height && navigator->y() == navigator_y;
             };
             if (!check_progress(1, 0, true, false) || !check_progress(8, 0, true, true) ||
                 !check_progress(8, 8, false, false))

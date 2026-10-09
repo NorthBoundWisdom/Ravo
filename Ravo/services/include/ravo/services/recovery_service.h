@@ -39,6 +39,8 @@ public:
     verify_backup(std::string_view backup_directory,
                   const CancellationToken &cancellation = {}) const;
     [[nodiscard]] Result<CatalogBackupPolicy> backup_policy() const;
+    // Replaces configuration, including disabled policies; service-owned backup
+    // history is preserved. A toggle-only client passes the observed configuration.
     [[nodiscard]] Result<CatalogBackupPolicy> set_backup_policy(CatalogBackupPolicy policy,
                                                                 std::int64_t now_unix_ms);
     [[nodiscard]] Result<CatalogBackupScheduleResult>

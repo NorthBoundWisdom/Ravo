@@ -31,7 +31,7 @@ ApplicationWindow {
     palette.highlightedText: Theme.highlightedTextColor
     palette.placeholderText: Theme.placeholderTextColor
     palette.accent: Theme.accentColor
-    property bool settingsOpen: false
+    readonly property bool settingsOpen: studioCommands.settingsOpen
     property string removeConfirmationToken: ""
     property string deleteConfirmationToken: ""
     property string presetDeleteConfirmationToken: ""
@@ -45,8 +45,6 @@ ApplicationWindow {
     property var pendingExportOptions: ({})
     property string pendingExportFilenameTemplate: ""
     property string pendingRestoreBackup: ""
-    property int pendingBackupIntervalMinutes: 1440
-    property int pendingBackupRetentionCount: 7
     StudioDialogCoordinator {
         id: dialogCoordinator
         windowHost: window
@@ -203,8 +201,9 @@ ApplicationWindow {
         backupRestoreSourceDialog.openDialog();
     }
 
-    function openBackupScheduleDialog() {
-        backupScheduleDialog.openForPolicy(studio.backupScheduleStatus);
+    function openBackupSettings() {
+        studioCommands.selectSettingsSection("backup");
+        studioCommands.settingsOpen = true;
     }
 
     function openSelectedAssetDialog(dialog) {
@@ -344,18 +343,13 @@ ApplicationWindow {
 
     Binding {
         target: studioCommands
-        property: "settingsOpen"
-        value: window.settingsOpen
-    }
-    Binding {
-        target: studioCommands
         property: "textInputActive"
         value: window.textInputActive
     }
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: inspectorSidePanel.metadataEditing || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || backupScheduleDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
+        value: inspectorSidePanel.metadataEditing || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
     }
 
     StudioCommandShortcuts {
@@ -399,7 +393,7 @@ ApplicationWindow {
             else if (id === ids.libraryBackupRestore)
                 openBackupRestoreDialog();
             else if (id === ids.libraryBackupSchedule)
-                openBackupScheduleDialog();
+                openBackupSettings();
             else if (id === ids.libraryFolderRelink)
                 openFolderRelinkDialog(argument);
             else if (id === ids.editCopyParameters)
@@ -417,7 +411,7 @@ ApplicationWindow {
             else if (id === ids.presetDelete)
                 askDeletePreset(argument);
             else if (id === ids.windowSettings)
-                window.settingsOpen = true;
+                studioCommands.settingsOpen = true;
             else if (id === ids.windowClose)
                 window.close();
             else if (id === ids.windowQuit)
@@ -435,7 +429,7 @@ ApplicationWindow {
                 window.deleteConfirmationToken = String(argument);
                 askDeleteFromDisk();
             } else if (id === "studio.window.dismiss")
-                window.settingsOpen = false;
+                studioCommands.settingsOpen = false;
         }
     }
 
@@ -1312,11 +1306,17 @@ ApplicationWindow {
     SettingsPage {
         anchors.fill: parent
         visible: window.settingsOpen
-        z: 20
+        z: 28
         presenter: studio
+        commands: studioActions
         languageManager: studioLanguage
         assistant: studioAssistant
-        onCloseRequested: window.settingsOpen = false
+        panelLayout: studioLayout
+        onCloseRequested: studioCommands.settingsOpen = false
+        onChooseBackupFolderRequested: {
+            backupScheduleFolderDialog.currentFolder = studio.defaultCatalogFolder;
+            backupScheduleFolderDialog.openDialog();
+        }
     }
 
     ImportPage {
@@ -1486,6 +1486,7 @@ ApplicationWindow {
 
     FolderDialogPage {
         id: backupVerifyDialog
+        presenter: studio
         dialogTitle: qsTr("Verify Catalog Backup")
         onFolderAccepted: function (folderPath) {
             studioActions.run(studioActions.ids.libraryBackupVerifyPath, folderPath);
@@ -1494,6 +1495,7 @@ ApplicationWindow {
 
     FolderDialogPage {
         id: backupRestoreSourceDialog
+        presenter: studio
         dialogTitle: qsTr("Select Catalog Backup to Restore")
         onFolderAccepted: function (folderPath) {
             window.pendingRestoreBackup = folderPath;
@@ -1571,31 +1573,19 @@ ApplicationWindow {
         onCancelAccepted: studioActions.run(studioActions.ids.photoAiProposalCancel)
     }
 
-    BackupScheduleDialog {
-        id: backupScheduleDialog
-        parentItem: window.contentItem
-        onScheduleAccepted: function (intervalMinutes, retentionCount) {
-            window.pendingBackupIntervalMinutes = intervalMinutes;
-            window.pendingBackupRetentionCount = retentionCount;
-            backupScheduleFolderDialog.currentFolder = studio.defaultCatalogFolder;
-            backupScheduleFolderDialog.openDialog();
-        }
-    }
-
     FolderDialogPage {
         id: backupScheduleFolderDialog
+        objectName: "settingsBackupFolderDialog"
+        presenter: studio
         dialogTitle: qsTr("Choose Scheduled Backup Folder")
         onFolderAccepted: function (folderPath) {
-            studioActions.run(studioActions.ids.libraryBackupSchedulePath, {
-                "directory": folderPath,
-                "intervalMinutes": window.pendingBackupIntervalMinutes,
-                "retentionCount": window.pendingBackupRetentionCount
-            });
+            studioCommands.backupSettings.acceptDirectory(folderPath);
         }
     }
 
     FolderDialogPage {
         id: folderRelinkDialog
+        presenter: studio
         dialogTitle: qsTr("Locate Missing Folder")
         onFolderAccepted: function (folderPath) {
             const folderId = window.pendingRelinkFolderId;
@@ -1631,6 +1621,7 @@ ApplicationWindow {
 
     FolderDialogPage {
         id: exportBatchDialog
+        presenter: studio
         dialogTitle: qsTr("Select Batch Export Folder")
         onFolderAccepted: function (folderPath) {
             dialogCoordinator.finishExportBatch(folderPath);

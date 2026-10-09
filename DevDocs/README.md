@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+Settings categories, catalog-scoped backup drafts and persisted workspace layout
+are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with workflow validation in
+[TESTING.md](TESTING.md) and usage in [Ravo/README.md](../Ravo/README.md).
+
 FFmpeg Qt-kit resolution and Linux multimedia runtime requirements are defined
 in [Dependency_Workflow.md](Dependency_Workflow.md) and [Packaging.md](Packaging.md).
 Software-buffer colour-range qualification follows

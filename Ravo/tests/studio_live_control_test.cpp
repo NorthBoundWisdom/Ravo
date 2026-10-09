@@ -466,9 +466,12 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupCreatePath")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupVerifyPath")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupRestorePaths")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupScheduleDialog")));
+    EXPECT_TRUE(main_source.contains(QStringLiteral("function openBackupSettings()")));
+    EXPECT_TRUE(
+        main_source.contains(QStringLiteral("studioCommands.selectSettingsSection(\"backup\")")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: backupScheduleFolderDialog")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryBackupSchedulePath")));
+    EXPECT_TRUE(main_source.contains(
+        QStringLiteral("studioCommands.backupSettings.acceptDirectory(folderPath)")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: folderRelinkDialog")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("ids.libraryFolderRelinkPath")));
     EXPECT_TRUE(main_source.contains(QStringLiteral("id: removeFolderDialog")));
@@ -487,8 +490,7 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     EXPECT_TRUE(library_source.contains(QStringLiteral("qrc:/GeoControls/icons/Close.svg")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("tooltipText: qsTr(\"Cancel\")")));
     EXPECT_FALSE(library_source.contains(QStringLiteral("text: qsTr(\"Cancel\")")));
-    EXPECT_TRUE(library_source.contains(QStringLiteral("backupScheduleStatus")));
-    EXPECT_TRUE(library_source.contains(QStringLiteral("Last verified: %1 · %2")));
+    EXPECT_FALSE(library_source.contains(QStringLiteral("libraryBackupStatus")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("libraryFolderRelink")));
     EXPECT_TRUE(library_source.contains(QStringLiteral("missing — click to locate")));
     EXPECT_TRUE(
@@ -511,9 +513,11 @@ TEST(StudioQmlContract, CatalogRecoveryUsesCommandOwnedDialogsProgressAndCancell
     ASSERT_TRUE(schedule.open(QIODevice::ReadOnly | QIODevice::Text))
         << schedule.errorString().toStdString();
     const auto schedule_source = QString::fromUtf8(schedule.readAll());
-    EXPECT_TRUE(schedule_source.contains(QStringLiteral("backupScheduleInterval")));
-    EXPECT_TRUE(schedule_source.contains(QStringLiteral("backupScheduleRetention")));
-    EXPECT_TRUE(schedule_source.contains(QStringLiteral("Choose Folder…")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("settingsBackupInterval")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("settingsBackupRetention")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("Choose folder…")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("Last verified: %1 · %2")));
+    EXPECT_TRUE(schedule_source.contains(QStringLiteral("root.model.apply()")));
 }
 
 TEST(StudioQmlContract, GalleryRequestsSparsePagesFromVisibleDelegates)
