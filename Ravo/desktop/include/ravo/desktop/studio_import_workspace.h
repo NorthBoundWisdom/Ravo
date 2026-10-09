@@ -125,6 +125,8 @@ public:
     void shutdown();
     void shutdownWorker();
     void cancelImport(std::string reason);
+    // Abandon this source's preparation without closing the Import workspace.
+    void cancelImportSource();
     void catalogReplaced();
     [[nodiscard]] bool finishPublication(std::uint64_t generation, std::size_t completed,
                                          std::size_t total);

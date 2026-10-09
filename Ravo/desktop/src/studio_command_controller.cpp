@@ -65,6 +65,8 @@ WorkspaceSupport command_workspace_support(const QString &command_id)
         QLatin1String(command::kWindowDismiss),
         QLatin1String(command::kPhotoCopyInfo),
         QLatin1String(command::kPhotoRevealInFileManager),
+        QLatin1String(command::kLibraryRevealFolder),
+        QLatin1String(command::kLibraryCopyFolderPath),
     };
     if (import_supported.contains(command_id))
         return kWorkspaceAll;
@@ -251,7 +253,9 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
                          tr_command(QStringLiteral("The selected originals cannot be deleted."))};
     case Condition::kCatalogOperation:
         return presenter.catalogOperationActive() || presenter.imports()->importWorkActive() ||
-                       presenter.imports()->importInteractionBlocked() ?
+                       presenter.imports()->importInteractionBlocked() ||
+                       (presenter.imports()->importPageOpen() &&
+                        !presenter.imports()->importSourceRoot().isEmpty()) ?
                    State{} :
                    State{false, tr_command(QStringLiteral("No catalog operation is running."))};
     }

@@ -4,6 +4,7 @@
 #include "studio_command_ids.h"
 #include "studio_command_controller_detail.h"
 #include "ravo/desktop/studio_presenter.h"
+#include <QDir>
 
 namespace ravo
 {
@@ -43,8 +44,10 @@ void StudioCommandController::registerLibraryCommands(const command_registration
     add(command::kLibraryCancelOperation, Condition::kCatalogOperation, no_argument,
         [this](const QVariant &, const QString &)
         {
-            if (presenter_.imports()->importInteractionBlocked())
-                presenter_.imports()->closeImportPage();
+            if (presenter_.imports()->importPageOpen() &&
+                !presenter_.imports()->importWorkActive() &&
+                !presenter_.imports()->importPreflightActive())
+                presenter_.imports()->cancelImportSource();
             else
                 presenter_.cancelCatalogOperation();
         });
@@ -326,6 +329,20 @@ void StudioCommandController::registerLibraryCommands(const command_registration
     add(command::kLibraryRevealFolder, Condition::kCatalogOpen, non_empty_string,
         [this](const QVariant &argument, const QString &)
         { presenter_.revealFolderInFileManager(argument.toString()); });
+    add(
+        command::kLibraryCopyFolderPath, Condition::kCatalogOpen,
+        [](const QVariant &argument)
+        {
+            const auto error = non_empty_string(argument);
+            if (!error.isEmpty())
+                return error;
+            return QDir::isAbsolutePath(argument.toString()) ?
+                       QString{} :
+                       tr_command(QString::fromUtf8(QT_TRANSLATE_NOOP(
+                           "StudioCommands", "The folder path must be absolute.")));
+        },
+        [this](const QVariant &argument, const QString &)
+        { presenter_.copyFolderPath(argument.toString()); });
     add(command::kLibraryRequestRemoveFolder, Condition::kCatalogReady, non_empty_string,
         [request_preset_confirmation](const QVariant &argument, const QString &)
         {

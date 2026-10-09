@@ -5175,6 +5175,10 @@ Diff: %6</translation>
             <translation>Folder identity and replacement path must not be empty.</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>The folder path must be absolute.</translation>
+        </message>
+        <message>
             <source>External editor id must not be empty.</source>
             <translation>External editor id must not be empty.</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diff: %6</translation>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>Open Burst Compare first.</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>Copy Path</translation>
         </message>
     </context>
     <context>
@@ -5964,6 +5972,10 @@ Diff: %6</translation>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>The selected folder has no local path.</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>The folder path could not be copied to the clipboard.</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

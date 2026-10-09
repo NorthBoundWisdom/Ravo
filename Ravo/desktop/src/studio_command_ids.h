@@ -60,6 +60,7 @@ inline constexpr auto kLibraryToggleStackCollapse = "studio.library.toggle_stack
 inline constexpr auto kLibraryFolderRelink = "studio.library.folder_relink";
 inline constexpr auto kLibraryFolderRelinkPath = "studio.library.folder_relink_path";
 inline constexpr auto kLibraryRevealFolder = "studio.library.reveal_folder";
+inline constexpr auto kLibraryCopyFolderPath = "studio.library.copy_folder_path";
 inline constexpr auto kLibraryRequestRemoveFolder = "studio.library.request_remove_folder";
 inline constexpr auto kLibraryRemoveFolder = "studio.library.remove_folder";
 inline constexpr auto kPhotoSelect = "studio.photo.select";

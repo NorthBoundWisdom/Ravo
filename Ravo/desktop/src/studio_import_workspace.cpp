@@ -133,8 +133,9 @@ bool StudioImportWorkspace::importReady() const
     const bool native = import_ingest_transport_ == QLatin1String("ptp-usb") ||
                         import_ingest_transport_ == QLatin1String("mtp");
     return import_page_open_ && !native && !import_preflight_active_ && !import_work_active_ &&
-           !importInteractionBlocked() && scan && scan->catalogRevision().has_value() &&
-           candidates.selectedCount() > 0 && draft.mode != QLatin1String("move") &&
+           !importInteractionBlocked() && !importDestinationPreviewActive() && scan &&
+           scan->catalogRevision().has_value() && candidates.selectedCount() > 0 &&
+           draft.mode != QLatin1String("move") &&
            (draft.mode == QLatin1String("add") ||
             (draft.destination_valid && importDestinationPreviewError().isEmpty() &&
              (!draft.second_copy_enabled || !draft.second_copy_destination.isEmpty())));
@@ -145,8 +146,7 @@ bool StudioImportWorkspace::importInteractionBlocked() const
     if (!import_page_open_ || draft.mode == QLatin1String("add") || draft.source_root.isEmpty() ||
         draft.destination.isEmpty() || !draft.destination_error.isEmpty())
         return false;
-    return importDestinationPreviewActive() || !draft.destination_valid ||
-           (scan && scan->active() && !scan->catalogRevision());
+    return !draft.destination_valid || (scan && scan->active() && !scan->catalogRevision());
 }
 
 QUrl StudioImportWorkspace::importDestinationFolderUrl() const
@@ -339,6 +339,32 @@ void StudioImportWorkspace::openImportPage()
     emit importPageChanged();
     if (!draft.source_root.isEmpty())
         rescanImportSource();
+}
+
+void StudioImportWorkspace::cancelImportSource()
+{
+    if (!import_page_open_ || import_work_active_ || import_preflight_active_)
+        return;
+    // Clear scheduling inputs before controllers emit notifications. Late validation
+    // and worker callbacks must not restart planning for the abandoned folder.
+    draft.source_root.clear();
+    pending_source_restore_.clear();
+    source_folders.revealFolder({});
+    if (scan)
+        scan->abandon("import_source_cancelled");
+    if (thumbnails)
+    {
+        thumbnails->cancel("import_source_cancelled");
+        thumbnails->resetSourceSession();
+    }
+    if (destination_preview)
+        destination_preview->clearPublished();
+    candidates.setCandidates({});
+    import_context_row_ = -1;
+    import_context_path_.clear();
+    emit importContextChanged();
+    setError({});
+    emit importPageChanged();
 }
 
 void StudioImportWorkspace::closeImportPage()

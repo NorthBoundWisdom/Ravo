@@ -1070,7 +1070,12 @@ TEST(StudioQmlContract, PhotoContextMenuCopiesPresenterOwnedDebugText)
     QFile shared_item(QStringLiteral(RAVO_STUDIO_CONTEXT_MENU_ITEM_QML));
     ASSERT_TRUE(shared_item.open(QIODevice::ReadOnly | QIODevice::Text))
         << shared_item.errorString().toStdString();
-    const auto shared_source = QString::fromUtf8(shared_item.readAll());
+    EXPECT_TRUE(
+        QString::fromUtf8(shared_item.readAll()).contains(QStringLiteral("CustomMenuItem {}")));
+    QFile control_item(QStringLiteral(RAVO_GEOCONTROLS_CONTROLS_SOURCE_DIR "/CustomMenuItem.qml"));
+    ASSERT_TRUE(control_item.open(QIODevice::ReadOnly | QIODevice::Text))
+        << control_item.errorString().toStdString();
+    const auto shared_source = QString::fromUtf8(control_item.readAll());
     EXPECT_TRUE(shared_source.contains(QStringLiteral("id: checkmark")));
     // Checkable, plain and submenu rows share a fixed label origin. The old
     // conditional check column was the cause of visibly inconsistent indents.

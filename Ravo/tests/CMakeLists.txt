@@ -448,6 +448,7 @@ add_executable(ravo_desktop_command_tests
   studio_iq_quality_test.cpp
   studio_gallery_viewer_develop_perf_test.cpp
   studio_qml_contract_test.cpp
+  studio_controls_test.cpp
   studio_crop_test.cpp
   studio_offline_edit_qml_contract_test.cpp
   studio_live_control_test.cpp
@@ -473,7 +474,8 @@ add_executable(ravo_desktop_command_tests
   filesystem_browser_preview_test.cpp
   filesystem_browser_model_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
-  PRIVATE GTest::gtest_main ravo_desktop Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+  PRIVATE GTest::gtest_main ravo_desktop GeoControlsControls GeoControlsAppShell
+    Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
 target_include_directories(ravo_desktop_command_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/Ravo/desktop/src)
@@ -510,6 +512,7 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_IMPORT_SELECT_ALL_TEXT_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_select_all_text_host.qml"
   RAVO_STUDIO_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/Ravo/desktop"
   RAVO_GEOCONTROLS_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/Controls"
+  RAVO_GEOCONTROLS_CONTROLS_SOURCE_DIR="$<TARGET_PROPERTY:GeoControlsControls,SOURCE_DIR>"
   RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/AppShell"
   RAVO_STUDIO_ASSISTANT_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AssistantPanel.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")

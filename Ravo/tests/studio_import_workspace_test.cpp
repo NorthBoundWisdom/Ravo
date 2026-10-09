@@ -62,6 +62,16 @@ public:
     {
         return presenter.import_workspace_->worker->executor().post([release] { release.wait(); });
     }
+    static CancellationToken scanToken(StudioPresenter &presenter)
+    {
+        return presenter.import_workspace_->scan->token();
+    }
+    static bool destinationPreviewFence(StudioPresenter &presenter,
+                                        std::shared_ptr<std::promise<void>> reached)
+    {
+        return presenter.import_workspace_->destination_preview_worker->executor().post(
+            [reached = std::move(reached)] { reached->set_value(); });
+    }
     static bool filesystemFence(StudioPresenter &presenter,
                                 std::shared_ptr<std::promise<void>> reached)
     {
@@ -174,22 +184,42 @@ TEST(StudioImportWorkspace, DestinationPlanningBlocksImportAndCommandsButCanBeCa
     EXPECT_TRUE(presenter.imports()->importInteractionBlocked());
     EXPECT_FALSE(presenter.imports()->importReady());
     ASSERT_TRUE(wait_until([&] { return presenter.imports()->importDestinationPreviewActive(); }));
-    EXPECT_FALSE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
-                     .value("accepted")
-                     .toBool());
-    EXPECT_FALSE(commands.executeCommand(QLatin1String(command::kWindowSettings))
-                     .value("accepted")
-                     .toBool());
+    EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
+    EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
+                    .value("accepted")
+                    .toBool());
+    EXPECT_TRUE(commands.action(QLatin1String(command::kWindowSettings)).value("enabled").toBool());
     presenter.imports()->startPlannedImport();
     EXPECT_TRUE(presenter.imports()->importPageOpen());
     EXPECT_FALSE(presenter.imports()->importPreflightActive());
     EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kLibraryCancelOperation))
                     .value("accepted")
                     .toBool());
-    EXPECT_FALSE(presenter.imports()->importPageOpen());
+    EXPECT_TRUE(presenter.imports()->importPageOpen());
+    EXPECT_TRUE(presenter.imports()->importSourceRoot().isEmpty());
+    EXPECT_EQ(presenter.imports()->importDestination(), destination);
+    EXPECT_EQ(presenter.imports()->importCandidates()->rowCount(), 0);
+    EXPECT_TRUE(presenter.imports()->importDestinationPreview().isEmpty());
+    EXPECT_FALSE(presenter.imports()->importDestinationPreviewActive());
+    EXPECT_FALSE(presenter.imports()->importScanActive());
+    EXPECT_FALSE(presenter.imports()->importReady());
     EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
     gate.release();
-    presenter.imports()->openImportPage();
+    auto reached = std::make_shared<std::promise<void>>();
+    auto finished = reached->get_future();
+    ASSERT_TRUE(testing::StudioImportTestControl::destinationPreviewFence(presenter, reached));
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return finished.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }));
+    QCoreApplication::processEvents();
+    EXPECT_TRUE(presenter.imports()->importPageOpen());
+    EXPECT_TRUE(presenter.imports()->importDestinationPreview().isEmpty());
+    EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
+    EXPECT_TRUE(presenter.errorText().isEmpty());
+    const auto child = source + "/chosen";
+    ASSERT_TRUE(QDir().mkpath(child));
+    ASSERT_TRUE(photo(child + "/child.png", Qt::blue));
+    presenter.imports()->setImportSourceRoot(child);
     ASSERT_TRUE(wait_until([&] { return presenter.imports()->importReady(); }));
     EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
     EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
@@ -203,6 +233,195 @@ TEST(StudioImportWorkspace, DestinationPlanningBlocksImportAndCommandsButCanBeCa
                   .toUInt(),
               1U);
     EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty());
+}
+
+TEST(StudioImportWorkspace, CancelAndEscapeAbandonEnumerationWithoutLeavingImport)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto root = directory.filePath("disk");
+    const auto chosen = root + "/chosen";
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(chosen));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    ASSERT_TRUE(photo(root + "/unwanted.png", Qt::red));
+    ASSERT_TRUE(photo(chosen + "/chosen.png", Qt::blue));
+    const auto hash = [](const QString &path)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            return QByteArray{};
+        return QCryptographicHash::hash(file.readAll(), QCryptographicHash::Sha256);
+    };
+    const auto unwanted_hash = hash(root + "/unwanted.png");
+    const auto chosen_hash = hash(chosen + "/chosen.png");
+    ASSERT_FALSE(unwanted_hash.isEmpty());
+    ASSERT_FALSE(chosen_hash.isEmpty());
+    for (const auto *command_id : {command::kLibraryCancelOperation, command::kWindowDismiss})
+    {
+        SCOPED_TRACE(command_id);
+        ASSERT_TRUE(StudioImportPreferences{}.rememberSource(root));
+        ASSERT_TRUE(StudioImportPreferences{}.rememberDestination(destination));
+        StudioPresenter presenter;
+        presenter.createCatalogFromPath(directory.filePath(
+            command_id == command::kLibraryCancelOperation ? "cancel.sqlite" : "escape.sqlite"));
+        ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        WorkerGate gate;
+        ASSERT_TRUE(testing::StudioImportTestControl::blockImportWorker(
+            presenter, gate.promise.get_future().share()));
+        StudioCommandController commands(presenter);
+        auto *imports = presenter.imports();
+        imports->openImportPage();
+        ASSERT_TRUE(imports->importScanActive());
+        ASSERT_TRUE(imports->importInteractionBlocked());
+        const auto token = testing::StudioImportTestControl::scanToken(presenter);
+        ASSERT_TRUE(commands.executeCommand(QLatin1String(command_id)).value("accepted").toBool());
+        EXPECT_TRUE(token.is_cancellation_requested());
+        EXPECT_TRUE(imports->importPageOpen());
+        EXPECT_TRUE(imports->importSourceRoot().isEmpty());
+        EXPECT_FALSE(imports->importScanActive());
+        EXPECT_FALSE(imports->importInteractionBlocked());
+        EXPECT_FALSE(imports->importReady());
+        EXPECT_EQ(imports->importCandidates()->rowCount(), 0);
+        EXPECT_EQ(imports->importDestination(), destination);
+        EXPECT_EQ(presenter.visibleCount(), 0);
+        // Choose the intended subtree while the cancelled worker is still blocked.
+        imports->setImportSourceRoot(chosen);
+        gate.release();
+        ASSERT_TRUE(
+            wait_until([&] { return imports->importReady() && !imports->importScanActive(); }));
+        EXPECT_EQ(imports->importSourceRoot(), chosen);
+        ASSERT_EQ(imports->importCandidates()->rowCount(), 1);
+        EXPECT_EQ(imports->importCandidates()->sourcePath(0),
+                  QFileInfo(chosen + "/chosen.png").canonicalFilePath());
+        EXPECT_TRUE(presenter.errorText().isEmpty());
+        // Source cancellation must never replace formal preflight cancellation.
+        testing::StudioImportTestControl::preflightActive(presenter, true);
+        imports->cancelImportSource();
+        EXPECT_EQ(imports->importSourceRoot(), chosen);
+        testing::StudioImportTestControl::preflightActive(presenter, false);
+        ASSERT_TRUE(commands.executeCommand(QLatin1String(command::kLibraryCancelOperation))
+                        .value("accepted")
+                        .toBool());
+        EXPECT_TRUE(imports->importPageOpen());
+        EXPECT_TRUE(imports->importSourceRoot().isEmpty());
+        EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kWindowDismiss))
+                        .value("accepted")
+                        .toBool());
+        EXPECT_FALSE(imports->importPageOpen());
+        EXPECT_EQ(hash(root + "/unwanted.png"), unwanted_hash);
+        EXPECT_EQ(hash(chosen + "/chosen.png"), chosen_hash);
+        EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty());
+    }
+}
+
+TEST(StudioImportWorkspace, ThousandPhotoPlanningAndBlockedThumbnailsKeepWindowInteractive)
+{
+    ensure_qt_core();
+    init_logging("ravo-import-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("source");
+    const auto destination = directory.filePath("destination");
+    ASSERT_TRUE(QDir().mkpath(source));
+    ASSERT_TRUE(QDir().mkpath(destination));
+    constexpr int count = 1025;
+    for (int row = 0; row < count; ++row)
+        ASSERT_TRUE(
+            photo(source + QString("/%1.png").arg(row), QColor::fromRgb(static_cast<QRgb>(row))));
+    ASSERT_TRUE(StudioImportPreferences{}.rememberSource(source));
+    ASSERT_TRUE(StudioImportPreferences{}.rememberDestination(destination));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    WorkerGate planning;
+    WorkerGate thumbnails;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockDestinationPreview(
+        presenter, planning.promise.get_future().share()));
+    ASSERT_TRUE(testing::StudioImportTestControl::blockThumbnails(
+        presenter, thumbnails.promise.get_future().share()));
+    StudioCommandController commands(presenter);
+    auto *imports = presenter.imports();
+    imports->openImportPage();
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return imports->importCandidates()->rowCount() == count &&
+                   imports->importDestinationPreviewActive() && !imports->importScanActive();
+        }));
+    EXPECT_FALSE(imports->importInteractionBlocked());
+    EXPECT_FALSE(imports->importReady());
+    EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
+                    .value("accepted")
+                    .toBool());
+    EXPECT_TRUE(
+        commands.action(QLatin1String(command::kLibraryRevealFolder)).value("enabled").toBool());
+    EXPECT_TRUE(
+        commands.action(QLatin1String(command::kLibraryCopyFolderPath)).value("enabled").toBool());
+    EXPECT_FALSE(commands
+                     .executeCommand(QLatin1String(command::kLibraryCopyFolderPath),
+                                     QStringLiteral("relative/path"))
+                     .value("accepted")
+                     .toBool());
+    imports->startPlannedImport();
+    EXPECT_FALSE(imports->importWorkActive());
+    EXPECT_TRUE(imports->importPageOpen());
+    const auto saw_partial = std::make_shared<bool>(false);
+    const auto partial_connection = QObject::connect(
+        imports, &StudioImportWorkspace::importPageChanged, &presenter,
+        [imports, saw_partial]
+        {
+            if (!imports->importDestinationPreviewActive() ||
+                imports->importDestinationPreview().isEmpty())
+                return;
+            const auto partial_count =
+                imports->importDestinationPreview().front().toMap().value("photoCount").toInt();
+            if (partial_count > 0 && partial_count < count)
+            {
+                *saw_partial = true;
+                EXPECT_FALSE(imports->importInteractionBlocked());
+                EXPECT_FALSE(imports->importReady());
+            }
+        });
+    planning.release();
+    ASSERT_TRUE(wait_until([&] { return imports->importReady(); }));
+    QObject::disconnect(partial_connection);
+    EXPECT_TRUE(*saw_partial);
+    ASSERT_FALSE(imports->importDestinationPreview().isEmpty());
+    EXPECT_EQ(imports->importDestinationPreview().front().toMap().value("photoCount").toInt(),
+              count);
+    EXPECT_TRUE(imports->importCandidates()->thumbnail(0).isNull());
+    // A checked-set replacement keeps the existing tree visible and does not reset
+    // its rows until a replacement is actually published.
+    WorkerGate replacement;
+    ASSERT_TRUE(testing::StudioImportTestControl::blockDestinationPreview(
+        presenter, replacement.promise.get_future().share()));
+    const auto published = imports->importDestinationPreview();
+    const auto tree_resets = std::make_shared<int>(0);
+    const auto reset_connection =
+        QObject::connect(imports->importDestinationFolders(), &QAbstractItemModel::modelReset,
+                         &presenter, [tree_resets] { ++*tree_resets; });
+    imports->importCandidates()->toggleSelected(0);
+    EXPECT_TRUE(imports->importDestinationPreviewActive());
+    EXPECT_FALSE(imports->importInteractionBlocked());
+    EXPECT_FALSE(imports->importReady());
+    EXPECT_EQ(imports->importDestinationPreview(), published);
+    EXPECT_EQ(*tree_resets, 0);
+    imports->startPlannedImport();
+    EXPECT_FALSE(imports->importWorkActive());
+    replacement.release();
+    ASSERT_TRUE(wait_until([&] { return imports->importReady(); }));
+    EXPECT_EQ(imports->importDestinationPreview().front().toMap().value("photoCount").toInt(),
+              count - 1);
+    EXPECT_TRUE(imports->importCandidates()->thumbnail(0).isNull());
+    EXPECT_TRUE(QDir(destination).entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty());
+    EXPECT_EQ(presenter.visibleCount(), 0);
+    EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kLibraryCancelOperation))
+                    .value("accepted")
+                    .toBool());
+    EXPECT_TRUE(imports->importPageOpen());
+    EXPECT_TRUE(imports->importSourceRoot().isEmpty());
+    QObject::disconnect(reset_connection);
 }
 
 TEST(StudioImportWorkspace, RejectedFolderDispatchClearsPendingAndReportsClosedOwner)

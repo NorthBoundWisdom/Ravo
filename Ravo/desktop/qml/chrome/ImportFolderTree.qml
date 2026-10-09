@@ -7,6 +7,7 @@ ListView {
     id: root
     required property var folderModel
     signal folderChosen(string path)
+    signal folderContextRequested(string path, point position)
 
     function chooseFolder(chosenPath) {
         // Activation may synchronously replace every row. Finish forwarding the
@@ -45,6 +46,17 @@ ListView {
         width: ListView.view.width
         height: Fonts.listItemHeight
 
+        MouseArea {
+            objectName: "importFolderContext"
+            anchors.fill: parent
+            z: 1
+            acceptedButtons: Qt.RightButton
+            enabled: !folderRow.willCreate
+            onClicked: function (mouse) {
+                root.folderContextRequested(folderRow.path, mapToItem(root, mouse.x, mouse.y));
+            }
+        }
+
         Rectangle {
             anchors.fill: parent
             color: folderRow.selected ? Theme.buttonHoveredColor : folderMouse.containsMouse ? Theme.buttonHoveredColor : "transparent"
@@ -60,7 +72,10 @@ ListView {
                 Layout.preferredWidth: Fonts.listItemHeight
                 Layout.fillHeight: true
                 Layout.alignment: Qt.AlignVCenter
-                ToolButton {
+                CustomToolButton {
+                    handleInCpp: false
+                    display: AbstractButton.TextOnly
+                    focusPolicy: Qt.StrongFocus
                     objectName: "importFolderExpand"
                     anchors.fill: parent
                     enabled: folderRow.hasChildren && !folderRow.listingPending
@@ -76,8 +91,7 @@ ListView {
                     background: Rectangle {
                         color: parent.hovered ? Theme.buttonHoveredColor : "transparent"
                     }
-                    ToolTip.visible: hovered && folderRow.errorText.length > 0
-                    ToolTip.text: folderRow.errorText
+                    tooltip: folderRow.errorText
                     onClicked: if (root.folderModel)
                         root.folderModel.toggleCollapsed(folderRow.path)
                 }

@@ -1071,7 +1071,16 @@ void StudioCommandController::registerViewCommands(const command_registration::H
             else if (assistant_open_)
                 setAssistantOpen(false);
             else if (presenter_.imports()->importPageOpen())
-                presenter_.imports()->closeImportPage();
+            {
+                if (!presenter_.imports()->importWorkActive() &&
+                    !presenter_.imports()->importPreflightActive() &&
+                    (presenter_.imports()->importInteractionBlocked() ||
+                     presenter_.imports()->importDestinationPreviewActive() ||
+                     presenter_.imports()->importScanActive()))
+                    presenter_.imports()->cancelImportSource();
+                else
+                    presenter_.imports()->closeImportPage();
+            }
             else if (presenter_.catalogOpen())
                 presenter_.returnToGrid();
         });

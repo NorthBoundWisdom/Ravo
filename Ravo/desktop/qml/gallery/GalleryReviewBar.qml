@@ -464,7 +464,7 @@ Rectangle {
         }
     }
 
-    Popup {
+    CustomPopup {
         id: compactRatingPopup
         parent: compactRatingButton
         x: 0
@@ -508,7 +508,7 @@ Rectangle {
         }
     }
 
-    Popup {
+    CustomPopup {
         id: compactColorPopup
         parent: compactColorButton
         x: 0

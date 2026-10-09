@@ -134,6 +134,23 @@ TEST(FilesystemBrowserModelTest, PreviewRevealsNestedDestinationAfterDeferredAnc
     revealed.clear();
     model.toggleCollapsed(destination + "/2026");
     EXPECT_TRUE(revealed.isEmpty()); // A completed reveal never fights later user scrolling.
+    const auto collapsed_rows = model.rowCount();
+    int resets = 0;
+    const auto reset_connection =
+        QObject::connect(&model, &QAbstractItemModel::modelReset, &model, [&] { ++resets; });
+    model.setPreviewFolders({{destination.toStdString(), "Pictures", 0, 1000, false, false},
+                             {(destination + "/2026").toStdString(), "2026", 1, 1000, false, false},
+                             {month.toStdString(), "10", 2, 1000, true, false}},
+                            destination);
+    EXPECT_EQ(resets, 0);
+    EXPECT_EQ(model.rowCount(), collapsed_rows);
+    EXPECT_TRUE(revealed.isEmpty());
+    EXPECT_EQ(model.selectedPath(), destination);
+    model.toggleCollapsed(destination + "/2026");
+    EXPECT_EQ(
+        model.data(model.index(4, 0), FilesystemBrowserModel::PlannedPhotoCountRole).toULongLong(),
+        1000U);
+    QObject::disconnect(reset_connection);
     model.setPreviewFolders({});
     for (int row = 0; row < model.rowCount(); ++row)
         EXPECT_FALSE(

@@ -1,3 +1,4 @@
+import GeoControls 1.0
 import QtQuick
 import QtQuick.Controls
 
@@ -13,19 +14,19 @@ Instantiator {
     // macOS menus then keep untitled NSMenuItem rows (empty File-menu gap).
     model: root.controller ? root.controller.menuEntries(root.menuPath) : []
 
-    delegate: MenuItem {
+    delegate: CustomMenuItem {
         required property var modelData
 
         readonly property var live: {
             if (!root.controller || !modelData || !modelData.actionId)
                 return ({
-                            title: "",
-                            shortcutText: "",
-                            enabled: false,
-                            checkable: false,
-                            checked: false,
-                            disabledReason: ""
-                        });
+                        title: "",
+                        shortcutText: "",
+                        enabled: false,
+                        checkable: false,
+                        checked: false,
+                        disabledReason: ""
+                    });
             const ignoredRevision = root.controller.revision;
             return root.controller.action(modelData.actionId);
         }

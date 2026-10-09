@@ -5347,6 +5347,10 @@ Diferencia: %6</translation>
             <translation>El identificador de la carpeta y la ruta de sustitución no pueden estar vacíos.</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>La ruta de la carpeta debe ser absoluta.</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>Copiar parámetros</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diferencia: %6</translation>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>Abre primero la comparación de ráfaga.</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>Copiar ruta</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Diferencia: %6</translation>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>La carpeta seleccionada no tiene ruta local.</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>No se pudo copiar la ruta de la carpeta al portapapeles.</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

@@ -15,7 +15,7 @@ Rectangle {
     color: Theme.windowColor
     focus: visible
     Keys.onEscapePressed: if (!presenter.imports.importWorkActive)
-        root.closeRequested()
+        root.commands.run(root.commands.ids.windowDismiss)
 
     ImportDialogs {
         id: dialogs
@@ -61,8 +61,10 @@ Rectangle {
                     color: Theme.placeholderTextColor
                     elide: Text.ElideMiddle
                     text: root.presenter.imports.importSourceRoot.length ? root.presenter.imports.importSourceRoot + (root.presenter.imports.importMode !== "add" && root.presenter.imports.importDestination.length > 0 ? "  →  " + root.presenter.imports.importDestination : "") : ""
-                    ToolTip.visible: routeHover.hovered && text.length > 0
-                    ToolTip.text: text
+                    CustomToolTip {
+                        visible: routeHover.hovered && routeLabel.text.length > 0
+                        text: routeLabel.text
+                    }
 
                     HoverHandler {
                         id: routeHover
@@ -93,6 +95,7 @@ Rectangle {
                 Layout.preferredWidth: 240
                 Layout.fillHeight: true
                 presenter: root.presenter
+                commands: root.commands
                 onChooseRequested: dialogs.chooseSource()
             }
 
@@ -129,12 +132,26 @@ Rectangle {
                         onClicked: root.presenter.imports.importCandidates.setAllSelected(false)
                     }
 
-                    Slider {
+                    CustomSlider {
                         id: thumbnailSize
-                        Layout.preferredWidth: Math.max(70, Math.min(120, selectionArea.width * 0.16))
+                        objectName: "importThumbnailSize"
+                        Layout.fillWidth: false
+                        Layout.minimumWidth: Fonts.size80
+                        Layout.preferredWidth: Math.max(Fonts.size80, Math.min(Fonts.size120, selectionArea.width * 0.16))
                         from: 120
                         to: 320
                         value: 180
+                        stepSize: 1
+                        validatorDecimals: 0
+                        showTitle: false
+                        showValueLabel: false
+                        showStepButton: false
+                        onValueEdited: function (value) {
+                            thumbnailSize.value = value;
+                        }
+                        onValueCommitted: function (value) {
+                            thumbnailSize.value = value;
+                        }
                         Accessible.name: qsTr("Thumbnail size")
                     }
                 }
@@ -144,7 +161,7 @@ Rectangle {
                     Layout.fillHeight: true
                     presenter: root.presenter
                     commands: root.commands
-                    preferredCell: thumbnailSize.value
+                    preferredCell: thumbnailSize.visualValue
                     enabled: !root.locked
                 }
 
@@ -159,8 +176,10 @@ Rectangle {
                         return selectionArea.width >= 720 ? duplicates + " · " + root.candidateKeyboardHelp : duplicates;
                     }
                     color: Theme.placeholderTextColor
-                    ToolTip.visible: candidateHelpHover.hovered && !root.presenter.imports.importScanActive
-                    ToolTip.text: root.candidateKeyboardHelp
+                    CustomToolTip {
+                        visible: candidateHelpHover.hovered && !root.presenter.imports.importScanActive
+                        text: root.candidateKeyboardHelp
+                    }
 
                     HoverHandler {
                         id: candidateHelpHover
@@ -209,9 +228,10 @@ Rectangle {
                 }
 
                 CustomButton {
+                    objectName: "importSourceCancel"
                     text: qsTr("Cancel")
-                    enabled: !root.presenter.imports.importWorkActive
-                    onClicked: root.closeRequested()
+                    enabled: !root.presenter.imports.importWorkActive && !root.presenter.imports.importPreflightActive && root.presenter.imports.importSourceRoot.length > 0
+                    onClicked: root.commands.run(root.commands.ids.libraryCancelOperation)
                 }
 
                 CustomButton {
@@ -224,7 +244,7 @@ Rectangle {
         }
     }
 
-    Drawer {
+    CustomDrawer {
         id: sourceDrawer
         edge: Qt.LeftEdge
         width: Math.min(280, root.width - 48)
@@ -233,11 +253,12 @@ Rectangle {
         ImportSourcePanel {
             anchors.fill: parent
             presenter: root.presenter
+            commands: root.commands
             onChooseRequested: dialogs.chooseSource()
         }
     }
 
-    Drawer {
+    CustomDrawer {
         id: destinationDrawer
         edge: Qt.RightEdge
         width: Math.min(340, root.width - 48)
@@ -256,7 +277,7 @@ Rectangle {
         destinationDrawer.close();
     }
 
-    Popup {
+    CustomPopup {
         objectName: "importPlanningDialog"
         anchors.centerIn: Overlay.overlay
         modal: true
@@ -272,8 +293,8 @@ Rectangle {
         }
         contentItem: ColumnLayout {
             spacing: Fonts.size12
-            Keys.onEscapePressed: root.closeRequested()
-            BusyIndicator {
+            Keys.onEscapePressed: root.commands.run(root.commands.ids.libraryCancelOperation)
+            CustomBusyIndicator {
                 Layout.alignment: Qt.AlignHCenter
                 running: true
             }
@@ -284,7 +305,7 @@ Rectangle {
                 objectName: "importPlanningCancel"
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Cancel")
-                onClicked: root.closeRequested()
+                onClicked: root.commands.run(root.commands.ids.libraryCancelOperation)
             }
         }
     }

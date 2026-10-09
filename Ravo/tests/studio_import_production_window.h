@@ -72,6 +72,11 @@ struct ImportCandidateGridWindow
     ScopedQuickItem root;
     QQuickItem *grid = nullptr;
 
+    ImportCandidateGridWindow()
+    {
+        engine.addImportPath(QStringLiteral("qrc:/"));
+    }
+
     ~ImportCandidateGridWindow()
     {
         reset();

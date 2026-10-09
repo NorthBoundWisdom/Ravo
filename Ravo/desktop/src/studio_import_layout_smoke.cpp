@@ -19,6 +19,8 @@
 #include <QMetaObject>
 #include <QKeySequence>
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QClipboard>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QElapsedTimer>
@@ -302,6 +304,50 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             // Rename is an opt-in component builder; its example is selectable but read-only.
             presenter->imports()->setImportMode(QStringLiteral("copy"));
             presenter->imports()->setImportDestination(select_all_dir.path());
+            presenter->imports()->setImportSourceRoot(source);
+            auto *planning_cancel =
+                workspace->findChild<QObject *>(QStringLiteral("importPlanningCancel"));
+            if (!presenter->imports()->importInteractionBlocked() || !planning_cancel ||
+                !QMetaObject::invokeMethod(planning_cancel, "clicked", Qt::DirectConnection) ||
+                !presenter->imports()->importPageOpen() ||
+                !presenter->imports()->importSourceRoot().isEmpty() ||
+                presenter->imports()->importScanActive() ||
+                presenter->imports()->importInteractionBlocked() ||
+                presenter->imports()->importCandidates()->rowCount() != 0)
+            {
+                LOG_ERROR(
+                    logger(),
+                    "Production planning Cancel must abandon the source and keep Import open");
+                return false;
+            }
+            {
+                auto *source_tree =
+                    workspace->findChild<QObject *>(QStringLiteral("importSourceFolderTree"));
+                auto *source_menu = workspace->findChild<QObject *>(
+                    QStringLiteral("importSourceFolderContextMenu"));
+                auto *copy_path =
+                    workspace->findChild<QObject *>(QStringLiteral("importSourceCopyPath"));
+                auto *reveal_folder =
+                    workspace->findChild<QObject *>(QStringLiteral("importSourceRevealFolder"));
+                if (!source_tree || !source_menu || !copy_path || !reveal_folder ||
+                    !QMetaObject::invokeMethod(source_tree, "folderContextRequested",
+                                               Q_ARG(QString, source),
+                                               Q_ARG(QPointF, QPointF(20, 20))) ||
+                    source_menu->property("folderPath").toString() != source ||
+                    !copy_path->property("enabled").toBool() ||
+                    !reveal_folder->property("enabled").toBool() ||
+                    !QMetaObject::invokeMethod(copy_path, "triggered", Qt::DirectConnection) ||
+                    QGuiApplication::clipboard()->text() != source ||
+                    !presenter->imports()->importSourceRoot().isEmpty() ||
+                    presenter->imports()->importScanActive())
+                {
+                    LOG_ERROR(
+                        logger(),
+                        "Source folder context actions must target the clicked path without scanning");
+                    return false;
+                }
+                QMetaObject::invokeMethod(source_menu, "close", Qt::DirectConnection);
+            }
             auto *preview =
                 workspace->findChild<QQuickItem *>(QStringLiteral("importPreviewSettings"));
             auto *rename =

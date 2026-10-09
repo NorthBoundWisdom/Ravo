@@ -605,6 +605,7 @@ TEST(StudioImportKeyboard, FirstCandidatesDoNotStealFilenameTemplateFocus)
     ensure_qt_core();
     ImportCandidateListModel model;
     QQmlEngine engine;
+    engine.addImportPath(QStringLiteral("qrc:/"));
     QQuickWindow window;
     const QString host_path = QString::fromUtf8(RAVO_IMPORT_FOCUS_PUBLICATION_HOST_QML);
     QQmlComponent component(&engine, QUrl::fromLocalFile(host_path));
@@ -693,6 +694,7 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
     // Product-shaped composition: text field + grid + Main.qml textInputActive Binding.
     // Do not manually setTextInputActive; the host Binding owns that product path.
     QQmlEngine engine;
+    engine.addImportPath(QStringLiteral("qrc:/"));
     engine.addImportPath(QString::fromUtf8(RAVO_STUDIO_QML_IMPORT_ROOT));
     engine.addImportPath(QString::fromUtf8(RAVO_GEOCONTROLS_QML_IMPORT_ROOT));
     engine.addImportPath(QString::fromUtf8(RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT));

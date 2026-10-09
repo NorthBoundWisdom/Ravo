@@ -1,5 +1,9 @@
 # Ravo developer documentation
 
+Studio's shared visual-control ownership is defined in
+[ARCHITECTURE.md](ARCHITECTURE.md); full production QML auditing and offscreen
+control interactions are covered by [TESTING.md](TESTING.md).
+
 Closed Lightroom Classic catalog import, source preservation and conversion
 limits are defined in [ADR-0164](adr/0164-lightroom-catalog-reader.md), with
 usage in [Ravo/README.md](../Ravo/README.md).
@@ -71,7 +75,8 @@ Import destination-tree preview ownership is in [ARCHITECTURE.md](ARCHITECTURE.m
 including inline counts, asynchronous branch reveal after listings settle, and
 remembered destination/organization choices without importing, with overlay lifecycle
 and QML presentation coverage in [TESTING.md](TESTING.md). Those authorities also
-specify cancellable blocking during planning and bounded metadata reuse.
+specify cancellable source enumeration, nonmodal progressive destination planning,
+bounded capture-metadata reuse and source-folder context commands.
 Import's always-visible preview settings, C++-owned filename component builder
 and optional second-copy checkbox
 are specified in [ARCHITECTURE.md](ARCHITECTURE.md), with opt-in/original-name,

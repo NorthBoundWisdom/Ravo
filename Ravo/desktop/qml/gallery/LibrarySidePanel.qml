@@ -145,8 +145,10 @@ Rectangle {
                     visible: previewProgress.visible
                     text: previewProgress.completed + " / " + previewProgress.total
                     color: Theme.placeholderTextColor
-                    ToolTip.visible: progressHover.hovered
-                    ToolTip.text: qsTr("Previews")
+                    CustomToolTip {
+                        visible: progressHover.hovered
+                        text: qsTr("Previews")
+                    }
                     HoverHandler {
                         id: progressHover
                     }

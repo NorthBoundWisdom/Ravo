@@ -22,6 +22,18 @@ package install/launch lifecycle, evidence and remaining host qualifications.
 The Python checker tests cover loader environment isolation, first-frame
 evidence, timeout/nonzero failure, direct AppImage execution and DEB cleanup.
 
+`StudioControls.*` scans all production Studio QML for unowned Qt visual
+widgets and attached default tooltips. It loads the production Import page,
+delivers keyboard and pointer input through a real offscreen QQuickWindow, and
+requires live thumbnail sizing, disabled-state rejection and destruction.
+Shared-component contracts require scroll position propagation, live theme
+colors, bounded busy visibility, keyboard menu activation, one-press Escape
+cancellation of text dialogs and popup destruction. Test engines register the
+same static GeoControls resources, qrc import root and Basic input foundation
+as Studio.
+The complete production-QML smoke also covers the shared controls in every
+supported locale; no desktop automation or application screenshot is used.
+
 Studio's production-QML smoke checks that the Develop tool strip remains fixed
 while the inspector scrolls, exposes mask creation in the local workspace, and
 draws gradient geometry and completes mask editing before entering Crop. It checks Crop and Edit selection
@@ -272,13 +284,33 @@ selection across folder changes/page reentry, late recursive-result rejection,
 and the Home recursion guard for normalized and symlink paths. The
 destination-preview tests check single/date/month/hierarchy and second-copy
 counts against actual import, no early directory/media/catalog publication,
-selection/organization replacement, close cancellation, and stale/corrupt/directory
-blocker errors. Metadata-only preview accepts an unverified content hash and
-existing output file while formal preflight rejects them; CLI subprocess tests
+selection/organization replacement, close cancellation, and stale metadata/directory
+blocker errors. Path-only projections defer corrupt-image validation to preflight;
+date-based plans reject corrupt metadata. Metadata-only preview accepts an unverified
+content hash and existing output file while formal preflight rejects them; CLI subprocess tests
 verify provisional v2 counts followed by actual content-deduplicated import.
 A blocked import-worker test requires destination planning to finish and close
 cleanly on its independent session. CLI subprocess tests verify the versioned
 `catalog import-plan` JSON.
+Partial-projection contracts check the first photo's counts, primary/second-copy
+folders, cancellation after a partial result, stale catalog rejection and no
+destination writes. RAW date/month projections are checked against actual import.
+Set `RAVO_IMPORT_PREVIEW_SOURCE` to an explicit read-only directory when running
+`CatalogServiceTest.DestinationPreviewPerformanceProbe` in a Release build to
+record first-result latency, complete-plan latency and update counts.
+Blocked scan and destination-planner tests require Cancel/Escape to abandon the
+current source while keeping Import open, reject late publications, and allow a
+child folder to be selected without reopening the page. They verify unchanged
+source bytes and no destination/catalog publication. The production offscreen
+smoke invokes the modal Cancel button through its QML command binding and checks
+that the source is cleared and Import remains open.
+The 1025-photo workspace regression blocks destination planning and thumbnail
+decoding independently: enumeration must release the window, pending plans must
+reject import, published trees remain visible without an immediate model reset,
+and partial/replacement counts must publish while thumbnails are still blocked. The
+production smoke also invokes source-tree context intent and Copy Path, checking
+the clipboard and that no scan or source selection occurs. File-manager launch
+tests validate platform arguments without launching a user's file manager.
 Filesystem model tests cover ordered month overlays, existing-year/month deduplication,
 collapse/expand, virtual-folder selection rejection, late listings, plan replacement,
 second-copy exclusion and explicit listing errors without retry loops.

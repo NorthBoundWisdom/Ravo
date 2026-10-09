@@ -8,9 +8,29 @@ Rectangle {
     id: root
     objectName: "importSourcePanel"
     required property var presenter
+    property var commands
     signal chooseRequested
+    onVisibleChanged: if (!visible)
+        folderMenu.close()
     color: Theme.railSurfaceColor
     enabled: !presenter.imports.importWorkActive && !presenter.imports.importPreflightActive && !presenter.imports.importInteractionBlocked
+    StudioContextMenu {
+        id: folderMenu
+        objectName: "importSourceFolderContextMenu"
+        property string folderPath: ""
+        StudioContextMenuItem {
+            objectName: "importSourceCopyPath"
+            displayText: qsTranslate("StudioCommands", "Copy Path")
+            enabled: root.commands && folderMenu.folderPath.length > 0
+            onTriggered: root.commands.run(root.commands.ids.libraryCopyFolderPath, folderMenu.folderPath)
+        }
+        StudioContextMenuItem {
+            objectName: "importSourceRevealFolder"
+            displayText: root.commands && root.commands.controller ? root.commands.controller.action(root.commands.ids.libraryRevealFolder).title : ""
+            enabled: root.commands && folderMenu.folderPath.length > 0
+            onTriggered: root.commands.run(root.commands.ids.libraryRevealFolder, folderMenu.folderPath)
+        }
+    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: Fonts.standardMargin
@@ -55,15 +75,21 @@ Rectangle {
             border.width: ControlState.borderThin
             radius: ControlState.radiusSmall
             ImportFolderTree {
+                id: sourceTree
                 objectName: "importSourceFolderTree"
                 anchors.fill: parent
                 anchors.margins: Fonts.size4
                 folderModel: root.presenter.imports.importSourceFolders
-                ScrollBar.vertical: ScrollBar {
+                ScrollBar.vertical: CustomScrollBar {
                     policy: ScrollBar.AsNeeded
                 }
                 onFolderChosen: function (path) {
                     root.presenter.imports.setImportSourceRoot(path);
+                }
+                onFolderContextRequested: function (path, position) {
+                    folderMenu.folderPath = path;
+                    const point = sourceTree.mapToItem(folderMenu.parent, position.x, position.y);
+                    folderMenu.popup(point.x, point.y);
                 }
             }
         }

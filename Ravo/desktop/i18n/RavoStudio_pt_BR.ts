@@ -5347,6 +5347,10 @@ Diferença: %6</translation>
             <translation>A identidade da pasta e o caminho substituto não podem ficar vazios.</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>O caminho da pasta deve ser absoluto.</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>Copiar Parameters</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diferença: %6</translation>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>Abra primeiro a comparação de sequência.</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>Copiar caminho</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Diferença: %6</translation>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>A pasta selecionada não possui caminho local.</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>Não foi possível copiar o caminho da pasta para a área de transferência.</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

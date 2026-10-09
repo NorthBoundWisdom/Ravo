@@ -29,7 +29,10 @@ struct ImportKeyboardHarness
     QQuickItem *grid = nullptr;
     ImportCandidateListModel *model = nullptr;
 
-    ImportKeyboardHarness() = default;
+    ImportKeyboardHarness()
+    {
+        engine.addImportPath(QStringLiteral("qrc:/"));
+    }
     ImportKeyboardHarness(const ImportKeyboardHarness &) = delete;
     ImportKeyboardHarness &operator=(const ImportKeyboardHarness &) = delete;
 

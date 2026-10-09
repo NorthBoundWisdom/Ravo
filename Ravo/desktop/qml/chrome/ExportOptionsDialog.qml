@@ -243,7 +243,7 @@ DialogShell {
         contentHeight: body.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         clip: true
-        ScrollBar.vertical: ScrollBar {
+        ScrollBar.vertical: CustomScrollBar {
             id: exportScrollBar
         }
 
@@ -361,7 +361,9 @@ DialogShell {
                         realFrom: 0.01
                         realTo: 512
                         realValue: root.jpegSizeLimitMb
-                        onEditingCommitted: function (value) { root.jpegSizeLimitMb = value; }
+                        onEditingCommitted: function (value) {
+                            root.jpegSizeLimitMb = value;
+                        }
                     }
                 }
                 CustomLabel {

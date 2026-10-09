@@ -6,15 +6,38 @@
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QProcess>
+#include <QQuickStyle>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QThread>
+
+void qml_register_types_GeoControls();
+void qml_register_types_GeoControls_AppShell();
+
+static void initialize_control_resources()
+{
+    Q_INIT_RESOURCE(icons);
+    Q_INIT_RESOURCE(qmake_GeoControls);
+    Q_INIT_RESOURCE(GeoControlsControls_raw_qml_0);
+    Q_INIT_RESOURCE(qmake_GeoControls_AppShell);
+    Q_INIT_RESOURCE(GeoControlsAppShell_raw_qml_0);
+    qml_register_types_GeoControls();
+    qml_register_types_GeoControls_AppShell();
+}
 
 namespace ravo::studio_test_support
 {
 
 void ensure_qt_core()
 {
+    static const bool controls_style = []
+    {
+        // Match Studio's composition before any test imports Qt Quick Controls.
+        QQuickStyle::setStyle(QStringLiteral("Basic"));
+        initialize_control_resources();
+        return true;
+    }();
+    static_cast<void>(controls_style);
     static QTemporaryDir settings_root;
     static const bool isolated = []
     {

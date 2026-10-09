@@ -246,10 +246,9 @@ ImportService::inspect_import_candidate(const std::string_view path,
     return candidate;
 }
 
-Result<ImportCandidate>
-ImportService::inspect_destination_candidate(const std::string_view path,
-                                             const std::string_view source_root,
-                                             const CancellationToken &cancellation)
+Result<ImportCandidate> ImportService::inspect_destination_candidate(
+    const std::string_view path, const std::string_view source_root, const bool needs_capture_date,
+    const CancellationToken &cancellation)
 {
     if (auto active = cancellation.check(); !active)
         return active.error();
@@ -257,13 +256,43 @@ ImportService::inspect_destination_candidate(const std::string_view path,
     if (!identity)
         return identity.error();
     auto cached = destination_preview_candidates_.find(path);
-    const bool reuse = cached != destination_preview_candidates_.end() &&
+    const bool reuse = needs_capture_date && cached != destination_preview_candidates_.end() &&
                        cached->second.size_bytes == identity.value().size_bytes &&
                        cached->second.mtime_unix_ms == identity.value().mtime_unix_ms;
     // Enumeration and source-root normalization already produced canonical paths.
     // Avoid resolving both paths again for every relative hierarchy calculation.
-    auto inspected = reuse ? Result<ImportCandidate>{cached->second} :
-                             inspect_import_candidate(path, {}, cancellation);
+    const auto inspect_projection = [&]() -> Result<ImportCandidate>
+    {
+        if (!is_import_candidate(utf8_path(path)))
+            return make_error(
+                ErrorCode::kUnsupported, "Unsupported import preview source",
+                {{"path", std::string(path)}, {"reason", "unsupported_import_source"}});
+        ImportCandidate candidate;
+        candidate.source_path = path;
+        candidate.display_name = path_text(utf8_path(path).filename());
+        candidate.size_bytes = identity.value().size_bytes;
+        candidate.mtime_unix_ms = identity.value().mtime_unix_ms;
+        if (needs_capture_date)
+        {
+            // Folder projection needs a date, not RAW identification, dimensions,
+            // companion discovery or thumbnail pixels. Use the shared EXIF reader.
+            if (!engine_)
+                return make_error(ErrorCode::kIo, "Catalog session is closed");
+            auto metadata = engine_->read_embedded_capture_metadata(path, cancellation);
+            if (!metadata)
+                return metadata.error();
+            if (metadata.value().captured_datetime)
+            {
+                const auto &local = metadata.value().captured_datetime->local_exif;
+                if (local.size() >= 10U && local[4] == ':' && local[7] == ':')
+                    candidate.captured_date_path = local.substr(0U, 4U) + '/' +
+                                                   local.substr(5U, 2U) + '/' +
+                                                   local.substr(8U, 2U);
+            }
+        }
+        return candidate;
+    };
+    auto inspected = reuse ? Result<ImportCandidate>{cached->second} : inspect_projection();
     if (!inspected)
         return inspected.error();
     auto &candidate = inspected.value();
@@ -277,11 +306,11 @@ ImportService::inspect_destination_candidate(const std::string_view path,
         return make_error(
             ErrorCode::kConflict, "Source changed during destination preview",
             {{"path", std::string(path)}, {"reason", "import_content_source_changed"}});
-    if (!reuse && (cached != destination_preview_candidates_.end() ||
-                   destination_preview_candidates_.size() < 8192))
+    if (needs_capture_date && !reuse &&
+        (cached != destination_preview_candidates_.end() ||
+         destination_preview_candidates_.size() < 8192))
         destination_preview_candidates_.insert_or_assign(std::string(path), candidate);
     // Catalog membership and relative hierarchy are request state, never cached state.
-    if (reuse)
     {
         auto location = normalize_local_input(path);
         if (!location)
@@ -432,14 +461,15 @@ Result<void> ImportService::preflight_import(const ImportRequest &request)
     return {};
 }
 
-Result<ImportDestinationPreview>
-ImportService::preview_import_destinations(const ImportRequest &request)
+Result<ImportDestinationPreview> ImportService::preview_import_destinations(
+    const ImportRequest &request,
+    const std::function<void(const ImportDestinationPreview &)> &progress)
 {
     if (request.mode == ImportTransferMode::kAdd)
         return make_error(ErrorCode::kInvalidArgument, "Destination preview requires Copy or Move",
                           {{"reason", "import_preview_requires_transfer"}});
     ImportDestinationPreview preview;
-    auto planned = execute_import_impl(request, {}, true, &preview);
+    auto planned = execute_import_impl(request, {}, true, &preview, progress);
     if (!planned)
         return planned.error();
     return preview;
@@ -448,7 +478,8 @@ ImportService::preview_import_destinations(const ImportRequest &request)
 Result<ImportBatchResult> ImportService::execute_import_impl(
     const ImportRequest &request,
     const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
-    const bool preflight_only, ImportDestinationPreview *const destination_preview)
+    const bool preflight_only, ImportDestinationPreview *const destination_preview,
+    const std::function<void(const ImportDestinationPreview &)> &destination_progress)
 {
     auto snapshot_before = library_snapshot();
     if (!snapshot_before)
@@ -557,7 +588,8 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
     if (std::filesystem::is_regular_file(utf8_path(source_root), root_error) && !root_error)
         source_root = path_text(utf8_path(source_root).parent_path());
     std::vector<PlannedImport> plan;
-    plan.reserve(paths.value().size());
+    if (!destination_preview)
+        plan.reserve(paths.value().size());
     std::set<std::string, std::less<>> outputs;
     struct PreflightedOutput
     {
@@ -645,6 +677,64 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
                                {"reason", "import_destination_catalog_conflict"}});
         return PreflightedOutput{normalized_output.value().path, std::nullopt};
     };
+    ImportDestinationPreview preview;
+    preview.catalog_revision = snapshot_before.value().revision;
+    using Key = std::pair<bool, std::vector<std::string>>;
+    std::map<Key, ImportDestinationFolder> folders;
+    const auto add_folder = [&](const std::string &output, const std::filesystem::path &root,
+                                const bool second) -> Result<void>
+    {
+        const auto parent = utf8_path(output).parent_path();
+        const auto relative = parent.lexically_relative(root);
+        std::vector<std::string> parts;
+        for (const auto &part : relative)
+            if (part != u8".")
+                parts.push_back(path_text(part));
+        auto path = root;
+        std::vector<std::string> prefix;
+        for (std::size_t depth = 0; depth <= parts.size(); ++depth)
+        {
+            if (auto active = request.cancellation.check(); !active)
+                return active.error();
+            const Key key{second, prefix};
+            auto found = folders.find(key);
+            if (found == folders.end())
+            {
+                if (folders.size() >= 10000)
+                    return make_error(ErrorCode::kValidation, "Too many preview folders",
+                                      {{"reason", "import_preview_folder_limit"}});
+                std::error_code error;
+                const bool exists = std::filesystem::exists(path, error);
+                if (error)
+                    return make_error(ErrorCode::kIo, "Unable to inspect destination folder",
+                                      {{"path", path_text(path)}, {"detail", error.message()}});
+                if (exists && !std::filesystem::is_directory(path, error))
+                    return make_error(
+                        ErrorCode::kConflict, "Destination folder is a file",
+                        {{"path", path_text(path)}, {"reason", "import_destination_conflict"}});
+                if (error)
+                    return make_error(ErrorCode::kIo, "Unable to inspect destination folder",
+                                      {{"path", path_text(path)}, {"detail", error.message()}});
+                found = folders
+                            .emplace(key, ImportDestinationFolder{path_text(path),
+                                                                  depth == 0 ? path_text(root) :
+                                                                               parts[depth - 1],
+                                                                  depth, 0, !exists, second})
+                            .first;
+            }
+            ++found->second.photo_count;
+            if (depth < parts.size())
+            {
+                path /= utf8_path(parts[depth]);
+                prefix.push_back(parts[depth]);
+            }
+        }
+        return {};
+    };
+    auto next_destination_progress = std::chrono::steady_clock::time_point::min();
+    const bool needs_capture_date = request.organization == ImportOrganization::kCaptureDate ||
+                                    request.organization == ImportOrganization::kCaptureMonth ||
+                                    request.filename_template.find("{date}") != std::string::npos;
     for (std::size_t index = 0U; index < paths.value().size(); ++index)
     {
         const auto &source = paths.value()[index];
@@ -667,18 +757,18 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
             plan.push_back(std::move(duplicate));
             continue;
         }
-        auto candidate =
-            destination_preview ?
-                inspect_destination_candidate(source, source_root, request.cancellation) :
-                inspect_import_candidate(source, source_root, request.cancellation);
+        auto candidate = destination_preview ?
+                             inspect_destination_candidate(source, source_root, needs_capture_date,
+                                                           request.cancellation) :
+                             inspect_import_candidate(source, source_root, request.cancellation);
         if (!candidate)
             return candidate.error();
         PlannedImport item;
         item.candidate = std::move(candidate).value();
+        if (preflight_only && item.candidate.error)
+            return *item.candidate.error;
         if (destination_preview)
         {
-            if (item.candidate.error)
-                return *item.candidate.error;
             auto identity = read_file_identity(item.candidate.source_path);
             if (!identity)
                 return identity.error();
@@ -809,69 +899,7 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
                 }
             }
         }
-        plan.push_back(std::move(item));
-    }
-
-    ImportBatchResult batch;
-    batch.mode = request.mode;
-    batch.preview = request.preview;
-    if (destination_preview)
-    {
-        ImportDestinationPreview preview;
-        preview.catalog_revision = snapshot_before.value().revision;
-        using Key = std::pair<bool, std::vector<std::string>>;
-        std::map<Key, ImportDestinationFolder> folders;
-        const auto add_folder = [&](const std::string &output, const std::filesystem::path &root,
-                                    const bool second) -> Result<void>
-        {
-            const auto parent = utf8_path(output).parent_path();
-            const auto relative = parent.lexically_relative(root);
-            std::vector<std::string> parts;
-            for (const auto &part : relative)
-                if (part != u8".")
-                    parts.push_back(path_text(part));
-            auto path = root;
-            std::vector<std::string> prefix;
-            for (std::size_t depth = 0; depth <= parts.size(); ++depth)
-            {
-                if (auto active = request.cancellation.check(); !active)
-                    return active.error();
-                const Key key{second, prefix};
-                auto found = folders.find(key);
-                if (found == folders.end())
-                {
-                    if (folders.size() >= 10000)
-                        return make_error(ErrorCode::kValidation, "Too many preview folders",
-                                          {{"reason", "import_preview_folder_limit"}});
-                    std::error_code error;
-                    const bool exists = std::filesystem::exists(path, error);
-                    if (error)
-                        return make_error(ErrorCode::kIo, "Unable to inspect destination folder",
-                                          {{"path", path_text(path)}, {"detail", error.message()}});
-                    if (exists && !std::filesystem::is_directory(path, error))
-                        return make_error(
-                            ErrorCode::kConflict, "Destination folder is a file",
-                            {{"path", path_text(path)}, {"reason", "import_destination_conflict"}});
-                    if (error)
-                        return make_error(ErrorCode::kIo, "Unable to inspect destination folder",
-                                          {{"path", path_text(path)}, {"detail", error.message()}});
-                    found = folders
-                                .emplace(key, ImportDestinationFolder{path_text(path),
-                                                                      depth == 0 ? path_text(root) :
-                                                                                   parts[depth - 1],
-                                                                      depth, 0, !exists, second})
-                                .first;
-                }
-                ++found->second.photo_count;
-                if (depth < parts.size())
-                {
-                    path /= utf8_path(parts[depth]);
-                    prefix.push_back(parts[depth]);
-                }
-            }
-            return {};
-        };
-        for (const auto &item : plan)
+        if (destination_preview)
         {
             if (item.candidate.error)
                 return *item.candidate.error;
@@ -887,7 +915,32 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
                 if (!added)
                     return added.error();
             }
+            const auto now = std::chrono::steady_clock::now();
+            if (destination_progress && now >= next_destination_progress)
+            {
+                auto current = library_snapshot();
+                if (!current)
+                    return current.error();
+                if (current.value().revision != preview.catalog_revision)
+                    return make_error(ErrorCode::kConflict,
+                                      "Catalog changed during destination preview",
+                                      {{"reason", "import_scan_stale"}});
+                preview.folders.clear();
+                for (const auto &[key, folder] : folders)
+                    preview.folders.push_back(folder);
+                destination_progress(preview);
+                next_destination_progress = now + std::chrono::seconds(1);
+            }
         }
+        else
+            plan.push_back(std::move(item));
+    }
+
+    ImportBatchResult batch;
+    batch.mode = request.mode;
+    batch.preview = request.preview;
+    if (destination_preview)
+    {
         if (auto active = request.cancellation.check(); !active)
             return active.error();
         auto current = library_snapshot();
@@ -896,8 +949,9 @@ Result<ImportBatchResult> ImportService::execute_import_impl(
         if (current.value().revision != preview.catalog_revision)
             return make_error(ErrorCode::kConflict, "Catalog changed during destination preview",
                               {{"reason", "import_scan_stale"}});
-        for (auto &[key, folder] : folders)
-            preview.folders.push_back(std::move(folder));
+        preview.folders.clear();
+        for (const auto &[key, folder] : folders)
+            preview.folders.push_back(folder);
         *destination_preview = std::move(preview);
     }
     if (request.expected_catalog_revision)

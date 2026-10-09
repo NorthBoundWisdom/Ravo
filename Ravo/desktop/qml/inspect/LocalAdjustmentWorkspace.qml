@@ -87,8 +87,7 @@ ColumnLayout {
             }
             CustomButton {
                 text: maskRow.modelData.enabled ? "◉" : "○"
-                ToolTip.text: qsTr("Show / hide mask adjustments")
-                ToolTip.visible: hovered
+                tooltipText: qsTr("Show / hide mask adjustments")
                 onClicked: root.panel.commands.localAdjustment("enable", {
                     id: maskRow.modelData.id,
                     enabled: !maskRow.modelData.enabled

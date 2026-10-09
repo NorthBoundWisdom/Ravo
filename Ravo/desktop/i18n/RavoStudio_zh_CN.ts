@@ -5175,6 +5175,10 @@ Diff: %6</source>
             <translation>文件夹标识和替代路径不能为空。</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>文件夹路径必须是绝对路径。</translation>
+        </message>
+        <message>
             <source>External editor id must not be empty.</source>
             <translation>外部编辑器 ID 不能为空。</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diff: %6</source>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>请先打开连拍比较。</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>复制路径</translation>
         </message>
     </context>
     <context>
@@ -5964,6 +5972,10 @@ Diff: %6</source>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>所选文件夹没有本地路径。</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>无法将文件夹路径复制到剪贴板。</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

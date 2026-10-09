@@ -42,13 +42,12 @@ Rectangle {
                     selected: root.presenter.imports.importMode === mode
                     enabled: index < 2
                     onClicked: root.presenter.imports.setImportMode(mode)
-                    ToolTip.visible: hovered && index === 2
-                    ToolTip.text: qsTr("Ingest transports are Copy-only; Move and camera delete stay rejected.")
+                    tooltipText: index === 2 ? qsTr("Ingest transports are Copy-only; Move and camera delete stay rejected.") : ""
                 }
             }
         }
     }
-    ScrollView {
+    CustomScrollView {
         id: destinationScroll
         anchors.top: transferModes.bottom
         anchors.left: parent.left
@@ -269,7 +268,7 @@ Rectangle {
                         anchors.fill: parent
                         anchors.margins: Fonts.size4
                         folderModel: root.presenter.imports.importDestinationFolders
-                        ScrollBar.vertical: ScrollBar {
+                        ScrollBar.vertical: CustomScrollBar {
                             policy: ScrollBar.AsNeeded
                         }
                         onFolderChosen: function (path) {

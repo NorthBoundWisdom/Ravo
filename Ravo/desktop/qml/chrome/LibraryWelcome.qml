@@ -40,7 +40,7 @@ Rectangle {
         contentHeight: Math.max(height, content.implicitHeight + Fonts.scaledUiSize(32) * 2)
         boundsBehavior: Flickable.StopAtBounds
         clip: true
-        ScrollBar.vertical: ScrollBar {}
+        ScrollBar.vertical: CustomScrollBar {}
 
         ColumnLayout {
             id: content

@@ -5347,6 +5347,10 @@ Différence : %6</translation>
             <translation>L’identifiant du dossier et le chemin de remplacement ne doivent pas être vides.</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>Le chemin du dossier doit être absolu.</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>Copier Parameters</translation>
         </message>
@@ -5545,6 +5549,10 @@ Différence : %6</translation>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>Ouvrez d’abord la comparaison en rafale.</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>Copier le chemin</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Différence : %6</translation>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>Le dossier sélectionné n'a pas de chemin local.</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>Impossible de copier le chemin du dossier dans le presse-papiers.</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

@@ -1,3 +1,4 @@
+import GeoControls 1.0
 import QtQuick
 import QtQuick.Controls
 
@@ -136,7 +137,7 @@ Item {
         Accessible.name: root.accessibleName
         Accessible.description: root.accessibleDescription
 
-        ScrollBar.vertical: ScrollBar {
+        ScrollBar.vertical: CustomScrollBar {
             policy: root.showVerticalScrollBar ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
             implicitWidth: 10
             visible: root.showVerticalScrollBar

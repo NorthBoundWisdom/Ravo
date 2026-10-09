@@ -5347,6 +5347,10 @@ Diff: %6</source>
             <translation>資料夾識別碼與替代路徑不得為空白。</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>資料夾路徑必須是絕對路徑。</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>複製參數文本</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diff: %6</source>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>請先開啟連拍比較。</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>複製路徑</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Diff: %6</source>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>所選資料夾沒有本機路徑。</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>無法將資料夾路徑複製到剪貼簿。</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

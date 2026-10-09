@@ -354,7 +354,36 @@ void FilesystemBrowserModel::setPreviewFolders(std::vector<ImportDestinationFold
             }
         }
     }
+    const bool same_branches =
+        !folders.empty() && folders.size() == preview_folders_.size() &&
+        std::equal(folders.begin(), folders.end(), preview_folders_.begin(),
+                   [](const ImportDestinationFolder &left, const ImportDestinationFolder &right)
+                   {
+                       return left.path == right.path && left.name == right.name &&
+                              left.depth == right.depth && left.will_create == right.will_create &&
+                              left.second_copy == right.second_copy;
+                   });
     preview_folders_ = std::move(folders);
+    if (same_branches)
+    {
+        // Progress normally changes only counts. Keep delegates, user collapse
+        // choices and scroll position instead of revealing/resetting the tree.
+        QHash<QString, qulonglong> counts;
+        for (const auto &folder : preview_folders_)
+            if (!folder.second_copy)
+                counts.insert(generic_path(qstring_from_utf8(folder.path)), folder.photo_count);
+        for (std::size_t row = 0; row < visible_.size(); ++row)
+        {
+            auto &node = visible_[row];
+            const auto count = counts.value(node.path);
+            if (count == node.planned_photo_count)
+                continue;
+            node.planned_photo_count = count;
+            const auto changed = index(static_cast<int>(row), 0);
+            emit dataChanged(changed, changed, {PlannedPhotoCountRole});
+        }
+        return;
+    }
     preview_reveal_path_.clear();
     // Reveal the first planned branch's leaf, not just the selected destination.
     // The root may still be awaiting an ancestor listing; retain the intent until

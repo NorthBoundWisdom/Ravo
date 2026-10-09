@@ -547,7 +547,7 @@ ApplicationWindow {
             closable: false
         }
 
-        SplitView {
+        CustomSplitView {
             id: sidePanels
             objectName: "studioSidePanels"
             Layout.fillWidth: true
@@ -558,11 +558,6 @@ ApplicationWindow {
             onResizingChanged: {
                 if (!resizing)
                     studioLayout.setSideWidths(Math.round(librarySidePanel.SplitView.preferredWidth), Math.round(inspectorSidePanel.SplitView.preferredWidth));
-            }
-            handle: Rectangle {
-                implicitWidth: 1
-                implicitHeight: 1
-                color: SplitHandle.pressed || SplitHandle.hovered ? Theme.midColor : Theme.splitHandleColor
             }
 
             LibrarySidePanel {
@@ -628,7 +623,7 @@ ApplicationWindow {
                     cellWidth: galleryStage.fittedGridCell(width, studio.thumbnailSize + Fonts.size12)
                     cellHeight: cellWidth
                     cacheBuffer: cellHeight
-                    ScrollBar.vertical: ScrollBar {
+                    ScrollBar.vertical: CustomScrollBar {
                         policy: ScrollBar.AlwaysOn
                         implicitWidth: 10
                     }

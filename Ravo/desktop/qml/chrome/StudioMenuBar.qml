@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import GeoControls 1.0
 
-MenuBar {
+CustomMenuBar {
     id: menuBar
     required property var controller
 
@@ -10,26 +10,7 @@ MenuBar {
         return controller ? controller.menuEntries(path).length : 0;
     }
 
-    background: Rectangle {
-        color: Theme.windowColor
-        implicitHeight: Fonts.menuBarHeight
-    }
-    delegate: MenuBarItem {
-        id: menuBarItem
-        implicitHeight: Fonts.menuBarHeight
-        contentItem: Text {
-            text: menuBarItem.text
-            font: Fonts.standardFont
-            color: menuBarItem.enabled ? Theme.textColor : Theme.disabledTextColor
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle {
-            color: menuBarItem.highlighted || menuBarItem.down ? Theme.buttonHoveredColor : "transparent"
-        }
-    }
-
-    Menu {
+    CustomMenu {
         id: fileMenu
         title: qsTr("File")
         StudioCommandMenuItems {
@@ -39,7 +20,7 @@ MenuBar {
             menuPath: "file.library"
             insertionIndex: 0
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             id: fileTransfer
             controller: menuBar.controller
@@ -47,7 +28,7 @@ MenuBar {
             menuPath: "file.transfer"
             insertionIndex: menuBar.commandCount("file.library") + 1
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             id: fileRecovery
             controller: menuBar.controller
@@ -55,7 +36,7 @@ MenuBar {
             menuPath: "file.recovery"
             insertionIndex: menuBar.commandCount("file.library") + menuBar.commandCount("file.transfer") + 2
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             controller: menuBar.controller
             hostMenu: fileMenu
@@ -63,7 +44,7 @@ MenuBar {
             insertionIndex: menuBar.commandCount("file.library") + menuBar.commandCount("file.transfer") + menuBar.commandCount("file.recovery") + 3
         }
     }
-    Menu {
+    CustomMenu {
         id: editMenu
         title: qsTr("Edit")
         StudioCommandMenuItems {
@@ -73,7 +54,7 @@ MenuBar {
             menuPath: "edit.history"
             insertionIndex: 0
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             controller: menuBar.controller
             hostMenu: editMenu
@@ -81,7 +62,7 @@ MenuBar {
             insertionIndex: menuBar.commandCount("edit.history") + 1
         }
     }
-    Menu {
+    CustomMenu {
         id: viewMenu
         title: qsTr("View")
         StudioCommandMenuItems {
@@ -91,7 +72,7 @@ MenuBar {
             menuPath: "view.mode"
             insertionIndex: 0
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             id: viewZoom
             controller: menuBar.controller
@@ -99,7 +80,7 @@ MenuBar {
             menuPath: "view.zoom"
             insertionIndex: menuBar.commandCount("view.mode") + 1
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             id: viewCompare
             controller: menuBar.controller
@@ -107,7 +88,7 @@ MenuBar {
             menuPath: "view.compare"
             insertionIndex: menuBar.commandCount("view.mode") + menuBar.commandCount("view.zoom") + 2
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             controller: menuBar.controller
             hostMenu: viewMenu
@@ -115,7 +96,7 @@ MenuBar {
             insertionIndex: menuBar.commandCount("view.mode") + menuBar.commandCount("view.zoom") + menuBar.commandCount("view.compare") + 3
         }
     }
-    Menu {
+    CustomMenu {
         id: photoMenu
         title: qsTr("Photo")
         StudioCommandMenuItems {
@@ -125,7 +106,7 @@ MenuBar {
             menuPath: "photo.navigate"
             insertionIndex: 0
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             id: photoTransform
             controller: menuBar.controller
@@ -133,8 +114,8 @@ MenuBar {
             menuPath: "photo.transform"
             insertionIndex: menuBar.commandCount("photo.navigate") + 1
         }
-        MenuSeparator {}
-        Menu {
+        CustomMenuSeparator {}
+        CustomMenu {
             id: ratingMenu
             title: qsTr("Rating")
             StudioCommandMenuItems {
@@ -144,7 +125,7 @@ MenuBar {
                 insertionIndex: 0
             }
         }
-        Menu {
+        CustomMenu {
             id: colorMenu
             title: qsTr("Color Label")
             StudioCommandMenuItems {
@@ -161,7 +142,7 @@ MenuBar {
             menuPath: "photo.review"
             insertionIndex: menuBar.commandCount("photo.navigate") + menuBar.commandCount("photo.transform") + 4
         }
-        MenuSeparator {}
+        CustomMenuSeparator {}
         StudioCommandMenuItems {
             controller: menuBar.controller
             hostMenu: photoMenu
@@ -169,7 +150,7 @@ MenuBar {
             insertionIndex: menuBar.commandCount("photo.navigate") + menuBar.commandCount("photo.transform") + menuBar.commandCount("photo.review") + 5
         }
     }
-    Menu {
+    CustomMenu {
         id: helpMenu
         title: qsTr("Help")
         StudioCommandMenuItems {

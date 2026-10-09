@@ -172,8 +172,12 @@ Current implementation status:
   and folders that will be created. It
   updates with photo selection and organization settings without creating files.
   Planning reads metadata on its own worker as soon as paths are enumerated;
-  it does not wait for source hashing or thumbnail decoding. Background content
-  deduplication updates selection and counts, and formal import checks output conflicts.
+  it does not wait for source hashing or thumbnail decoding.
+  The first planned photo publishes a partial tree; longer plans update about
+  once per second until complete. Date/month organization reads capture tags;
+  single-folder and hierarchy plans need only paths and file identities.
+  Background content deduplication updates selection and counts, and formal import
+  checks output conflicts.
   Planned primary folders appear in place, without a separate preview list:
   missing year/month directories are gray and italic, existing directories keep
   their normal appearance, and preview folders cannot be chosen as destinations.
@@ -182,11 +186,18 @@ Current implementation status:
   when ancestor folders are still loading; positioning waits for real planned-branch
   listings so later row resets cannot undo it. Planning status and errors appear
   immediately above the tree; directories are created only by the actual import.
-  While validation, source enumeration or destination planning is pending, a
-  modal progress view blocks other Import actions and early import; Cancel and
-  window dismissal remain available. Metadata from unchanged files is reused
+  While destination validation or source enumeration is pending, a modal progress
+  view blocks other Import actions. Once candidates appear, destination planning,
+  hash checks and thumbnails continue asynchronously without locking the window.
+  The last published destination tree remains visible during updates; Import waits
+  for the latest plan. Cancel stops preparation of the current source and keeps
+  Import open so another folder can
+  be selected; Escape does the same while preparation is active. Back exits the
+  page. Metadata from unchanged files is reused
   across organization/selection changes in a bounded cache; formal import still
   verifies actual source bytes and destination conflicts.
+  Right-click a source folder to copy its path or open it in Finder/Explorer/the
+  file manager, without selecting it for scanning.
   `catalog import-plan --catalog <path> --input <path> --mode copy --destination <folder>`
   exposes the same versioned JSON preview; formal import rechecks all conflicts.
   Clicking a collapsed folder selects and expands it; the separate arrow toggles
@@ -317,6 +328,9 @@ Current implementation status:
   command controller, wait for the saved preview, and publish an exact
   no-replace probe PNG. Selection and state revisions reject stale requests;
   no assistant credential or image byte enters the socket (ADR-0090).
+- Studio uses shared GeoControls styling for all in-window controls, including
+  thumbnail-size sliders, scrolling, loading feedback, tooltips and menus.
+  Native application menus and system file/folder pickers retain OS integration.
 - Studio UI supports English, German, Spanish, French, Brazilian Portuguese,
   Simplified and Traditional Chinese, Japanese, and Korean. The desktop-owned language
   manager synchronously persists the normalized selected language, repairs a

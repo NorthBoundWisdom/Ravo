@@ -113,7 +113,7 @@ Rectangle {
             flickableDirection: Flickable.VerticalFlick
             contentWidth: width
             contentHeight: cropControls.implicitHeight + 2 * Fonts.standardMargin
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: CustomScrollBar {}
             DevelopCropControls {
                 id: cropControls
                 x: Fonts.standardMargin
@@ -135,7 +135,7 @@ Rectangle {
             flickableDirection: Flickable.VerticalFlick
             contentWidth: width
             contentHeight: localControls.implicitHeight + 2 * Fonts.standardMargin
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: CustomScrollBar {}
 
             LocalAdjustmentWorkspace {
                 id: localControls
@@ -156,7 +156,7 @@ Rectangle {
             flickableDirection: Flickable.VerticalFlick
             contentWidth: width
             contentHeight: column.implicitHeight
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: CustomScrollBar {}
 
             ColumnLayout {
                 id: column

@@ -57,8 +57,11 @@ public:
                    const std::function<void(std::size_t, std::size_t, const ImportItemResult *)>
                        &progress = {});
     [[nodiscard]] Result<void> preflight_import(const ImportRequest &request);
-    [[nodiscard]] Result<ImportDestinationPreview>
-    preview_import_destinations(const ImportRequest &request);
+    // Progress snapshots are read-only, bounded by the folder limit, and valid
+    // only for the synchronous callback. Clients copy before crossing threads.
+    [[nodiscard]] Result<ImportDestinationPreview> preview_import_destinations(
+        const ImportRequest &request,
+        const std::function<void(const ImportDestinationPreview &)> &progress = {});
     [[nodiscard]] Result<std::vector<std::string>>
     enumerate_import_inputs(const std::vector<std::string> &paths,
                             const CancellationToken &cancellation, bool recursive = true) const;
@@ -80,7 +83,7 @@ private:
     [[nodiscard]] Result<CatalogSnapshot> library_snapshot() const;
     [[nodiscard]] Result<ImportCandidate>
     inspect_destination_candidate(std::string_view path, std::string_view source_root,
-                                  const CancellationToken &cancellation);
+                                  bool needs_capture_date, const CancellationToken &cancellation);
     [[nodiscard]] Result<ImportScanResult> scan_import_candidates_impl(
         const std::vector<std::string> &inputs, std::string_view source_root, bool recursive,
         const CancellationToken &cancellation,
@@ -90,7 +93,8 @@ private:
     [[nodiscard]] Result<ImportBatchResult> execute_import_impl(
         const ImportRequest &request,
         const std::function<void(std::size_t, std::size_t, const ImportItemResult *)> &progress,
-        bool preflight_only, ImportDestinationPreview *destination_preview = nullptr);
+        bool preflight_only, ImportDestinationPreview *destination_preview = nullptr,
+        const std::function<void(const ImportDestinationPreview &)> &destination_progress = {});
 
     const std::unique_ptr<CatalogRepository> &repository_;
     const std::unique_ptr<RasterDecoder> &raster_;

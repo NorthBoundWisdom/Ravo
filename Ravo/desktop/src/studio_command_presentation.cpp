@@ -112,6 +112,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("libraryFolderRelinkPath"),
          QLatin1String(command::kLibraryFolderRelinkPath)},
         {QStringLiteral("libraryRevealFolder"), QLatin1String(command::kLibraryRevealFolder)},
+        {QStringLiteral("libraryCopyFolderPath"), QLatin1String(command::kLibraryCopyFolderPath)},
         {QStringLiteral("libraryRemoveFolder"),
          QLatin1String(command::kLibraryRequestRemoveFolder)},
         {QStringLiteral("libraryRemoveFolderConfirmed"),

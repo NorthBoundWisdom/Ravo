@@ -46,7 +46,7 @@ Rectangle {
         }
     }
 
-    BusyIndicator {
+    CustomBusyIndicator {
         anchors.centerIn: parent
         running: root.presenter.imports.importScanActive && candidateGrid.count === 0
         visible: running
@@ -103,8 +103,10 @@ Rectangle {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: Fonts.size3
-                ToolTip.visible: candidateMouse.containsMouse && errorText.length > 0
-                ToolTip.text: errorText
+                CustomToolTip {
+                    visible: candidateMouse.containsMouse && candidateDelegate.errorText.length > 0
+                    text: candidateDelegate.errorText
+                }
                 color: Theme.imageSurroundColor
                 border.width: highlighted || candidateDelegate.keyboardCurrent ? ControlState.borderFocus : ControlState.borderThin
                 border.color: highlighted || candidateDelegate.keyboardCurrent ? Theme.highlightColor : Theme.dividerColor
@@ -118,7 +120,7 @@ Rectangle {
                     visible: thumbnailUrl.toString().length > 0
                 }
 
-                BusyIndicator {
+                CustomBusyIndicator {
                     anchors.centerIn: parent
                     width: 28
                     height: 28

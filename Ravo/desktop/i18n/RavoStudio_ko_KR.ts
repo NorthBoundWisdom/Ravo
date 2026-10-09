@@ -5347,6 +5347,10 @@ Diff: %6</source>
             <translation>폴더 ID와 대체 경로는 비워 둘 수 없습니다.</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>폴더 경로는 절대 경로여야 합니다.</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>매개변수 복사</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diff: %6</source>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>먼저 연사 비교를 여세요.</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>경로 복사</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Diff: %6</source>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>선택한 폴더에 로컬 경로가 없습니다.</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>폴더 경로를 클립보드에 복사할 수 없습니다.</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

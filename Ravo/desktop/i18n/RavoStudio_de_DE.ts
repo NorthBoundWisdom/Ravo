@@ -5347,6 +5347,10 @@ Differenz: %6</translation>
             <translation>Ordnerkennung und Ersatzpfad dürfen nicht leer sein.</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>Der Ordnerpfad muss absolut sein.</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>Parameter kopieren</translation>
         </message>
@@ -5545,6 +5549,10 @@ Differenz: %6</translation>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>Öffnen Sie zuerst den Serienbildvergleich.</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>Pfad kopieren</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Differenz: %6</translation>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>Der ausgewählte Ordner hat keinen lokalen Pfad.</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>Der Ordnerpfad konnte nicht in die Zwischenablage kopiert werden.</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

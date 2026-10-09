@@ -298,6 +298,7 @@ public:
     Q_INVOKABLE void disableBackupSchedule();
     Q_INVOKABLE void relinkFolder(const QString &folder_id, const QString &replacement_directory);
     Q_INVOKABLE void revealFolderInFileManager(const QString &folder_uri);
+    void copyFolderPath(const QString &path);
     Q_INVOKABLE void removeFolderFromCatalog(const QString &folder_uri);
     Q_INVOKABLE QString folderLocalPath(const QString &folder_uri) const;
     void checkScheduledBackup();

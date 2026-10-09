@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import GeoControls 1.0
 
-Popup {
+CustomPopup {
     id: root
     required property var controller
     required property var windowHost

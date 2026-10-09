@@ -217,7 +217,7 @@ ColumnLayout {
         boundsBehavior: Flickable.StopAtBounds
         visible: root.hasSelection
         model: root.historyEntries
-        ScrollBar.vertical: ScrollBar {
+        ScrollBar.vertical: CustomScrollBar {
             policy: ScrollBar.AsNeeded
         }
         delegate: HistoryEntryRow {
@@ -266,7 +266,7 @@ ColumnLayout {
         boundsBehavior: Flickable.StopAtBounds
         visible: root.hasSelection && root.snapshotEntries.length > 0
         model: root.snapshotEntries
-        ScrollBar.vertical: ScrollBar {
+        ScrollBar.vertical: CustomScrollBar {
             policy: ScrollBar.AsNeeded
         }
         delegate: HistoryEntryRow {

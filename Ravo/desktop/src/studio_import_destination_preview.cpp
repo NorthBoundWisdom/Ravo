@@ -133,11 +133,16 @@ StudioImportWorkspace::StudioImportWorkspace(Context context, Host host, QObject
             [this] { return plannedImportRequest(); },
         },
         this);
-    connect(destination_preview.get(), &StudioImportDestinationPreviewController::changed, this,
+    connect(destination_preview.get(), &StudioImportDestinationPreviewController::foldersChanged,
+            this,
             [this]
             {
                 destination_folders.setPreviewFolders(destination_preview->treeFolders(),
                                                       importDestination());
+            });
+    connect(destination_preview.get(), &StudioImportDestinationPreviewController::changed, this,
+            [this]
+            {
                 emit importDestinationPreviewChanged();
                 emit importPageChanged();
             });

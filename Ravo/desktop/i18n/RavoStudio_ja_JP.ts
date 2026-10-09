@@ -5347,6 +5347,10 @@ Diff: %6</source>
             <translation>フォルダー ID と置換先パスを空にすることはできません。</translation>
         </message>
         <message>
+            <source>The folder path must be absolute.</source>
+            <translation>フォルダーのパスは絶対パスである必要があります。</translation>
+        </message>
+        <message>
             <source>Copy Parameters</source>
             <translation>パラメータのコピー</translation>
         </message>
@@ -5545,6 +5549,10 @@ Diff: %6</source>
         <message>
             <source>Open Burst Compare first.</source>
             <translation>先に連写比較を開いてください。</translation>
+        </message>
+        <message>
+            <source>Copy Path</source>
+            <translation>パスをコピー</translation>
         </message>
     </context>
     <context>
@@ -6148,6 +6156,10 @@ Diff: %6</source>
         <message>
             <source>The selected folder has no local path.</source>
             <translation>選択したフォルダーにはローカル パスがありません。</translation>
+        </message>
+        <message>
+            <source>The folder path could not be copied to the clipboard.</source>
+            <translation>フォルダーのパスをクリップボードにコピーできませんでした。</translation>
         </message>
         <message>
             <source>The folder is missing and cannot be shown in the file manager.</source>

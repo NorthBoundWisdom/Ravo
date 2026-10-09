@@ -181,6 +181,7 @@ QStringList command_ids()
             QLatin1String(command::kLibraryFolderRelink),
             QLatin1String(command::kLibraryFolderRelinkPath),
             QLatin1String(command::kLibraryRevealFolder),
+            QLatin1String(command::kLibraryCopyFolderPath),
             QLatin1String(command::kLibraryRequestRemoveFolder),
             QLatin1String(command::kLibraryRemoveFolder),
             QLatin1String(command::kPhotoSelect),
@@ -759,6 +760,10 @@ QVector<ActionSpec> builtin_actions()
         {QStringLiteral("finder"), QStringLiteral("explorer"), QStringLiteral("folder"),
          QStringLiteral("reveal")},
         {}, 0, true);
+    add(command::kLibraryCopyFolderPath, command::kLibraryCopyFolderPath,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Copy Path")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
+        {QStringLiteral("folder"), QStringLiteral("clipboard")}, {}, 0, true);
     add(command::kLibraryRequestRemoveFolder, command::kLibraryRequestRemoveFolder,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Remove Folder from Catalog...")),
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),

@@ -37,6 +37,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "studio_file_manager.h"
+#include "studio_debug_info.h"
 #include "studio_qt.h"
 
 namespace ravo
@@ -1137,6 +1138,23 @@ QString StudioPresenter::folderLocalPath(const QString &folder_uri) const
 {
     const auto path = local_file_path_from_asset_uri(folder_uri);
     return path ? path.value() : QString{};
+}
+
+void StudioPresenter::copyFolderPath(const QString &path)
+{
+    if (!QDir::isAbsolutePath(path))
+    {
+        setError(QCoreApplication::translate("StudioPresenter",
+                                             "The selected folder has no local path."));
+        return;
+    }
+    if (!write_clipboard_text(path))
+    {
+        setError(QCoreApplication::translate(
+            "StudioPresenter", "The folder path could not be copied to the clipboard."));
+        return;
+    }
+    setError({});
 }
 
 void StudioPresenter::revealFolderInFileManager(const QString &folder_uri)

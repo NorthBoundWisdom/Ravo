@@ -148,6 +148,16 @@ global state.
 
 ## Targets and dependency direction
 
+Studio's in-window controls use the GeoControls visual owners, including
+compact sliders, scrollbars/scroll views, busy indicators, tooltips, drawers,
+popups, splitters and menus. Theme tokens and metrics live in GeoControls;
+Qt retains input, focus, accessibility and native application-menu integration.
+The window remains a themed Qt ApplicationWindow, and system file/folder
+pickers retain their native selection contract. Studio context menus are thin
+policy wrappers over the shared menu controls. View destruction releases their
+popups, and hidden loading indicators stop animating. These presentation
+components own no import worker, catalog state or command policy.
+
 | Target | Ownership | Allowed dependencies | Forbidden dependencies |
 | --- | --- | --- | --- |
 | `ravo_foundation` | errors, IDs, cancellation, basic resource contracts | standard library, QtCore where needed | recipe, engine, catalog, UI |
@@ -366,29 +376,58 @@ generation. Planning starts after source enumeration, independently of the full
 source hash scan and thumbnails. `ravo-import-destination-preview/v2` exposes
 primary/second-copy folder paths, create flags and descendant-inclusive provisional
 photo counts through Studio and `catalog import-plan`. Metadata inspection reads
-RAW identification or raster headers/capture tags, without unpacking RAW pixels,
-decoding embedded thumbnails, hashing file content or preflighting output files.
+only embedded capture tags when date/month folders or a date filename part need
+them. Single-folder and preserved-hierarchy projections use paths and file identities
+without opening image headers. Metadata inspection performs no RAW camera
+identification, companion lookups, thumbnail decoding, content hashing or output-file
+preflight; enumeration still folds RAW/JPEG pairs.
 Source file identities and catalog revision are checked before publication;
-metadata errors and destination-directory blockers remain explicit errors.
+metadata errors and destination-directory blockers remain explicit errors. Path-only
+projections may include corrupt image files; formal preflight validates their bytes.
 Known catalog URI duplicates are excluded when requested; content duplicates are
 removed as source classification updates selection. Preview creates no folders
 or media and never replaces final import preflight, which rechecks content hashes,
 sidecars, duplicate identities and output conflicts. Stale results clear on draft
 replacement or close. Both worker sessions are drained and replaced on catalog
-switch and cancelled/joined before workspace destruction.
+switch and cancelled/joined before workspace destruction. The service publishes a
+read-only partial projection after the first planned photo, then at most once per
+second, with the final complete result returned separately. Snapshots retain the
+10,000-folder bound; desktop copies at most one pending partial snapshot to the
+UI queue and rejects stale generations. Count-only updates emit model data changes
+without resetting rows, revealing branches again or undoing user collapse choices.
+Partial results keep planning active and cannot admit import. CLI JSON remains a
+final-result contract.
 The serial import service retains at most 8,192 successful preview candidate
 metadata records, reusing only matching canonical path, size and modification time.
 Each reuse checks current catalog membership and request-relative hierarchy;
 changed/missing sources fail or are inspected again. Catalog close clears the cache.
 Formal scan/preflight/import never consume it and still verify actual bytes.
+Preflight returns a candidate's codec failure before planning any transfer.
 Within one plan, destination parent canonicalization is shared by photos in the
 same directory; output-file conflicts remain owned by formal preflight.
-The C++ import workspace exposes a blocking interaction state from destination
-validation/source enumeration through destination-preview publication. A modal
-QML progress view disables draft/grid actions, and command availability rejects
+The C++ import workspace exposes a blocking interaction state during destination
+validation and source enumeration. A modal QML progress view disables draft/grid
+actions during those phases, and command availability rejects
 all commands except cancellation, dismissal and window close/quit. The UI thread
-keeps processing events; closing Import cancels both scan and preview generations.
-Import admission checks the same blocking state and rejects planning errors.
+keeps processing events. Cancel abandons the current source without closing Import;
+Escape does the same during source preparation. The workspace clears the active
+source, candidates and context, cancels scan/thumbnail/preview generations, and
+retains destination settings and filesystem navigation. Clearing scheduling inputs
+before controller notifications prevents late validation or worker results from
+restarting planning. This session cancellation does not erase the saved source
+preference. Back closes Import and cancels its scan and preview generations.
+Formal preflight/transfer cancellation retains its existing service operation token.
+Once enumeration publishes candidates, destination planning, hash classification
+and thumbnails proceed independently without a modal interaction lock. Planning
+status changes do not reset the destination browser: it retains the last published
+projection until the replacement arrives or the source/selection is cleared.
+Import admission separately rejects pending destination planning and planning errors,
+so an interactive workspace cannot admit a stale plan. Existing generation/token
+checks still reject late results after source changes and cancellation.
+Source-tree context menus carry the explicitly clicked path without selecting or
+scanning it. `studio.library.copy_folder_path` writes an absolute path through the
+desktop clipboard owner; `studio.library.reveal_folder` opens that directory through
+the existing platform launcher. Both commands support the Import workspace.
 The desktop filesystem model overlays primary planned folders into its disposable
 visible tree, merging by normalized path with real directory listings. Planned
 branches expand initially and remain collapsible; new directories expose a

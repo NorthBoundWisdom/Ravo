@@ -222,7 +222,7 @@ ColumnLayout {
                 value: root.hasPresenter ? root.presenter.selectedSublocation : ""
             }
         ]
-        bodyItem: ScrollView {
+        bodyItem: CustomScrollView {
             id: metadataScroll
             clip: true
             contentWidth: availableWidth

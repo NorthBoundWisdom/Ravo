@@ -24,7 +24,7 @@ DialogShell {
         crop.checked = true;
         openDialog();
     }
-    bodyItem: ScrollView {
+    bodyItem: CustomScrollView {
         id: scroll
         clip: true
         implicitHeight: Math.min(contentColumn.implicitHeight, root.parentItem ? Math.max(Fonts.scaledUiSize(120), root.parentItem.height * 0.6) : Fonts.scaledUiSize(420))

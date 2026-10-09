@@ -73,10 +73,12 @@ public:
 
 signals:
     void changed();
+    void foldersChanged();
 
 private:
     void start();
-    void publishResult(std::uint64_t generation, Result<ImportDestinationPreview> preview);
+    void publishResult(std::uint64_t generation, Result<ImportDestinationPreview> preview,
+                       bool complete = true);
 
     Host host_;
     QTimer timer_;
