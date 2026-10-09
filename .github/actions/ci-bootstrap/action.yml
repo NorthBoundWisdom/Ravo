@@ -75,7 +75,8 @@ runs:
         sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*chrome*' -o -iname '*google*' \) -print -delete || true
         sudo find /var/lib/apt/lists -maxdepth 1 -type f \( -iname '*chrome*' -o -iname '*google*' \) -delete || true
         sudo apt-get update
-        sudo apt-get install -y ninja-build clang binutils pkg-config libpng-dev zlib1g-dev
+        sudo apt-get install -y ninja-build clang binutils pkg-config libpng-dev zlib1g-dev \
+          libpipewire-0.3-0 libva2 libva-drm2 libva-x11-2
 
     - name: Install Windows Ninja
       if: runner.os == 'Windows'

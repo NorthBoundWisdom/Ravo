@@ -158,7 +158,20 @@ struct StudioVideoPresenter::Impl
                                                static_cast<std::size_t>(frame.mappedBytes(p))};
                             image.strides[p] = frame.bytesPerLine(p);
                         }
-                        image.full_range = frame.surfaceFormat().colorRange() ==
+                        // Qt 6.11's software buffer converts YUVJ420P into limited-range
+                        // YUV420P and drops the AVFrame colour tags. The mapped bytes no
+                        // longer have the source's full range. Hardware NV12 and frames
+                        // carrying explicit range retain their declared interpretation.
+                        const bool normalized_software_yuv =
+                            frame.pixelFormat() == QVideoFrameFormat::Format_YUV420P &&
+                            frame.surfaceFormat().colorRange() ==
+                                QVideoFrameFormat::ColorRange_Unknown &&
+                            frame.surfaceFormat().colorSpace() ==
+                                QVideoFrameFormat::ColorSpace_Undefined &&
+                            transfer == QVideoFrameFormat::ColorTransfer_Unknown;
+                        image.full_range = normalized_software_yuv ?
+                                               false :
+                                           frame.surfaceFormat().colorRange() ==
                                                    QVideoFrameFormat::ColorRange_Unknown ?
                                                info.full_range.value_or(false) :
                                                frame.surfaceFormat().colorRange() ==

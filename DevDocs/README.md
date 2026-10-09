@@ -1,5 +1,10 @@
 # Ravo developer documentation
 
+FFmpeg Qt-kit resolution and Linux multimedia runtime requirements are defined
+in [Dependency_Workflow.md](Dependency_Workflow.md) and [Packaging.md](Packaging.md).
+Software-buffer colour-range qualification follows
+[ADR-0165](adr/0165-video-library-and-playback.md).
+
 Video library, frame artifacts and playback ownership are specified in
 [ADR-0165](adr/0165-video-library-and-playback.md) and
 [ARCHITECTURE.md](ARCHITECTURE.md). Validation is in [TESTING.md](TESTING.md),

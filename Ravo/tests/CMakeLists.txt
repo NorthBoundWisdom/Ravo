@@ -527,6 +527,13 @@ gtest_discover_tests(ravo_desktop_command_tests
   DISCOVERY_MODE PRE_TEST
   TEST_FILTER "-StudioImportKeyboardPerf.*"
   PROPERTIES LABELS "ravo-desktop-smoke")
+add_test(NAME ravo_video_software_playback
+  COMMAND ravo_desktop_command_tests
+    --gtest_filter=StudioVideoTest.P3Bt601PlaybackMatchesPosterForBothRanges)
+set_tests_properties(ravo_video_software_playback PROPERTIES
+  ENVIRONMENT "QT_FFMPEG_DECODING_HW_DEVICE_TYPES=,"
+  LABELS "ravo-desktop-smoke" TIMEOUT 90)
+
 # Wall-clock keyboard budgets must not compete with parallel render/import tests.
 # Keep their original identities, sample counts, assertions and latency ceilings.
 gtest_discover_tests(ravo_desktop_command_tests

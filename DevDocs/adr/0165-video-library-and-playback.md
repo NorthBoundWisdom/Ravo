@@ -15,6 +15,17 @@ owns the matching shared runtime used by both this adapter and Qt Multimedia.
 Configuration and runtime identity checks reject mismatches. There is no
 host-library search fallback or external ffmpeg/ffprobe subprocess dependency.
 
+The 2026-10-10 runtime qualification amendment admits the selected Qt Windows
+kit's `bin` import-library layout and declares PipeWire/VA-API host dependencies
+for Linux; no runtime search outside the explicit kit or diagnostic suppression
+is added. Qt 6.11.2 software playback normalizes YUVJ420P to limited-range
+YUV420P while dropping colour tags. The desktop adapter interprets this
+unlabelled normalized buffer as limited range, while explicit frame range and
+hardware NV12 retain their declared semantics. This follows the
+[Qt buffer conversion](https://github.com/qt/qtmultimedia/blob/v6.11.2/src/plugins/multimedia/ffmpeg/qffmpegvideobuffer.cpp)
+contract. Forced software and ordinary playback must both match poster pixels
+within the existing three-code-value bound; the test tolerance is unchanged.
+
 Engine owns CPU HLG/PQ-to-SDR presentation. Services own import, thumbnail
 publication and identity validation. Desktop C++ owns QMediaPlayer, audio,
 selection-bound playback and resource lifetime; QML displays frames and forwards

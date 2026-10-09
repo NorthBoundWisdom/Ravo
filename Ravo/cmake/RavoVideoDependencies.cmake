@@ -32,7 +32,8 @@ foreach(_ravo_spec IN ITEMS "avformat;61" "avcodec;61" "avutil;59" "swscale;8" "
       PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/bin" NO_DEFAULT_PATH REQUIRED)
     unset(_ravo_import CACHE)
     find_library(_ravo_import NAMES "${_ravo_lib}" "${_ravo_lib}-${_ravo_major}"
-      PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
+      PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/bin" "${RAVO_FFMPEG_RUNTIME_ROOT}/lib"
+      NO_DEFAULT_PATH REQUIRED)
   elseif(APPLE)
     find_file(_ravo_runtime NAMES "lib${_ravo_lib}.${_ravo_major}.dylib"
       PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)

@@ -5,6 +5,12 @@ FFmpeg 7.1.5 shared runtime used by the CLI adapter (ADR-0165). The runtime
 prefix and identity requirements are in [Dependency_Workflow.md](Dependency_Workflow.md).
 CI bootstrap installs `qtmultimedia` alongside image formats and shader tools;
 its Qt cache identity includes that module set.
+Linux build and clean-package runners install PipeWire and VA-API runtime
+libraries (`libpipewire-0.3-0`, `libva2`, `libva-drm2`, `libva-x11-2`). The DEB
+declares these host dependencies; AppImage users need them from their
+distribution. They satisfy Qt's runtime symbol resolvers even for a headless
+CLI invocation. Successful CLI JSON commands must retain empty stderr; missing
+libraries are repaired as dependencies rather than muted diagnostics.
 Package templates copy the FFmpeg LGPL notice alongside existing notices.
 The isolated checker requires video import, no-replace frame artifact and
 Qt playback stages. Its muted frame test does not establish audible output or
