@@ -23,6 +23,11 @@ inputs:
     required: false
     default: "true"
 
+outputs:
+  ccache-directory:
+    description: Native absolute cache path shared by restore and explicit save
+    value: ${{ steps.ccache-directory.outputs.path }}
+
 runs:
   using: composite
   steps:
@@ -80,11 +85,26 @@ runs:
         choco install ninja -y --no-progress
         echo "/c/ProgramData/chocolatey/bin" >> "$GITHUB_PATH"
 
+    - name: Locate ccache directory
+      id: ccache-directory
+      shell: bash
+      run: |
+        python - <<'PY'
+        import os
+        cache_path = os.environ.get("CCACHE_DIR") or os.path.join(os.environ["GITHUB_WORKSPACE"], ".ccache")
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"path={cache_path}\n")
+        PY
+
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.24
+      env:
+        CCACHE_DIR: ${{ steps.ccache-directory.outputs.path }}
       with:
         key: ${{ inputs.preset }}-${{ runner.os }}-${{ runner.arch }}
         restore-keys: ${{ inputs.preset }}-${{ runner.os }}-${{ runner.arch }}
+        # Workflows save immediately after compilation, before tests/packaging.
+        save: "false"
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v4

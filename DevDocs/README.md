@@ -58,6 +58,9 @@ production Gallery image-readiness coverage are recorded in [TESTING.md](TESTING
 validation, dependency, packaging, compliance, and historical migration
 records. Component `README.md` files remain beside the code they describe, and
 `AGENTS.md` files remain at their scope roots for tool discovery.
+CI compiler-cache restore and immediate save after successful compilation are
+specified in [TESTING.md](TESTING.md); the build/cache/package ordering is
+specified in [Packaging.md](Packaging.md).
 
 Ravo's product north star is a professional, cross-platform photo manager and
 non-destructive editor for working photographers, with optional AI-assisted

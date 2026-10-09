@@ -141,6 +141,7 @@ jobs:
           persist-credentials: false
 
       - name: Bootstrap CI environment
+        id: bootstrap
         uses: ./.github/actions/ci-bootstrap
         env:
           GEOCONTROLS_TOKEN: ${{ secrets.GEOCONTROLS_TOKEN }}
@@ -156,6 +157,13 @@ jobs:
 
       - name: Build Ravo
         run: cmake --build "build/${{ matrix.preset }}" --parallel
+
+      - name: Save compiler cache after build
+        uses: actions/cache/save@v5
+        with:
+          # Match ccache-action's absolute path and ccache- restore prefix.
+          path: ${{ steps.bootstrap.outputs.ccache-directory }}
+          key: ccache-${{ matrix.preset }}-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Test Ravo
         if: runner.os != 'Windows'
@@ -283,6 +291,7 @@ jobs:
           persist-credentials: false
 
       - name: Bootstrap CI environment
+        id: bootstrap
         uses: ./.github/actions/ci-bootstrap
         env:
           GEOCONTROLS_TOKEN: ${{ secrets.GEOCONTROLS_TOKEN }}
@@ -335,6 +344,15 @@ jobs:
       - name: Configure Ravo Linux package
         if: runner.os == 'Linux'
         run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=OFF
+
+      - name: Build Ravo package binaries
+        run: cmake --build "build/${{ matrix.preset }}" --target ravo ravo_studio --parallel
+
+      - name: Save compiler cache after build
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.bootstrap.outputs.ccache-directory }}
+          key: ccache-${{ matrix.preset }}-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Package Ravo with FreeCM
         run: cmake --build "build/${{ matrix.preset }}" --target RavoPackage --parallel

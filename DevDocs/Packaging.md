@@ -154,6 +154,10 @@ setup example, not the CI architecture authority. Qt, ccache, seed caches,
 workflow artifacts and evidence names are separated by architecture. Linux
 ARM64 installs the native `linux_arm64` / `linux_gcc_arm64` Qt kit and pinned
 aarch64 AppImage tools with SHA256 validation.
+Package jobs compile `ravo` and `ravo_studio`, explicitly save the compiler cache,
+then invoke `RavoPackage`. A later package generation or validation failure does
+not discard that uploaded build cache. The restore/save path and key ownership
+are specified in [TESTING.md](TESTING.md).
 
 After packaging, `package-smoke` downloads the final artifacts onto fresh
 runners without running bootstrap, installing a Qt SDK, or restoring build

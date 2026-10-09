@@ -523,6 +523,13 @@ and Linux. CI runs `--init`, updates Qt/PATH in the
 active lock, then runs `--update`. Builds use `cmake --build build/<preset>` so
 they do not depend on the Linux template's `ClangDebug` build-preset name and
 Windows gtest discovery can see Qt on runner `Path`.
+Compiler cache setup/restore belongs to `ci-bootstrap`; its native absolute
+directory is also used by `actions/cache/save` to preserve cache-version matching
+on Windows as well as Unix. Every successful build saves before CTest, so later
+test failure or cancellation does not discard an already uploaded cache.
+Build failure skips saving. Keys retain the preset/OS/architecture restore prefix
+and add job/run/attempt identity so reruns can publish updated immutable entries.
+The bootstrap action's job-end save is disabled; its statistics remain available.
 
 Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
 codes, bounded strict XMP mappings, and real `mire1.cr2` inspect/render. Catalog tests
