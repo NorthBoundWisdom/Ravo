@@ -1041,7 +1041,8 @@ current-catalog automatic backups, and assistant connection preferences.
 `StudioCommandController` owns Settings navigation and a GUI-thread
 `StudioBackupSettings` draft. The draft observes persisted policy, preserves
 failed inputs, rejects concurrent policy changes, and invalidates outstanding
-folder selections when the catalog changes. QML only forwards edits and intents.
+folder selections when the catalog changes. A saved policy matching the draft
+resolves a prior conflict and restores editing. QML only forwards edits and intents.
 Saving, running, and cancelling backup work use the existing command/executor
 and RecoveryService owners. Policy replacement saves disabled configurations as
 well as enabled ones; disabling alone passes the existing full policy. Retention

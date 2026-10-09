@@ -162,4 +162,37 @@ TEST(StudioBackupSettingsTest, FailedSavePreservesDraftAndLateFolderSelectionRej
             .value("accepted")
             .toBool());
 }
+
+TEST(StudioBackupSettingsTest, ConcurrentPolicyMatchingDraftRestoresEditing)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    StudioPresenter presenter;
+    StudioCommandController commands(presenter);
+    auto *settings = commands.backupSettings();
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return settings->loaded() && !presenter.busy(); }));
+    commands.setSettingsOpen(true);
+    settings->setIntervalMinutes(37);
+    presenter.configureBackupSchedule({}, 43, settings->retentionCount(), false);
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
+    ASSERT_TRUE(settings->dirty());
+    ASSERT_FALSE(settings->canEdit());
+    ASSERT_FALSE(settings->lastError().isEmpty());
+
+    presenter.configureBackupSchedule(settings->directory(), settings->intervalMinutes(),
+                                      settings->retentionCount(), settings->enabled());
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
+    EXPECT_FALSE(settings->dirty());
+    EXPECT_TRUE(settings->lastError().isEmpty());
+    EXPECT_TRUE(settings->canEdit());
+    EXPECT_FALSE(settings->disabledReason().isEmpty());
+    settings->setIntervalMinutes(41);
+    ASSERT_TRUE(settings->canApply());
+    ASSERT_TRUE(settings->apply());
+    ASSERT_TRUE(wait_until([&] { return !settings->saving() && !presenter.busy(); }));
+    EXPECT_FALSE(settings->dirty());
+    EXPECT_EQ(presenter.backupScheduleStatus().value("intervalMinutes").toInt(), 41);
+}
 } // namespace ravo

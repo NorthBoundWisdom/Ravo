@@ -119,6 +119,7 @@ void StudioBackupSettings::observe()
     {
         saved_ = latest;
         saving_ = false;
+        conflict_ = false;
         error_.clear();
     }
     else if (latest != saved_)

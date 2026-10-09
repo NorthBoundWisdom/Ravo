@@ -407,7 +407,8 @@ delay, sustained work, the low-count tail and rapid replacements. Production QML
 smoke also measures the Library header height and navigator position across
 hidden, visible and completed thumbnail-progress states.
 `StudioBackupSettingsTest` covers command-owned Settings drafts, save failure,
-invalid inputs, late folder selection, real backup execution, disable/reopen and
+invalid inputs, late folder selection, matching-policy conflict recovery,
+real backup execution, disable/reopen and
 CLI policy readback. `WindowGeometryTest` covers panel reset persistence.
 Production Settings smoke loads all four categories at narrow and wide sizes;
 it checks native folder URL conversion with Unicode, spaces and escaped path
