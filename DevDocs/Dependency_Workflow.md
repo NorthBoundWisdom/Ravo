@@ -62,9 +62,12 @@ avutil 59, swscale 8 and swresample 5 there; the decoder checks exact 7.1.5 API
 versions at runtime. There is no host FFmpeg search or ffmpeg/ffprobe executable
 dependency. Only the fixture generator uses a developer tool to regenerate media.
 
-Windows Qt kits place FFmpeg import `.lib` files beside the DLLs in `bin`;
-explicit runtime prefixes may also use `lib`. Both searches are restricted to
-the selected runtime root. Linux Qt FFmpeg libraries use Qt's dynamically loaded
+Official Windows Qt kits supply FFmpeg DLLs without MSVC import libraries.
+The CMake owner uses MSVC `dumpbin` and `lib` to derive build-owned import
+metadata from the exact selected DLL exports. A DLL hash, target architecture
+and librarian identity invalidate the generated link artifact; missing DLLs,
+exports or tool failures remain fatal. No alternate FFmpeg runtime is selected.
+Linux Qt FFmpeg libraries use Qt's dynamically loaded
 PipeWire and VA-API symbols. The supported CI/package host installs
 `libpipewire-0.3-0`, `libva2`, `libva-drm2` and `libva-x11-2`; the DEB declares
 the same dependencies. Missing runtime diagnostics remain visible rather than

@@ -3,6 +3,8 @@
 Video packages require Qt Multimedia and its FFmpeg backend plus the same
 FFmpeg 7.1.5 shared runtime used by the CLI adapter (ADR-0165). The runtime
 prefix and identity requirements are in [Dependency_Workflow.md](Dependency_Workflow.md).
+Windows import libraries are generated as build-only link metadata from the
+selected Qt DLLs with MSVC tools; the runtime payload remains those Qt DLLs.
 CI bootstrap installs `qtmultimedia` alongside image formats and shader tools;
 its Qt cache identity includes that module set.
 Linux build and clean-package runners install PipeWire and VA-API runtime

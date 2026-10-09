@@ -1,5 +1,6 @@
 # Public FFmpeg headers come from the pinned source root. Runtime ownership is
 # the selected Qt kit, shared by the private decoder and Qt Multimedia backend.
+include("${CMAKE_CURRENT_LIST_DIR}/RavoWindowsImportLibrary.cmake")
 ravo_require_migration_source_root(RAVO_FFMPEG_SOURCE_ROOT FFMPEG_SOURCE_ROOT libavformat/avformat.h)
 get_filename_component(_ravo_qt_prefix "${Qt6_DIR}/../../.." ABSOLUTE)
 set(RAVO_FFMPEG_RUNTIME_ROOT "${_ravo_qt_prefix}" CACHE PATH
@@ -30,10 +31,7 @@ foreach(_ravo_spec IN ITEMS "avformat;61" "avcodec;61" "avutil;59" "swscale;8" "
   if(WIN32)
     find_file(_ravo_runtime NAMES "${_ravo_lib}-${_ravo_major}.dll"
       PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/bin" NO_DEFAULT_PATH REQUIRED)
-    unset(_ravo_import CACHE)
-    find_library(_ravo_import NAMES "${_ravo_lib}" "${_ravo_lib}-${_ravo_major}"
-      PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/bin" "${RAVO_FFMPEG_RUNTIME_ROOT}/lib"
-      NO_DEFAULT_PATH REQUIRED)
+    ravo_windows_import_library("${_ravo_runtime}" "${_ravo_lib}" _ravo_import)
   elseif(APPLE)
     find_file(_ravo_runtime NAMES "lib${_ravo_lib}.${_ravo_major}.dylib"
       PATHS "${RAVO_FFMPEG_RUNTIME_ROOT}/lib" NO_DEFAULT_PATH REQUIRED)
