@@ -17,6 +17,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/executor.h"
+#include "ravo/foundation/error.h"
 
 namespace ravo
 {
@@ -108,6 +109,7 @@ public:
         std::size_t completed;
         std::size_t total;
         QString preference_error;
+        std::optional<TaskError> failure = {};
     };
     struct Context
     {
@@ -120,8 +122,6 @@ public:
         std::function<void(const std::vector<std::string> &)> begin_placeholders;
         std::function<void(const ImportItemResult &, int)> publish_item;
         std::function<void(BatchCompletion)> finish_batch;
-        std::function<void(const LibraryQuery &)> restore_listing;
-        std::function<void()> reload_library;
         std::function<void()> enter_gallery;
     };
     explicit StudioImportWorkspace(Context context, Host host, QObject *parent = nullptr);
@@ -134,6 +134,8 @@ public:
     // Abandon this source's preparation without closing the Import workspace.
     void cancelImportSource();
     void catalogReplaced();
+    // Final model reset occurs outside import; notify idle after the GUI transaction.
+    [[nodiscard]] bool beginPublication(std::uint64_t generation) noexcept;
     [[nodiscard]] bool finishPublication(std::uint64_t generation, std::size_t completed,
                                          std::size_t total);
     void startDeferredPreviews();
@@ -241,7 +243,7 @@ private:
     void setStatus(QString status);
     void beginImportGalleryPlaceholders(const std::vector<std::string> &paths);
     void publishImportItem(const ImportItemResult &item, int row);
-    void finishImportBatch();
+    void finishImportBatch(std::optional<TaskError> failure = {});
     void validateImportDestination();
     void rescanImportSource();
     void beginPlannedImport(ImportRequest request);
@@ -294,6 +296,7 @@ private:
     int import_preview_work_completed_ = 0;
     int import_preview_work_total_ = 0;
     bool import_preflight_active_ = false;
+    bool import_publishing_ = false;
     QString pending_import_destination_;
     QString import_preference_error_;
     bool import_destination_remembered_ = false;

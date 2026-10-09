@@ -29,6 +29,7 @@ The architecture and testing authorities cover:
 
 - Catalog durability, explicit XMP interchange, source-safe Add/Copy/Move,
   staged import planning, duplicate detection and cancellation.
+  Import success/failure becomes idle only after final Gallery publication.
 - Gallery/Inspect/Develop ownership, preview scheduling, immutable CPU/GPU
   image publication, colour management, masks and revision-bound controls.
 - Video metadata, FFmpeg decoding, SDR frame artifacts, Qt Multimedia playback,

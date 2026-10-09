@@ -63,6 +63,15 @@ public:
     {
         return presenter.import_workspace_->worker->executor().post([release] { release.wait(); });
     }
+    static bool importWorkerUiFence(StudioPresenter &presenter, std::shared_ptr<bool> reached)
+    {
+        return presenter.import_workspace_->worker->executor().post(
+            [receiver = &presenter, reached = std::move(reached)]
+            {
+                QMetaObject::invokeMethod(
+                    receiver, [reached] { *reached = true; }, Qt::QueuedConnection);
+            });
+    }
     static bool beforeImportPublication(StudioPresenter &presenter, std::function<void()> callback)
     {
         auto *worker = presenter.import_workspace_->worker.get();
@@ -1671,15 +1680,24 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
     init_logging("ravo-import-tests");
     for (const bool cancel : {true, false})
     {
+        SCOPED_TRACE(cancel ? "cancelled preflight" : "source disappeared during execution");
         QTemporaryDir directory;
         const auto source = directory.filePath("source");
         const auto destination = directory.filePath("destination");
         ASSERT_TRUE(QDir().mkpath(source));
         ASSERT_TRUE(QDir().mkpath(destination));
         ASSERT_TRUE(photo(source + "/a.png", Qt::red));
+        bool terminal_saw_placeholder = false;
         StudioPresenter presenter;
         presenter.createCatalogFromPath(directory.filePath("catalog.sqlite"));
         ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+        QObject::connect(
+            presenter.imports(), &StudioImportWorkspace::libraryWorkChanged, &presenter,
+            [&]
+            {
+                if (!presenter.imports()->importWorkActive() && presenter.libraryTotal() != 0)
+                    terminal_saw_placeholder = true;
+            });
         presenter.imports()->openImportPage();
         presenter.imports()->setImportSourceRoot(source);
         presenter.imports()->setImportDestination(destination);
@@ -1690,6 +1708,8 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
                        !presenter.imports()->importScanActive();
             }));
         WorkerGate catalog;
+        WorkerGate execution;
+        WorkerGate publication;
         ASSERT_TRUE(testing::StudioImportTestControl::blockImportWorker(
             presenter, catalog.promise.get_future().share()));
         presenter.imports()->startPlannedImport();
@@ -1699,8 +1719,29 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
         if (cancel)
             presenter.cancelCatalogOperation();
         else
-            ASSERT_TRUE(QFile::remove(source + "/a.png"));
+        {
+            ASSERT_TRUE(testing::StudioImportTestControl::blockImportWorker(
+                presenter, execution.promise.get_future().share()));
+            ASSERT_TRUE(testing::StudioImportTestControl::blockCatalog(
+                presenter, publication.promise.get_future().share()));
+        }
         catalog.release();
+        if (!cancel)
+        {
+            ASSERT_TRUE(wait_until(
+                [&]
+                {
+                    return !presenter.imports()->importPreflightActive() &&
+                           presenter.imports()->galleryPlaceholders();
+                }));
+            ASSERT_TRUE(QFile::remove(source + "/a.png"));
+            execution.release();
+            auto handled = std::make_shared<bool>(false);
+            ASSERT_TRUE(testing::StudioImportTestControl::importWorkerUiFence(presenter, handled));
+            ASSERT_TRUE(wait_until([&] { return *handled; }));
+            EXPECT_TRUE(presenter.imports()->importWorkActive());
+            publication.release();
+        }
         ASSERT_TRUE(wait_until(
             [&]
             {
@@ -1710,6 +1751,7 @@ TEST(StudioImportWorkspace, GalleryPreflightCancelAndFailureReleaseImportState)
             30000));
         EXPECT_FALSE(presenter.imports()->importPageOpen());
         EXPECT_EQ(presenter.libraryTotal(), 0);
+        EXPECT_FALSE(terminal_saw_placeholder);
         EXPECT_TRUE(QDir(destination).entryList(QDir::Files).isEmpty());
         EXPECT_EQ(presenter.errorText().isEmpty(), cancel);
         presenter.imports()->openImportPage();

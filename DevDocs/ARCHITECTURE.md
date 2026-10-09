@@ -1111,8 +1111,16 @@ single listing/selection authority: pending row selection and page eviction
 share its listing generation, and Import candidates are a different identity
 set. Import never writes those slots or acquires another selection owner.
 Final listing acceptance returns to the workspace before deferred previews start.
+Success and operation-level failure share that publication barrier. Import work
+remains active while the final catalog listing is pending. In the accepted GUI
+transaction the workspace stages inactive before the final model reset, retaining
+the stable-model-during-import contract, and defers idle notification until the
+listing and counters are coherent. The workspace checks generation before
+publication and carries the original task error/cancellation outcome to the
+same final callback. A failed listing reports its own error and terminates the
+operation explicitly rather than inventing an empty catalog snapshot.
 Committed-item errors and failed preference writes retain their original outcome
-and notification order. Rejected filesystem submissions report the closed owner;
+through final presentation. Rejected filesystem submissions report the closed owner;
 folder listing rejection clears the model's pending state through its existing
 result boundary instead of leaving a loading row behind.
 

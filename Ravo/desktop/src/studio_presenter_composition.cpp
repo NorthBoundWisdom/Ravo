@@ -73,15 +73,7 @@ StudioPresenter::StudioPresenter(QObject *parent)
             [this](const ImportItemResult &item, int row) { publishImportItem(item, row); },
             [this](StudioImportWorkspace::BatchCompletion batch)
             { finishImportPresentation(std::move(batch)); },
-            [this](const LibraryQuery &query)
-            {
-                last_import_selected_ = false;
-                last_import_count_ = 0;
-                last_import_after_unix_ms_.reset();
-                last_import_before_unix_ms_.reset();
-                library_.replaceQuery(query);
-            },
-            [this] { reloadVisibleAssets(); }, [this] { setBrowseMode(QStringLiteral("grid")); }},
+            [this] { setBrowseMode(QStringLiteral("grid")); }},
         this);
     connect(import_workspace_.get(), &StudioImportWorkspace::errorOccurred, this,
             &StudioPresenter::setError);

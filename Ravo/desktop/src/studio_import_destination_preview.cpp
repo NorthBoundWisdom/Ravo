@@ -192,11 +192,20 @@ void StudioImportWorkspace::cancelImport(std::string reason)
 void StudioImportWorkspace::catalogReplaced()
 {
     ++import_generation_;
+    import_publishing_ = false;
+}
+bool StudioImportWorkspace::beginPublication(std::uint64_t generation) noexcept
+{
+    if (generation != import_generation_ || !import_work_active_)
+        return false;
+    import_publishing_ = true;
+    import_work_active_ = false;
+    return true;
 }
 bool StudioImportWorkspace::finishPublication(std::uint64_t generation, std::size_t completed,
                                               std::size_t total)
 {
-    if (generation != import_generation_)
+    if (generation != import_generation_ || !import_publishing_)
         return false;
     setImportWork(static_cast<int>(completed), static_cast<int>(total), false);
     return true;

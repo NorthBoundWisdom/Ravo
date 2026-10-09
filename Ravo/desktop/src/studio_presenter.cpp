@@ -1478,9 +1478,10 @@ void StudioPresenter::finishImportPresentation(StudioImportWorkspace::BatchCompl
     const auto completed = batch.completed;
     const auto total = batch.total;
     const auto preference_error = batch.preference_error;
+    const auto failure = std::move(batch.failure);
     executor_.post(
         [this, results = std::move(results), query, imported_after, imported_before, imported_count,
-         cancelled, completed, total, generation, preference_error,
+         cancelled, completed, total, generation, preference_error, failure,
          collapse = collapse_stacks_]() mutable
         {
             auto listing = load_catalog_listing(service_.get(), query, collapse);
@@ -1488,23 +1489,29 @@ void StudioPresenter::finishImportPresentation(StudioImportWorkspace::BatchCompl
                 this,
                 [this, results = std::move(results), listing = std::move(listing), cancelled, query,
                  imported_after, imported_before, imported_count, completed, total, generation,
-                 preference_error]() mutable
+                 preference_error, failure]() mutable
                 {
-                    if (!import_workspace_->finishPublication(generation, completed, total))
+                    if (!import_workspace_->beginPublication(generation))
                         return;
                     if (!listing.assets)
                     {
                         setError(qstring_from_utf8(listing.assets.error().message));
                         setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
+                        static_cast<void>(
+                            import_workspace_->finishPublication(generation, completed, total));
                         return;
                     }
                     if (!listing.folders)
                     {
                         setError(qstring_from_utf8(listing.folders.error().message));
                         setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
+                        static_cast<void>(
+                            import_workspace_->finishPublication(generation, completed, total));
                         return;
                     }
                     QString first_error;
+                    if (failure && failure->code != ErrorCode::kCancelled)
+                        first_error = qstring_from_utf8(failure->message);
                     for (const auto &item : results)
                     {
                         const auto &error = item.error ? item.error : item.source_cleanup_error;
@@ -1520,6 +1527,8 @@ void StudioPresenter::finishImportPresentation(StudioImportWorkspace::BatchCompl
                                       "StudioPresenter", "Import cancelled after %1 of %2 photos.")
                                       .arg(completed)
                                       .arg(total) :
+                              failure ?
+                                  QCoreApplication::translate("StudioPresenter", "Import failed.") :
                                   describe_import(results));
                     if (listing.revision >= 0)
                         observed_catalog_revision_ = listing.revision;
@@ -1535,6 +1544,14 @@ void StudioPresenter::finishImportPresentation(StudioImportWorkspace::BatchCompl
                         selected_ids_.clear();
                         assets_.setSelectedIds({});
                     }
+                    else if (failure)
+                    {
+                        last_import_selected_ = false;
+                        last_import_count_ = 0;
+                        last_import_after_unix_ms_.reset();
+                        last_import_before_unix_ms_.reset();
+                        library_.replaceQuery(query);
+                    }
                     applyFolders(std::move(listing.folders).value());
                     if (listing.capture_facets && listing.location_facets)
                         library_.apply(std::move(listing.capture_facets).value(),
@@ -1542,6 +1559,8 @@ void StudioPresenter::finishImportPresentation(StudioImportWorkspace::BatchCompl
                     applyAssets(
                         std::move(listing.assets).value(), true, std::move(listing.thumbnail_urls),
                         std::move(listing.thumbnail_states), listing.total, listing.has_more);
+                    static_cast<void>(
+                        import_workspace_->finishPublication(generation, completed, total));
                     import_workspace_->startDeferredPreviews();
                 },
                 Qt::QueuedConnection);

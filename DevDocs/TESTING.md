@@ -1990,7 +1990,12 @@ frame presentation / PERF-02 / C3.
 Import ownership checks retain blocked-worker preflight cancellation, source loss,
 destination conflict, catalog replacement, committed-photo preference failures,
 one-item dispatch, foreground editing, destroy/reopen, text-focus isolation and
-bounded thumbnail shutdown. Source-structure checks follow the owning controller
+bounded thumbnail shutdown. The Gallery preflight regression also blocks final
+listing publication after execution failure, using an import-worker-to-GUI
+fence. Work must remain active until placeholders are replaced, and terminal
+notifications must expose the reconciled catalog total. Original cancellation/
+source-loss assertions and timeouts remain unchanged.
+Source-structure checks follow the owning controller
 wiring and keep revision-based destination keys separate from debounced path
 snapshots. Test identities, pixel assertions and failure-injection windows remain
 unchanged. Library paging contracts still validate the shared listing/selection

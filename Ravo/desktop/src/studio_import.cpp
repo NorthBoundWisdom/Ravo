@@ -343,17 +343,9 @@ void StudioImportWorkspace::beginPlannedImport(ImportRequest request)
                             return;
                         if (!detailed)
                         {
-                            setImportWork(0, 0, false);
-                            import_gallery_placeholders_ = false;
-                            import_defer_previews_ = false;
-                            host_.restore_listing(import_query_snapshot_);
                             import_ingest_report_ = {};
-                            setError(qstring_from_utf8(detailed.error().message));
-                            setStatus(
-                                QCoreApplication::translate("StudioPresenter", "Ingest failed."));
                             emit importPageChanged();
-                            host_.reload_library();
-
+                            finishImportBatch(detailed.error());
                             return;
                         }
                         auto value = std::move(detailed).value();
@@ -410,13 +402,7 @@ void StudioImportWorkspace::beginPlannedImport(ImportRequest request)
                         return;
                     if (!batch)
                     {
-                        setImportWork(0, 0, false);
-                        import_gallery_placeholders_ = false;
-                        import_defer_previews_ = false;
-                        host_.restore_listing(import_query_snapshot_);
-                        setError(qstring_from_utf8(batch.error().message));
-                        setStatus(QCoreApplication::translate("StudioPresenter", "Import failed."));
-                        host_.reload_library();
+                        finishImportBatch(batch.error());
                         return;
                     }
                     import_results_ = std::move(batch).value().items;
@@ -486,12 +472,13 @@ void StudioImportWorkspace::setImportWork(const int completed, const int total, 
     const int clamped_total = std::max(0, total);
     const int clamped_completed = std::clamp(completed, 0, std::max(clamped_total, completed));
     if (import_work_active_ == active && import_work_completed_ == clamped_completed &&
-        import_work_total_ == clamped_total)
+        import_work_total_ == clamped_total && !import_publishing_)
     {
         return;
     }
     if (active && !import_work_active_)
         import_work_progress_ = {};
+    import_publishing_ = false;
     import_work_active_ = active;
     import_work_completed_ = clamped_completed;
     import_work_total_ = clamped_total;
@@ -787,7 +774,7 @@ void StudioImportWorkspace::startNextImportItem()
         });
 }
 
-void StudioImportWorkspace::finishImportBatch()
+void StudioImportWorkspace::finishImportBatch(std::optional<TaskError> failure)
 {
     if (!import_work_active_)
         return;
@@ -795,7 +782,8 @@ void StudioImportWorkspace::finishImportBatch()
     import_skip_existing_ = false;
     pending_import_content_hashes_.clear();
     import_defer_previews_ = false;
-    const bool cancelled = import_operation_.token().is_cancellation_requested();
+    const bool cancelled = import_operation_.token().is_cancellation_requested() ||
+                           (failure && failure->code == ErrorCode::kCancelled);
     const auto completed = import_results_.size();
     const auto total = pending_import_paths_.size();
     const auto generation = import_generation_;
@@ -823,7 +811,7 @@ void StudioImportWorkspace::finishImportBatch()
     }
     host_.finish_batch(BatchCompletion{generation, std::move(results), query, imported_after,
                                        imported_before, imported_count, cancelled, completed, total,
-                                       import_preference_error_});
+                                       import_preference_error_, std::move(failure)});
 }
 
 void StudioImportWorkspace::publishImportItem(const ImportItemResult &item, const int row)
