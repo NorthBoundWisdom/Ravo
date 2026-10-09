@@ -108,6 +108,10 @@ ToneCurveEditor inside a real Flickable. It checks changed point coordinates wit
 unchanged scroll position, one commit on release outside the plot, resumed wheel
 scrolling, cancellation without commit, preservation of an initially disabled
 scroll owner, and restoration when the editor is destroyed mid-press.
+The resumed NoScrollPhase wheel assertion observes `contentYChanged`, with a
+bounded failure deadline, rather than assuming one fixed event pump contains an
+animation tick. Coordinate, commit, cancellation and restored-scroll assertions
+and the executable's overall smoke deadline remain unchanged.
 
 `StudioCommands.GalleryExposureRefreshesGridThumbnailPixels` exercises the
 Gallery exposure commands against real thumbnails with an injected monitor

@@ -115,7 +115,20 @@ bool smoke_curve_gesture(QQmlApplicationEngine &engine)
     if (!viewport->property("interactive").toBool() || viewport->property("commits").toInt() != 1 ||
         committed.size() != 3 || committed[1].toMap().value(QStringLiteral("x")).toDouble() <= 0.5)
         return fail("outside release did not commit once and restore scrolling");
+    // NoScrollPhase wheel input starts an animated Flickable update. Observe
+    // that update instead of assuming one 20 ms pump includes a rendered tick.
+    QEventLoop resumed_scroll;
+    QTimer scroll_deadline;
+    scroll_deadline.setSingleShot(true);
+    QObject::connect(&scroll_deadline, &QTimer::timeout, &resumed_scroll, &QEventLoop::quit);
+    if (!QObject::connect(viewport, SIGNAL(contentYChanged()), &resumed_scroll, SLOT(quit())))
+        return fail("unable to observe ordinary wheel scrolling");
     wheel(center(), Qt::NoButton);
+    if (viewport->property("contentY").toDouble() == initial_y)
+    {
+        scroll_deadline.start(1000);
+        resumed_scroll.exec();
+    }
     if (viewport->property("contentY").toDouble() == initial_y)
         return fail("ordinary wheel scrolling did not resume");
     QMetaObject::invokeMethod(viewport, "cancelFlick");
