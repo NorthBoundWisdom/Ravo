@@ -130,6 +130,13 @@ if(DEFINED ENV{QT_ROOT_DIR} AND NOT "$ENV{QT_ROOT_DIR}" STREQUAL "")
   list(APPEND _ravo_qsb_hints "$ENV{QT_ROOT_DIR}/bin" "$ENV{QT_ROOT_DIR}/libexec")
 endif()
 find_program(RAVO_QSB_EXECUTABLE NAMES qsb qsb.exe HINTS ${_ravo_qsb_hints} REQUIRED)
+set(_ravo_qsb_native_args)
+if(WIN32)
+  # Validate generated HLSL with the SDK compiler during the build, rather than
+  # discovering invalid D3D programs only when Studio requests a GPU pipeline.
+  find_program(RAVO_FXC_EXECUTABLE NAMES fxc fxc.exe REQUIRED)
+  list(APPEND _ravo_qsb_native_args --fxc)
+endif()
 set(_ravo_gpu_shader_dir "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 function(ravo_embed_gpu_shader shader_name)
   set(_src "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${shader_name}.comp")
@@ -141,6 +148,7 @@ function(ravo_embed_gpu_shader shader_name)
     COMMAND "${RAVO_QSB_EXECUTABLE}"
       --glsl "310es,430"
       --hlsl 50
+      ${_ravo_qsb_native_args}
       --msl 12
       -o "${_qsb}"
       "${_src}"

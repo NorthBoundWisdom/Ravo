@@ -270,8 +270,24 @@ void write_output(int x, int y)
             if (!inside(sx, sy))
                 continue;
             const int channel = int(cfa_channel(uint(sy), uint(sx)));
-            sum[channel] += cfa_at(sx, sy);
-            count[channel] += 1u;
+            const float sample_value = cfa_at(sx, sy);
+            // Constant component writes also compile with the Windows FXC
+            // backend; CFA validation restricts channel to RGB.
+            if (channel == 0)
+            {
+                sum.r += sample_value;
+                count.r += 1u;
+            }
+            else if (channel == 1)
+            {
+                sum.g += sample_value;
+                count.g += 1u;
+            }
+            else
+            {
+                sum.b += sample_value;
+                count.b += 1u;
+            }
         }
     }
     const int known = int(cfa_channel(uint(y), uint(x)));

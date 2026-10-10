@@ -863,7 +863,12 @@ Engine-owned QRhi adapter (ADR-0133/0134): one process-wide device. Unmasked
 Exposure, light controls, Lab USM Sharpen, Sigmoid, RapidRAW global tone controls,
 and RapidRAW Basic tone run on the GPU during
 preview in one SSBO session, interleaved with remaining CPU RGB ops. The
-process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
+Windows shader build uses the SDK FXC compiler through `qsb --fxc`; generated
+HLSL failures stop the build and valid DXBC is embedded by the existing generator.
+Sigmoid hue output and RCD border accumulation write channels explicitly to
+avoid unsupported dynamic vector writes in FXC, with unchanged channel order
+and mathematics.
+The process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
 interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
 without a CPU upload, and on macOS packs display sRGB into an IOSurface that
 Qt Quick samples. IOSurface `bytesPerRow` is 16-byte aligned so odd preview

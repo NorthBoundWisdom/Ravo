@@ -41,6 +41,8 @@ The architecture and testing authorities cover:
   sessions and CLI acceptance without UI automation.
 - Three-job development CI and five-architecture Release build/test/package
   jobs, with independent clean-package startup gates and no release Debug stage.
+  Compiler-cache checks share the restored directory with the whole job;
+  Windows packaging preserves OS DLL ownership and builds validated DXBC shaders.
 
 For video scope, begin with
 [ADR-0165](adr/0165-video-library-and-playback.md). Explicit Qt-kit runtime

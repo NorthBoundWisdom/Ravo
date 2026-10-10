@@ -532,6 +532,38 @@ TEST(EngineFacadeTest, GpuPreviewAppliesContrastThenSigmoidOnGpuWhenAvailable)
     }
 }
 
+TEST(EngineFacadeTest, GpuSigmoidHuePreservesEveryChannelOrderAndTies)
+{
+    const auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine);
+    if (!gpu_available(engine.value()))
+        GTEST_SKIP() << "GPU adapter is unavailable";
+    auto input = make_preview_working(9, 1);
+    input.rgb = {0.05F, 0.25F, 0.95F, 0.05F, 0.95F, 0.25F, 0.25F, 0.05F, 0.95F,
+                 0.25F, 0.95F, 0.05F, 0.95F, 0.05F, 0.25F, 0.95F, 0.25F, 0.05F,
+                 0.25F, 0.25F, 0.25F, 0.05F, 0.05F, 0.95F, 0.95F, 0.25F, 0.25F};
+    auto gpu = GpuAdapter::try_create();
+    ASSERT_TRUE(gpu);
+    for (const double preservation : {0.0, 0.5, 1.0})
+    {
+        Recipe recipe;
+        recipe.operations.push_back(default_sigmoid_operation());
+        recipe.operations.back().parameters["hue_preservation"] = ParameterValue{preservation};
+        auto passes = gpu_preview_rgb_passes(input, recipe, CancellationToken{});
+        ASSERT_TRUE(passes);
+        ASSERT_TRUE(passes.value());
+        auto rendered =
+            apply_gpu_preview_rgb(input, *passes.value(), *gpu.value(), CancellationToken{});
+        ASSERT_TRUE(rendered) << rendered.error().message;
+        auto gold = apply_recipe_ops(input, recipe, CancellationToken{});
+        ASSERT_TRUE(gold);
+        ASSERT_EQ(rendered.value().rgb.size(), gold.value().rgb.size());
+        for (std::size_t channel = 0; channel < gold.value().rgb.size(); ++channel)
+            EXPECT_NEAR(rendered.value().rgb[channel], gold.value().rgb[channel], 2.0e-3)
+                << preservation << ":" << channel;
+    }
+}
+
 TEST(EngineFacadeTest, GpuPreviewDefaultRawBaselineReportsBackend)
 {
     const auto engine = EngineFacade::create_phase1();

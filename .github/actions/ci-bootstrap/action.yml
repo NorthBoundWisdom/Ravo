@@ -95,6 +95,9 @@ runs:
         cache_path = os.environ.get("CCACHE_DIR") or os.path.join(os.environ["GITHUB_WORKSPACE"], ".ccache")
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
             output.write(f"path={cache_path}\n")
+        # The action's env alone does not reach subsequent configure/build steps.
+        with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
+            environment.write(f"CCACHE_DIR={cache_path}\n")
         PY
 
     - name: ccache

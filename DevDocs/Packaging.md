@@ -127,6 +127,12 @@ The macOS bundle places the CLI at `Ravo Studio.app/Contents/MacOS/ravo`.
 Windows and Linux place `ravo` beside `ravo_studio` in the deployed binary
 directory.
 
+Windows deployment leaves CNG's `bcrypt.dll` to the OS; FreeCM classifies it as a
+system dependency during transitive FFmpeg DLL scanning. It is not copied into
+the payload or resolved by adding System32 to SDK search paths. Missing
+non-system DLLs still fail deployment. Windows builds require the SDK's `fxc`
+on PATH so Engine QSB assets contain validated DXBC before packaging.
+
 Linux publishes both an AppImage and a Debian package from the same FreeCM-owned
 AppDir payload. CI uses pinned appimagetool 1.9.1 and type2 runtime 20251108
 assets with fixed SHA256 checks. The DEB installs the private payload under
@@ -177,6 +183,9 @@ Package jobs compile the product and tests, explicitly save the compiler cache,
 then run CTest and invoke `RavoPackage`. A later test, package generation or validation failure does
 not discard that uploaded build cache. The restore/save path and key ownership
 are specified in [TESTING.md](TESTING.md).
+Evidence upload runs once runtime validation has created its evidence directory;
+an earlier build/deployment failure retains its logs without a second misleading
+"no evidence files" upload failure. Validation failures still upload evidence.
 
 After packaging, `package-smoke` downloads the final artifacts onto fresh
 runners without running bootstrap, installing a Qt SDK, or restoring build

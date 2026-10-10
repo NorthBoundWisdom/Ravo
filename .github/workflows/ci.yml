@@ -62,7 +62,7 @@ jobs:
 
       - name: Test changed-whitespace checker
         working-directory: .github/scripts
-        run: python -m unittest test_check_changed_whitespace.py
+        run: python -m unittest test_check_changed_whitespace.py test_check_ccache.py
 
       - name: Test packaged-runtime checker
         working-directory: Ravo/tools
@@ -156,6 +156,9 @@ jobs:
 
       - name: Build Ravo
         run: cmake --build "build/${{ matrix.preset }}" --parallel
+
+      - name: Verify compiler cache usage
+        run: python .github/scripts/check_ccache.py --build-dir "build/${{ matrix.preset }}"
 
       - name: Save compiler cache after build
         uses: actions/cache/save@v5
@@ -298,6 +301,9 @@ jobs:
       - name: Build Ravo Release
         run: cmake --build "build/${{ matrix.preset }}" --parallel
 
+      - name: Verify compiler cache usage
+        run: python .github/scripts/check_ccache.py --build-dir "build/${{ matrix.preset }}"
+
       - name: Save compiler cache after build
         uses: actions/cache/save@v5
         with:
@@ -393,7 +399,7 @@ jobs:
           exit "${status}"
 
       - name: Upload packaged runtime evidence
-        if: always()
+        if: always() && env.PACKAGED_EVIDENCE_DIR != ''
         uses: actions/upload-artifact@v6
         with:
           name: packaged-runtime-evidence-${{ matrix.preset }}-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}

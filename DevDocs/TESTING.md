@@ -614,8 +614,13 @@ RapidRAW global tone controls, and the active display mapper (Sigmoid for
 synthesized RAW baselines, RapidRAW Basic for explicit stored recipes) are RMSE-gated against the CPU gold.
 `render_interactive_linear_working` reports `gpu_backend` when those GPU RGB
 passes ran, including the default RAW baseline that keeps Sharpen and Sigmoid on the GPU. `render_linear_working` and export stay on CPU even when a
-compute backend exists. Recipes without those ops stay on CPU. A later smaller
-upload must not over-read a grow-only SSBO. Retained-source RGB apply matches
+compute backend exists. Sigmoid hue tests exercise all six RGB channel orders and
+equal-channel ties against CPU gold at zero, half and full hue preservation.
+Windows shader baking requires the SDK's `fxc` on PATH and invokes `qsb --fxc`
+to compile generated Shader Model 5 HLSL into DXBC. Invalid HLSL is a build
+failure, rather than a runtime-only diagnostic. No CPU fallback is added.
+Recipes without admitted GPU ops stay on CPU. A later smaller upload must not
+over-read a grow-only SSBO. Retained-source RGB apply matches
 the uploaded path. Interactive skip-download on Metal publishes a non-zero
 display generation and native surface with empty CPU RGB, including odd widths
 whose IOSurface `bytesPerRow` is 16-byte aligned. Studio pure-interactive
@@ -700,8 +705,13 @@ active lock, then runs `--update`. Builds use `cmake --build build/<preset>` so
 they do not depend on the Linux template's `ClangDebug` build-preset name and
 Windows gtest discovery can see Qt on runner `Path`.
 Compiler cache setup/restore belongs to `ci-bootstrap`; its native absolute
-directory is also used by `actions/cache/save` to preserve cache-version matching
-on Windows as well as Unix. Every successful build saves before CTest, so later
+directory is exported as job-wide `CCACHE_DIR` through `GITHUB_ENV`, and is also
+used by `actions/cache/save`. An action-scoped environment alone does not reach
+subsequent CMake/Ninja processes. After compilation, `check_ccache.py` requires
+matching effective/save directories, C/C++ ccache launchers and nonzero cacheable
+calls, and prints hit/miss counts plus uncacheable reasons. A restored archive
+is not evidence of compiler hits; the first populated run may be entirely cold.
+Every successful build saves before CTest, so later
 test failure or cancellation does not discard an already uploaded cache.
 Build failure skips saving. Keys retain the preset/OS/architecture restore prefix
 and add job/run/attempt identity so reruns can publish updated immutable entries.

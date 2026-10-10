@@ -81,7 +81,9 @@ vec3 preserve_hue(vec3 input_pixel, vec3 per_channel)
     const float blend =
         minimum_plus_middle != 0.0 ? 2.0 * input_pixel[minimum] / minimum_plus_middle : 0.0;
     const float target_energy = blend * per_channel_energy + (1.0 - blend) * naive_hue_energy;
-    vec3 output_pixel = vec3(0.0);
+    float output_minimum;
+    float output_middle;
+    float output_maximum;
     if (naive_hue_middle <= per_channel[middle])
     {
         const float corrected_middle =
@@ -89,9 +91,9 @@ vec3 preserve_hue(vec3 input_pixel, vec3 per_channel)
              hue_preservation * (middle_scale * per_channel[maximum] +
                                  (1.0 - middle_scale) * (target_energy - per_channel[maximum]))) /
             (1.0 + hue_preservation * (1.0 - middle_scale));
-        output_pixel[minimum] = target_energy - per_channel[maximum] - corrected_middle;
-        output_pixel[middle] = corrected_middle;
-        output_pixel[maximum] = per_channel[maximum];
+        output_minimum = target_energy - per_channel[maximum] - corrected_middle;
+        output_middle = corrected_middle;
+        output_maximum = per_channel[maximum];
     }
     else
     {
@@ -100,11 +102,15 @@ vec3 preserve_hue(vec3 input_pixel, vec3 per_channel)
              hue_preservation * (per_channel[minimum] * (1.0 - middle_scale) +
                                  middle_scale * (target_energy - per_channel[minimum]))) /
             (1.0 + hue_preservation * middle_scale);
-        output_pixel[minimum] = per_channel[minimum];
-        output_pixel[middle] = corrected_middle;
-        output_pixel[maximum] = target_energy - per_channel[minimum] - corrected_middle;
+        output_minimum = per_channel[minimum];
+        output_middle = corrected_middle;
+        output_maximum = target_energy - per_channel[minimum] - corrected_middle;
     }
-    return output_pixel;
+    // FXC cannot address a dynamically indexed float3 as an l-value. Select
+    // scalar results explicitly; the channel ordering and arithmetic are unchanged.
+    return vec3(minimum == 0u ? output_minimum : (middle == 0u ? output_middle : output_maximum),
+                minimum == 1u ? output_minimum : (middle == 1u ? output_middle : output_maximum),
+                minimum == 2u ? output_minimum : (middle == 2u ? output_middle : output_maximum));
 }
 
 vec3 rgb_ratio(vec3 positive)
