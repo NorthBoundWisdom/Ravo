@@ -13,8 +13,12 @@
 #include "catalog_service_internal.h"
 
 #include <cctype>
+#include <algorithm>
 #include <filesystem>
 #include <optional>
+#include <set>
+#include <charconv>
+#include <cmath>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -25,6 +29,7 @@
 #include "ravo/adapters/legacy_xmp.h"
 #include "ravo/adapters/text_file.h"
 #include "ravo/adapters/lightroom_catalog.h"
+#include "ravo/adapters/lightroom_develop.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/json.h"
 #include "ravo/recipe/develop.h"
@@ -59,6 +64,9 @@ struct ForeignCatalogFixture
     std::string source_path;
     std::string source_root;
     std::vector<ForeignCatalogFixtureItem> items;
+    std::vector<ForeignCatalogCollection> collections;
+    std::string source_sha256;
+    std::vector<std::string> archived_only_tables;
 };
 
 [[nodiscard]] std::string path_text(const std::filesystem::path &path)
@@ -237,9 +245,9 @@ optional_json_string_array(const JsonValue &object, const std::string_view key)
 }
 
 [[nodiscard]] Result<ForeignCatalogFileFingerprint>
-fingerprint_original(const std::string_view path)
+fingerprint_original(const std::string_view path, const CancellationToken &cancellation = {})
 {
-    auto digest = sha256_file_hex(path);
+    auto digest = sha256_file_hex(path, cancellation);
     if (!digest)
         return digest.error();
     auto identity = read_file_identity(path);
@@ -395,7 +403,13 @@ load_foreign_catalog_fixture(const std::string_view source_path,
         catalog.native_lightroom = true;
         catalog.source_path = location.value().path;
         catalog.source_root = path_text(path.parent_path());
-        catalog.items = std::move(photos).value();
+        catalog.collections = std::move(photos.value().collections);
+        catalog.source_sha256 = photos.value().source_sha256;
+        catalog.archived_only_tables = std::move(photos.value().archived_only_tables);
+        catalog.items = std::move(photos.value().photos);
+        std::stable_sort(catalog.items.begin(), catalog.items.end(),
+                         [](const auto &a, const auto &b)
+                         { return a.master_id.has_value() < b.master_id.has_value(); });
         return catalog;
     }
 
@@ -461,6 +475,7 @@ load_foreign_catalog_fixture(const std::string_view source_path,
     if (!product)
         return product.error();
     fixture.source_product_version = product.value();
+    fixture.source_sha256 = sha256_utf8_hex(text.value());
 
     const auto *items = parsed.value().find("items");
     if (items == nullptr || items->array_if() == nullptr)
@@ -507,7 +522,9 @@ void add_mapped(ForeignCatalogItemReport &item, const std::string_view field)
 [[nodiscard]] bool has_writable_metadata(const WritableMetadata &metadata) noexcept
 {
     return metadata.title || metadata.description || metadata.creator || metadata.copyright ||
-           metadata.country || metadata.province_state || metadata.city || metadata.sublocation;
+           metadata.country || metadata.province_state || metadata.city || metadata.sublocation ||
+           metadata.headline || metadata.credit || metadata.source || metadata.instructions ||
+           metadata.usage_terms || metadata.job_id;
 }
 
 } // namespace
@@ -554,6 +571,97 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                                                 request.cancellation);
     if (!fixture)
         return fixture.error();
+    if (!request.foreign_ids.empty() && request.expected_source_sha256.empty())
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Explicit foreign IDs require the observed source hash",
+                          {{"reason", "foreign_selection_requires_source_hash"}});
+    if (!request.expected_source_sha256.empty())
+    {
+        if (request.expected_source_sha256.size() != 64 ||
+            !std::all_of(request.expected_source_sha256.begin(),
+                         request.expected_source_sha256.end(), [](const char c)
+                         { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }))
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Expected source hash must be canonical SHA-256");
+        if (request.expected_source_sha256 != fixture.value().source_sha256)
+            return make_error(ErrorCode::kConflict, "Foreign source changed since inspection",
+                              {{"reason", "foreign_source_revision_conflict"}});
+    }
+
+    const auto source_photo_count = fixture.value().items.size();
+    std::set<std::string> selected_ids;
+    if (request.foreign_ids.size() > 4096)
+        return make_error(ErrorCode::kInvalidArgument, "Foreign selection exceeds 4096 IDs");
+    for (const auto &id : request.foreign_ids)
+        if (id.empty() || !selected_ids.insert(id).second)
+            return make_error(ErrorCode::kInvalidArgument, "Invalid or duplicate foreign photo ID");
+    if (!selected_ids.empty())
+    {
+        std::set<std::string> found;
+        for (const auto &photo : fixture.value().items)
+        {
+            if (!selected_ids.contains(photo.foreign_id))
+                continue;
+            found.insert(photo.foreign_id);
+            if (photo.master_id && !selected_ids.contains(*photo.master_id))
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "Select the master together with its virtual copy",
+                                  {{"reason", "foreign_selection_requires_master"},
+                                   {"master_id", *photo.master_id}});
+        }
+        if (found != selected_ids)
+            return make_error(ErrorCode::kNotFound, "Foreign selection contains unknown photo IDs",
+                              {{"reason", "foreign_photo_not_found"}});
+        auto &items = fixture.value().items;
+        items.erase(std::remove_if(items.begin(), items.end(), [&](const auto &photo)
+                                   { return !selected_ids.contains(photo.foreign_id); }),
+                    items.end());
+    }
+
+    std::map<std::string, std::string> mappings;
+    for (const auto &[foreign, local] : request.path_mappings)
+    {
+        std::string prefix = foreign;
+        std::replace(prefix.begin(), prefix.end(), '\\', '/');
+        while (prefix.size() > 1 && prefix.back() == '/')
+            prefix.pop_back();
+        auto destination = normalize_local_input(local);
+        if (!destination)
+            return destination.error();
+        std::error_code error;
+        if (prefix.empty() ||
+            !std::filesystem::is_directory(utf8_path(destination.value().path), error) || error)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Foreign path mapping requires a local directory",
+                              {{"reason", "invalid_foreign_path_mapping"}});
+        if (!mappings.emplace(prefix, destination.value().path).second)
+            return make_error(ErrorCode::kConflict, "Duplicate foreign path mapping",
+                              {{"reason", "ambiguous_foreign_path_mapping"}});
+    }
+    for (auto &item : fixture.value().items)
+    {
+        std::string path = item.original_path;
+        std::replace(path.begin(), path.end(), '\\', '/');
+        const std::pair<const std::string, std::string> *best = nullptr;
+        for (const auto &mapping : mappings)
+            if (path.starts_with(mapping.first) &&
+                (path.size() == mapping.first.size() || mapping.first == "/" ||
+                 path[mapping.first.size()] == '/') &&
+                (!best || mapping.first.size() > best->first.size()))
+                best = &mapping;
+        if (!best)
+            continue;
+        auto suffix = path.substr(best->first.size());
+        while (!suffix.empty() && suffix.front() == '/')
+            suffix.erase(0, 1);
+        for (const auto &segment : utf8_path(suffix))
+            if (segment == "..")
+                return make_error(ErrorCode::kValidation, "Foreign mapping escapes its root",
+                                  {{"reason", "invalid_foreign_path_mapping"}});
+        item.original_path = path_text(utf8_path(best->second) / utf8_path(suffix));
+        if (item.skip_reason == "foreign_volume_unavailable")
+            item.skip_reason.reset();
+    }
 
     auto snapshot = repository_->snapshot();
     if (!snapshot)
@@ -588,9 +696,27 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
     report.source_product_version = fixture.value().source_product_version;
     report.source_path = fixture.value().source_path;
     report.destination_catalog = snapshot.value().database_path;
+    report.source_photo_count = source_photo_count;
+    report.selected_photo_count = fixture.value().items.size();
+    report.archived_only_tables = fixture.value().archived_only_tables;
+    if (fixture.value().native_lightroom)
+    {
+        auto archived = repository_->archive_foreign_catalog(
+            fixture.value().source_path, fixture.value().source_sha256, request.cancellation);
+        if (!archived)
+            return archived.error();
+        report.source_archive = std::move(archived).value();
+    }
 
+    std::map<std::string, std::string> foreign_assets;
     for (const auto &item : fixture.value().items)
     {
+        auto checked = request.cancellation.check();
+        if (!checked)
+        {
+            report.cancelled = true;
+            break;
+        }
         if (item.skip_reason)
             continue;
         auto path = resolve_fixture_path(fixture.value().source_root, item.original_path);
@@ -600,7 +726,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         if (!std::filesystem::is_regular_file(utf8_path(path.value()), exists_error) ||
             exists_error)
             continue;
-        auto fingerprint = fingerprint_original(path.value());
+        auto fingerprint = fingerprint_original(path.value(), request.cancellation);
         if (!fingerprint)
             return fingerprint.error();
         report.source_originals.push_back(std::move(fingerprint).value());
@@ -654,13 +780,50 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             continue;
         }
 
-        auto imported = import_service_.import_one(original.value(), request.cancellation,
-                                                   request.preview, request.defer_previews);
+        auto imported = [&]() -> Result<ImportItemResult>
+        {
+            if (!item.master_id)
+                return import_service_.import_one(original.value(), request.cancellation,
+                                                  request.preview, request.defer_previews);
+            const auto master = foreign_assets.find(*item.master_id);
+            if (master == foreign_assets.end())
+                return make_error(ErrorCode::kNotFound, "Virtual copy master was not imported",
+                                  {{"reason", "lightroom_master_not_imported"}});
+            auto version = library_service_.create_asset_version(master->second);
+            if (!version)
+                return version.error();
+            const auto &copy_id = version.value().version.id;
+            const auto committed_error = [&](TaskError error)
+            {
+                error.context.emplace("committed_asset_id", copy_id);
+                return error;
+            };
+            // The ordinary version command clones user state. Foreign copies
+            // have independent source records, including explicitly empty state.
+            auto reset = develop_service_.reset_recipe(copy_id);
+            if (!reset)
+                return committed_error(reset.error());
+            auto tags = metadata_service_.set_tags(copy_id, {});
+            if (!tags)
+                return committed_error(tags.error());
+            auto metadata = metadata_service_.set_writable_metadata(copy_id, {});
+            if (!metadata)
+                return committed_error(metadata.error());
+            ImportItemResult result;
+            result.status = ImportItemStatus::kImported;
+            result.asset = std::move(metadata).value();
+            return result;
+        }();
         if (!imported)
         {
+            const auto committed = imported.error().context.find("committed_asset_id");
+            if (committed != imported.error().context.end())
+                row.asset_id = committed->second;
             row.status = imported.error().code == ErrorCode::kCancelled ?
                              ForeignCatalogItemStatus::kSkipped :
-                             ForeignCatalogItemStatus::kFailed;
+                             (imported.error().code == ErrorCode::kUnsupported ?
+                                  ForeignCatalogItemStatus::kUnsupported :
+                                  ForeignCatalogItemStatus::kFailed);
             if (imported.error().code == ErrorCode::kCancelled)
                 report.cancelled = true;
             row.reasons.emplace_back(imported.error().context.count("reason") != 0U ?
@@ -687,7 +850,10 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
 
         const auto asset_id = imported.value().asset->id;
         row.asset_id = asset_id;
+        foreign_assets.emplace(item.foreign_id, asset_id);
         add_mapped(row, "original");
+        if (item.master_id)
+            add_mapped(row, "virtual_copy");
 
         if (item.rating)
         {
@@ -728,6 +894,19 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             }
             add_mapped(row, "rejected");
         }
+        if (item.picked)
+        {
+            auto picked = library_service_.set_picked(asset_id, *item.picked);
+            if (!picked)
+            {
+                row.status = ForeignCatalogItemStatus::kFailed;
+                row.reasons.emplace_back("picked_failed");
+                count_item(report, row);
+                report.items.push_back(std::move(row));
+                continue;
+            }
+            add_mapped(row, "picked");
+        }
         if (has_writable_metadata(item.metadata))
         {
             auto written = metadata_service_.set_writable_metadata(asset_id, item.metadata);
@@ -755,6 +934,18 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 add_mapped(row, "city");
             if (item.metadata.sublocation)
                 add_mapped(row, "sublocation");
+            if (item.metadata.headline)
+                add_mapped(row, "headline");
+            if (item.metadata.credit)
+                add_mapped(row, "credit");
+            if (item.metadata.source)
+                add_mapped(row, "source");
+            if (item.metadata.instructions)
+                add_mapped(row, "instructions");
+            if (item.metadata.usage_terms)
+                add_mapped(row, "usage_terms");
+            if (item.metadata.job_id)
+                add_mapped(row, "job_id");
         }
         if (!item.keywords.empty())
         {
@@ -776,6 +967,93 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             omission.key = adjust;
             omission.reason = "unsupported_foreign_adjust";
             row.unsupported_fields.push_back(std::move(omission));
+        }
+
+        const auto import_develop_states = [&]() -> Result<void>
+        {
+            if (!item.develop_settings && item.develop_states.empty())
+                return {};
+            auto baseline = develop_service_.load_baseline_recipe(asset_id);
+            if (!baseline)
+                return baseline.error();
+            const auto apply_settings = [&](const std::string &settings,
+                                            const std::string &context) -> Result<Recipe>
+            {
+                auto params = develop_from_recipe(baseline.value());
+                if (!params)
+                    return params.error();
+                const auto &asset = *imported.value().asset;
+                auto converted = import_lightroom_develop(
+                    settings, {asset.id, asset.normalized_uri, asset.content_fingerprint});
+                if (!converted)
+                    return converted.error();
+                for (auto omission : converted.value().omitted)
+                {
+                    omission.key = context + ":" + omission.key;
+                    row.unsupported_fields.push_back(std::move(omission));
+                }
+                if (converted.value().compatible_groups == 0)
+                    return make_error(ErrorCode::kUnsupported,
+                                      "No compatible Lightroom adjustments",
+                                      {{"reason", "lightroom_no_compatible_adjustments"}});
+                apply_lightroom_develop(params.value(), converted.value());
+                return recipe_from_develop(baseline.value().asset, params.value());
+            };
+            for (const auto &state : item.develop_states)
+            {
+                auto checked = request.cancellation.check();
+                if (!checked)
+                    return checked.error();
+                auto recipe =
+                    apply_settings(state.settings, state.snapshot ? "snapshot" : "history");
+                if (!recipe)
+                {
+                    row.unsupported_fields.push_back({state.name, "",
+                                                      recipe.error().context.contains("reason") ?
+                                                          recipe.error().context.at("reason") :
+                                                          "invalid_lightroom_develop_state"});
+                    continue;
+                }
+                const auto label =
+                    "Lightroom: " + (state.name.empty() ? "Imported state" : state.name);
+                auto recorded =
+                    develop_service_.create_recipe_snapshot(asset_id, recipe.value(), label);
+                if (!recorded)
+                    return recorded.error();
+                add_mapped(row, state.snapshot ? "snapshot" : "history");
+            }
+            if (item.develop_settings)
+            {
+                auto checked = request.cancellation.check();
+                if (!checked)
+                    return checked.error();
+                auto recipe = apply_settings(*item.develop_settings, "develop");
+                if (!recipe)
+                    row.unsupported_fields.push_back({"lightroom.develop", "",
+                                                      recipe.error().context.contains("reason") ?
+                                                          recipe.error().context.at("reason") :
+                                                          "invalid_lightroom_develop"});
+                else
+                {
+                    auto saved = develop_service_.save_recipe(asset_id, recipe.value());
+                    if (!saved)
+                        return saved.error();
+                    add_mapped(row, "develop");
+                }
+            }
+            return {};
+        };
+        auto developed = import_develop_states();
+        if (!developed)
+        {
+            const bool was_cancelled = developed.error().code == ErrorCode::kCancelled;
+            report.cancelled |= was_cancelled;
+            row.status = was_cancelled ? ForeignCatalogItemStatus::kSkipped :
+                                         ForeignCatalogItemStatus::kFailed;
+            row.reasons.emplace_back(was_cancelled ? "cancelled" : "develop_import_failed");
+            count_item(report, row);
+            report.items.push_back(std::move(row));
+            continue;
         }
 
         if (item.crs_xmp_path)
@@ -863,6 +1141,67 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         report.items.push_back(std::move(row));
     }
 
+    std::map<std::string, const ForeignCatalogCollection *> collection_index;
+    for (const auto &collection : fixture.value().collections)
+        collection_index.emplace(collection.foreign_id, &collection);
+    for (const auto &collection : fixture.value().collections)
+    {
+        ForeignCatalogCollectionReport row;
+        row.foreign_id = collection.foreign_id;
+        row.name = collection.name;
+        auto parent = collection.parent_id;
+        if (parent && *parent != "0")
+            row.reasons.push_back("collection_hierarchy_flattened");
+        while (parent && *parent != "0")
+        {
+            const auto *ancestor = collection_index.at(*parent);
+            row.name = ancestor->name + " / " + row.name;
+            parent = ancestor->parent_id;
+        }
+        auto still = request.cancellation.check();
+        if (!still)
+        {
+            row.reasons.push_back("cancelled");
+            report.cancelled = true;
+        }
+        else
+        {
+            std::vector<std::string> members;
+            bool partial_selection = false;
+            for (const auto &id : collection.photo_ids)
+            {
+                if (!selected_ids.empty() && !selected_ids.contains(id))
+                {
+                    partial_selection = true;
+                    continue;
+                }
+                const auto found = foreign_assets.find(id);
+                if (found == foreign_assets.end())
+                    row.reasons.push_back("member_not_imported:" + id);
+                else
+                    members.push_back(found->second);
+            }
+            if (partial_selection)
+                row.reasons.push_back("partial_selection_membership");
+            const bool smart = collection.creation_id.find("smart") != std::string::npos;
+            if (smart)
+            {
+                row.reasons.push_back("smart_rules_not_evaluated");
+                row.name += " [Lightroom smart snapshot]";
+            }
+            auto created = library_service_.create_library_set(LibrarySetKind::kManual, row.name,
+                                                               std::nullopt, members);
+            if (!created)
+                row.reasons.push_back("collection_create_failed:" + created.error().message);
+            else
+            {
+                row.set_id = created.value().set.id;
+                row.imported_members = members.size();
+            }
+        }
+        report.collections.push_back(std::move(row));
+    }
+
     for (auto &fingerprint : report.source_originals)
     {
         auto after = fingerprint_original(fingerprint.path);
@@ -877,6 +1216,149 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         }
     }
     return report;
+}
+
+Result<std::vector<ForeignCatalogArchive>> ConversionService::foreign_catalog_archives() const
+{
+    if (!repository_)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->list_foreign_catalog_archives();
+}
+
+Result<ForeignCatalogInspection>
+ConversionService::inspect_lightroom_catalog(const std::string_view source_path,
+                                             const CancellationToken &cancellation)
+{
+    auto source = normalize_local_input(source_path);
+    if (!source)
+        return source.error();
+    auto snapshot = read_lightroom_catalog(source.value().path, cancellation);
+    if (!snapshot)
+        return snapshot.error();
+    ForeignCatalogInspection result;
+    result.source_path = source.value().path;
+    result.source_sha256 = snapshot.value().source_sha256;
+    result.photos = snapshot.value().photos.size();
+    result.collections = snapshot.value().collections.size();
+    result.archived_only_tables = std::move(snapshot.value().archived_only_tables);
+    std::set<std::string> sampled_extensions;
+    for (const auto &photo : snapshot.value().photos)
+    {
+        auto checked = cancellation.check();
+        if (!checked)
+            return checked.error();
+        result.virtual_copies += photo.master_id.has_value();
+        result.metadata_photos += has_writable_metadata(photo.metadata);
+        std::error_code error;
+        if (!photo.skip_reason &&
+            std::filesystem::is_regular_file(utf8_path(photo.original_path), error) && !error)
+            ++result.available_originals;
+        if (result.sample_photos.size() < 10 && !photo.master_id &&
+            sampled_extensions.insert(extension_lower(utf8_path(photo.original_path))).second)
+            result.sample_photos.push_back(
+                {photo.foreign_id, photo.original_path, photo.master_id});
+        for (const auto &state : photo.develop_states)
+            state.snapshot ? ++result.snapshots : ++result.history_steps;
+        if (!photo.develop_settings)
+            continue;
+        ++result.current_edits;
+        auto fields = parse_lightroom_develop_fields(*photo.develop_settings);
+        if (!fields)
+        {
+            ++result.malformed_edits;
+            auto prefix_size = std::min<std::size_t>(128, photo.develop_settings->size());
+            if (prefix_size < photo.develop_settings->size())
+                while (prefix_size > 0 &&
+                       (static_cast<unsigned char>((*photo.develop_settings)[prefix_size]) &
+                        0xc0U) == 0x80U)
+                    --prefix_size;
+            if (result.malformed_samples.size() < 10)
+                result.malformed_samples.push_back(
+                    {{"foreign_id", photo.foreign_id},
+                     {"detail", fields.error().context.at("detail")},
+                     {"settings_prefix", photo.develop_settings->substr(0, prefix_size)},
+                     {"settings_bytes", std::to_string(photo.develop_settings->size())}});
+            continue;
+        }
+        const auto number = [&](const char *key, const double absent)
+        {
+            const auto found = fields.value().find(key);
+            if (found == fields.value().end())
+                return absent;
+            double value = absent;
+            const auto parsed = std::from_chars(found->second.data(),
+                                                found->second.data() + found->second.size(), value);
+            return parsed.ec == std::errc{} &&
+                           parsed.ptr == found->second.data() + found->second.size() &&
+                           std::isfinite(value) ?
+                       value :
+                       absent;
+        };
+        const auto table_has_data = [&](const char *key)
+        {
+            const auto found = fields.value().find(key);
+            return found != fields.value().end() &&
+                   found->second.find_first_not_of(" \t\r\n{}") != std::string::npos;
+        };
+        const auto sample = [&](const char *reason, const bool matches)
+        {
+            if (matches && !photo.master_id && !result.editing_samples.contains(reason))
+                result.editing_samples.emplace(
+                    reason, ForeignCatalogInspectionPhoto{photo.foreign_id, photo.original_path,
+                                                          photo.master_id});
+        };
+        sample("nonzero_exposure", number("Exposure2012", 0) != 0);
+        sample("cropped", number("CropLeft", 0) != 0 || number("CropTop", 0) != 0 ||
+                              number("CropRight", 1) != 1 || number("CropBottom", 1) != 1);
+        const auto wb = fields.value().find("WhiteBalance");
+        sample("custom_white_balance", wb != fields.value().end() && wb->second == "\"Custom\"");
+        sample("mask_data", table_has_data("MaskGroupBasedCorrections") ||
+                                table_has_data("PaintBasedCorrections") ||
+                                table_has_data("GradientBasedCorrections") ||
+                                table_has_data("CircularGradientBasedCorrections"));
+        sample("retouch_data", table_has_data("RetouchAreas") || table_has_data("RetouchInfo"));
+        sample("upright_enabled", number("PerspectiveUpright", 0) != 0);
+        for (const auto &[key, value] : fields.value())
+        {
+            if (result.develop_fields.size() >= 8192 && !result.develop_fields.contains(key))
+                return make_error(ErrorCode::kUnsupported, "Develop inventory exceeds key bound");
+            ++result.develop_fields[key];
+            if (key == "CameraProfile")
+            {
+                if (result.camera_profiles.size() >= 4096 &&
+                    !result.camera_profiles.contains(value))
+                    return make_error(ErrorCode::kUnsupported,
+                                      "Profile inventory exceeds value bound");
+                ++result.camera_profiles[value];
+            }
+        }
+    }
+    auto companion = utf8_path(source.value().path);
+    companion.replace_extension(".lrcat-data");
+    result.companion_path = path_text(companion);
+    std::error_code error;
+    result.companion_present = std::filesystem::exists(companion, error);
+    if (error)
+        return make_error(ErrorCode::kIo, "Cannot inspect Lightroom companion",
+                          {{"detail", error.message()}});
+    if (result.companion_present)
+    {
+        result.companion_is_directory = std::filesystem::is_directory(companion, error);
+        if (error)
+            return make_error(ErrorCode::kIo, "Cannot inspect Lightroom companion type",
+                              {{"detail", error.message()}});
+    }
+    return result;
+}
+
+Result<void>
+ConversionService::export_foreign_catalog_archive(const std::string_view source_id,
+                                                  const std::string_view output_path,
+                                                  const CancellationToken &cancellation) const
+{
+    if (!repository_)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->export_foreign_catalog_archive(source_id, output_path, cancellation);
 }
 
 } // namespace ravo

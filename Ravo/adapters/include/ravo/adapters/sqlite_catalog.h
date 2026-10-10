@@ -45,6 +45,14 @@ public:
     ~SqliteCatalogRepository() override;
 
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const override;
+    [[nodiscard]] Result<ForeignCatalogArchive>
+    archive_foreign_catalog(std::string_view source_path, std::string_view expected_sha256,
+                            const CancellationToken &cancellation) override;
+    [[nodiscard]] Result<std::vector<ForeignCatalogArchive>>
+    list_foreign_catalog_archives() const override;
+    [[nodiscard]] Result<void>
+    export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
+                                   const CancellationToken &cancellation) const override;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const override;
     [[nodiscard]] Result<LibraryPage>
     list_assets_page(const LibraryPageRequest &request) const override;

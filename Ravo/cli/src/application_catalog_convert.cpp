@@ -6,6 +6,7 @@
 #include "ravo/services/dng_smart_preview.h"
 #include "ravo/services/offline_edit_proxy.h"
 #include "ravo/services/foreign_catalog.h"
+#include "ravo/services/conversion_service.h"
 
 namespace ravo::cli_internal
 {
@@ -61,9 +62,17 @@ namespace
         {"unsupported_field_count", JsonValue::number(std::to_string(report.unsupported_fields))},
         {"originals_unchanged", report.originals_unchanged},
         {"cancelled", report.cancelled},
+        {"source_photo_count", JsonValue::number(std::to_string(report.source_photo_count))},
+        {"selected_photo_count", JsonValue::number(std::to_string(report.selected_photo_count))},
     };
     if (report.source_product_version)
         object.emplace("source_product_version", *report.source_product_version);
+    if (report.source_archive)
+        object.emplace("source_archive",
+                       JsonValue::Object{{"source_id", report.source_archive->source_id},
+                                         {"sha256", report.source_archive->sha256},
+                                         {"size_bytes", JsonValue::number(std::to_string(
+                                                            report.source_archive->size_bytes))}});
     JsonValue::Array originals;
     originals.reserve(report.source_originals.size());
     for (const auto &fingerprint : report.source_originals)
@@ -74,6 +83,31 @@ namespace
     for (const auto &item : report.items)
         items.push_back(item_json(item));
     object.emplace("items", std::move(items));
+    JsonValue::Array collections;
+    std::size_t collection_issues = 0;
+    for (const auto &collection : report.collections)
+    {
+        collection_issues += collection.reasons.size();
+        JsonValue::Array reasons;
+        for (const auto &reason : collection.reasons)
+            reasons.emplace_back(reason);
+        JsonValue::Object entry{
+            {"foreign_id", collection.foreign_id},
+            {"name", collection.name},
+            {"imported_members", JsonValue::number(std::to_string(collection.imported_members))},
+            {"reasons", std::move(reasons)}};
+        if (collection.set_id)
+            entry.emplace("set_id", *collection.set_id);
+        collections.emplace_back(std::move(entry));
+    }
+    object.emplace("collections", std::move(collections));
+    object.emplace("collection_issue_count", JsonValue::number(std::to_string(collection_issues)));
+    object.emplace("archived_only_table_count",
+                   JsonValue::number(std::to_string(report.archived_only_tables.size())));
+    JsonValue::Array archived_tables;
+    for (const auto &table : report.archived_only_tables)
+        archived_tables.emplace_back(table);
+    object.emplace("archived_only_tables", std::move(archived_tables));
     return JsonValue{std::move(object)};
 }
 
@@ -137,6 +171,34 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                               const std::string_view subcommand,
                                               const CatalogCliArguments &flags)
 {
+    if (subcommand == "foreign-sources")
+    {
+        auto sources = service.conversion().foreign_catalog_archives();
+        if (!sources)
+            return sources.error();
+        JsonValue::Array items;
+        for (const auto &source : sources.value())
+            items.emplace_back(JsonValue::Object{
+                {"source_id", source.source_id},
+                {"source_path", source.source_path},
+                {"sha256", source.sha256},
+                {"size_bytes", JsonValue::number(std::to_string(source.size_bytes))}});
+        return JsonValue{JsonValue::Object{{"schema", "ravo.foreign-catalog-sources/v1"},
+                                           {"sources", std::move(items)}}};
+    }
+    if (subcommand == "foreign-source-export")
+    {
+        if (flags.source_id.empty() || flags.output.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "foreign-source-export requires --source-id and --output");
+        auto exported =
+            service.conversion().export_foreign_catalog_archive(flags.source_id, flags.output);
+        if (!exported)
+            return exported.error();
+        return JsonValue{JsonValue::Object{{"schema", "ravo.foreign-catalog-source-export/v1"},
+                                           {"source_id", std::string(flags.source_id)},
+                                           {"output", std::string(flags.output)}}};
+    }
     if (subcommand == "dng-convert")
     {
         if (flags.asset_id.empty())
@@ -376,6 +438,9 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
     }
     ForeignCatalogConversionRequest request;
     request.source_path = std::string(flags.foreign_source);
+    request.path_mappings = flags.foreign_path_mappings;
+    request.foreign_ids = flags.foreign_ids;
+    request.expected_source_sha256 = std::string(flags.expected_foreign_source_sha256);
     if (!flags.foreign_source_kind.empty())
     {
         auto kind = parse_foreign_catalog_source_kind(flags.foreign_source_kind);
@@ -387,6 +452,71 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
     if (!converted)
         return converted.error();
     return report_json(converted.value());
+}
+
+Result<JsonValue> run_catalog_inspect_foreign_command(const CatalogCliArguments &flags)
+{
+    if (flags.foreign_source.empty())
+        return make_error(ErrorCode::kInvalidArgument, "inspect-foreign requires --foreign-source");
+    if (!flags.foreign_source_kind.empty() && flags.foreign_source_kind != "lightroom-classic")
+        return make_error(ErrorCode::kUnsupported,
+                          "inspect-foreign currently supports Lightroom Classic");
+    auto inspected = ConversionService::inspect_lightroom_catalog(flags.foreign_source);
+    if (!inspected)
+        return inspected.error();
+    const auto &value = inspected.value();
+    const auto count = [](const std::size_t number)
+    { return JsonValue::number(std::to_string(number)); };
+    JsonValue::Object fields, profiles;
+    for (const auto &[name, number] : value.develop_fields)
+        fields.emplace(name, count(number));
+    for (const auto &[name, number] : value.camera_profiles)
+        profiles.emplace(name, count(number));
+    JsonValue::Array archived, photos, malformed;
+    JsonValue::Object editing_samples;
+    for (const auto &[reason, photo] : value.editing_samples)
+        editing_samples.emplace(reason, JsonValue::Object{{"foreign_id", photo.foreign_id},
+                                                          {"original_path", photo.original_path}});
+    for (const auto &sample : value.malformed_samples)
+    {
+        JsonValue::Object issue;
+        for (const auto &[key, text] : sample)
+            issue.emplace(key, text);
+        malformed.emplace_back(std::move(issue));
+    }
+    for (const auto &table : value.archived_only_tables)
+        archived.emplace_back(table);
+    for (const auto &photo : value.sample_photos)
+    {
+        JsonValue::Object entry{{"foreign_id", photo.foreign_id},
+                                {"original_path", photo.original_path}};
+        if (photo.master_id)
+            entry.emplace("master_id", *photo.master_id);
+        photos.emplace_back(std::move(entry));
+    }
+    return JsonValue{JsonValue::Object{
+        {"schema", "ravo.lightroom-catalog-inspection/v1"},
+        {"source_path", value.source_path},
+        {"source_sha256", value.source_sha256},
+        {"photos", count(value.photos)},
+        {"virtual_copies", count(value.virtual_copies)},
+        {"current_edits", count(value.current_edits)},
+        {"history_steps", count(value.history_steps)},
+        {"snapshots", count(value.snapshots)},
+        {"collections", count(value.collections)},
+        {"metadata_photos", count(value.metadata_photos)},
+        {"available_originals", count(value.available_originals)},
+        {"malformed_edits", count(value.malformed_edits)},
+        {"develop_fields", std::move(fields)},
+        {"malformed_samples", std::move(malformed)},
+        {"camera_profiles", std::move(profiles)},
+        {"archived_only_tables", std::move(archived)},
+        {"sample_photos", std::move(photos)},
+        {"editing_samples", std::move(editing_samples)},
+        {"companion", JsonValue::Object{{"path", value.companion_path},
+                                        {"present", value.companion_present},
+                                        {"is_directory", value.companion_is_directory},
+                                        {"handling", "not_converted_or_archived"}}}}};
 }
 
 } // namespace ravo::cli_internal

@@ -5,8 +5,11 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <utility>
+#include <map>
 
 #include "ravo/domain/types.h"
+#include "ravo/domain/foreign_catalog.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/crs_types.h"
@@ -19,6 +22,31 @@ namespace ravo
 inline constexpr std::string_view kForeignCatalogFixtureContractVersion =
     "ravo.foreign-catalog.fixture/v1";
 inline constexpr std::int64_t kForeignCatalogFixtureSchemaVersion = 1;
+
+struct ForeignCatalogInspectionPhoto
+{
+    std::string foreign_id;
+    std::string original_path;
+    std::optional<std::string> master_id;
+};
+
+struct ForeignCatalogInspection
+{
+    std::string source_path;
+    std::string source_sha256;
+    std::size_t photos = 0, virtual_copies = 0, current_edits = 0;
+    std::size_t history_steps = 0, snapshots = 0, collections = 0;
+    std::size_t metadata_photos = 0, available_originals = 0, malformed_edits = 0;
+    std::map<std::string, std::size_t> develop_fields;
+    std::map<std::string, std::size_t> camera_profiles;
+    std::vector<std::string> archived_only_tables;
+    std::vector<ForeignCatalogInspectionPhoto> sample_photos;
+    std::map<std::string, ForeignCatalogInspectionPhoto> editing_samples;
+    std::vector<std::map<std::string, std::string>> malformed_samples;
+    std::string companion_path;
+    bool companion_present = false;
+    bool companion_is_directory = false;
+};
 
 enum class ForeignCatalogSourceKind : std::uint8_t
 {
@@ -53,6 +81,15 @@ struct ForeignCatalogItemReport
     std::vector<std::string> reasons;
 };
 
+struct ForeignCatalogCollectionReport
+{
+    std::string foreign_id;
+    std::optional<std::string> set_id;
+    std::string name;
+    std::vector<std::string> reasons;
+    std::size_t imported_members = 0;
+};
+
 struct ForeignCatalogConversionReport
 {
     std::string schema{std::string(kForeignCatalogFixtureContractVersion)};
@@ -70,6 +107,11 @@ struct ForeignCatalogConversionReport
     bool cancelled = false;
     std::vector<ForeignCatalogFileFingerprint> source_originals;
     std::vector<ForeignCatalogItemReport> items;
+    std::vector<ForeignCatalogCollectionReport> collections;
+    std::optional<ForeignCatalogArchive> source_archive;
+    std::vector<std::string> archived_only_tables;
+    std::size_t source_photo_count = 0;
+    std::size_t selected_photo_count = 0;
 };
 
 struct ForeignCatalogConversionRequest
@@ -80,6 +122,14 @@ struct ForeignCatalogConversionRequest
     ImportPreviewPolicy preview = ImportPreviewPolicy::kMinimal;
     bool defer_previews = true;
     CancellationToken cancellation{};
+    // Explicit segment-prefix mappings, longest match wins. A mapped path never
+    // falls back to the foreign path when the local volume is unavailable.
+    std::vector<std::pair<std::string, std::string>> path_mappings;
+    // Empty selects the complete source. Explicit IDs are validated before any
+    // write; a selected copy must include its master in the same selection.
+    std::vector<std::string> foreign_ids;
+    // Required with explicit IDs; binds them to the observed immutable source.
+    std::string expected_source_sha256;
 };
 
 [[nodiscard]] constexpr std::string_view

@@ -546,6 +546,32 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                                   "--editor-version was specified twice");
             result.editor_version = value;
         }
+        else if (option == "--expect-source-sha256")
+        {
+            if (!result.expected_foreign_source_sha256.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--expect-source-sha256 was specified twice");
+            result.expected_foreign_source_sha256 = value;
+        }
+        else if (option == "--foreign-id")
+        {
+            result.foreign_ids.emplace_back(value);
+        }
+        else if (option == "--foreign-map")
+        {
+            const auto split = value.find('=');
+            if (split == std::string_view::npos || split == 0 || split + 1 == value.size())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--foreign-map requires foreign-root=local-directory");
+            result.foreign_path_mappings.emplace_back(value.substr(0, split),
+                                                      value.substr(split + 1));
+        }
+        else if (option == "--source-id")
+        {
+            if (!result.source_id.empty())
+                return make_error(ErrorCode::kInvalidArgument, "--source-id was specified twice");
+            result.source_id = value;
+        }
         else if (option == "--foreign-source")
         {
             if (!result.foreign_source.empty())

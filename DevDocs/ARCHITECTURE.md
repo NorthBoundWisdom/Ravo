@@ -114,12 +114,18 @@ state changes advance session revision; elapsed time and new pixels advance
 their own observations without invalidating an otherwise current playback
 command. Seek/selection generations still reject old frames and commands.
 
-Lightroom catalog conversion (ADR-0164) uses a bounded, read-only private SQLite
+Lightroom catalog conversion (ADR-0164/0166) uses a bounded, read-only private SQLite
 snapshot in adapters. Owned domain photo values feed ConversionService's existing
 Add/review/keyword path into an empty destination. Studio dispatches the same
 service on the catalog executor and CLI returns a versioned per-item report.
-Source catalogs are never live Ravo stores; unsupported adjustments remain
-explicit omissions. Cancellation retains completed destination items.
+Source catalogs are never live Ravo stores. Schema 19 preserves source bytes as
+hashed ordered 1 MiB chunks in the ordinary SQLite backup lifecycle. Adapters
+parse serialized Develop as data and reuse CRS groups and XMP metadata parsing.
+Services own copies, review/keywords, named history snapshots and static sets.
+Explicit longest-prefix import mappings do not fall back to unavailable paths.
+Unsupported groups remain explicit omissions. Cancellation retains completed
+destination items; archive cancellation rolls back metadata/chunks/revision.
+No new thread, runtime or renderer is introduced.
 
 Filmstrip delegates demand metadata for visible sparse rows before thumbnails.
 Selection of an unloaded row is owned by desktop C++: one latest pending intent

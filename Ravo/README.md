@@ -100,11 +100,14 @@ Retention removes only reverified, owned scheduled artifacts.
 
 Studio can import a closed supported Lightroom Classic `.lrcat` into a new empty
 Ravo catalog, with a report of converted and omitted fields. Source paths,
-ratings, labels, reject flags and hierarchical keywords can be mapped; Develop
-history, snapshots, collections, virtual copies and unsupported vendor
-adjustments are not promised. Existing vendor catalogs are never opened as
+ratings, pick/reject flags, labels, hierarchical keywords and catalog XMP text
+can be mapped. Compatible database Develop groups, independent virtual copies,
+named history/snapshots and static collection membership are converted with
+explicit omissions. Source `.lrcat` bytes are preserved in the destination.
+Existing vendor catalogs are never opened as
 Ravo catalogs or modified in place
-([ADR-0164](../DevDocs/adr/0164-lightroom-catalog-reader.md)).
+([ADR-0164](../DevDocs/adr/0164-lightroom-catalog-reader.md),
+[ADR-0166](../DevDocs/adr/0166-lightroom-data-preservation-and-develop.md)).
 
 Supported Camera Raw XMP presets and evidenced historic darktable XMP history
 have explicit converters. Unsupported history fails rather than approximating
@@ -376,12 +379,44 @@ than silently dropped.
 
 In Studio, create an empty library, then choose **File → Import Lightroom
 Catalog...**. Native Lightroom reports use `ravo.lightroom-catalog-conversion/v1`.
-Develop settings, history, snapshots, collections and custom metadata are not
-converted; detected omissions are reported. Missing originals are skipped;
-virtual copies and unavailable foreign-volume paths are unsupported. Photos stay
-at their original locations. The reader is bounded to 2 GB and one million
+The native path reads database-only Develop settings without requiring XMP
+sidecars. Compatible independent groups use the CRS owner; crop/straightening
+use Ravo geometry. Unsupported groups, custom labels and missing Adobe profiles
+are explicit omissions, with their original content retained in the archive.
+Current edits and virtual copies are independent; compatible history and saved
+states become named Ravo snapshots. Collections become manual sets with parent
+names in their display paths; smart rules are not evaluated and stored members
+are static snapshots. Catalog XMP supplies supported descriptive metadata.
+Missing originals are skipped; unavailable foreign-volume paths are unsupported
+unless explicitly mapped. Photos stay at their original locations. The reader is bounded to 2 GB and one million
 photos and validates structure rather than claiming every Lightroom version.
 Cancellation retains imported photos; retrying requires a new empty library.
+
+Use repeated `--foreign-map <foreign-directory>=<local-directory>` on
+`catalog convert-foreign` for explicit volume or descendant-folder mapping;
+the longest segment-prefix wins and an unavailable mapped path has no fallback.
+Repeated `--foreign-id <id>` selects an explicit subset (at most 4096 IDs) for
+conversion; unknown/duplicate IDs and copies without their selected masters
+fail before writes. This selector requires `--expect-source-sha256 <observed-hash>`
+from inspection and rejects a changed source before writes. The full source archive is still preserved. Reports state
+source/selected photo counts and partial collection membership; omitting the
+selector converts the complete source.
+Schema 19 retains the original `.lrcat` as hashed 1 MiB chunks, included in
+ordinary catalog backup/restore. `catalog foreign-sources --catalog <db> --json`
+lists preserved sources; `catalog foreign-source-export --catalog <db>
+--source-id <id> --output <new.lrcat> --json` verifies and exports exact bytes.
+External `.lrcat-data`, Adobe profiles and preview bundles are not embedded.
+Remaining RAWmakase integration gates are tracked in
+[TODO_LIGHTROOM_IMPORT.md](../DevDocs/TODO_LIGHTROOM_IMPORT.md).
+
+`catalog inspect-foreign --foreign-source <closed.lrcat> --json` is a read-only
+inventory without a destination catalog. It reports photo/copy/edit/history/
+snapshot/collection totals, available-original counts, serialized Develop field
+and camera-profile frequencies, bounded parse diagnostics and sample identities,
+uninterpreted nonempty tables and the companion `.lrcat-data` file/directory.
+The contract is `ravo.lightroom-catalog-inspection/v1`. Catalog XMP may be plain
+UTF-8 or length-prefixed zlib data; declared output lengths are validated before
+decompression. Empty current settings mean no stored edit, not malformed Lua.
 
 An existing output path returns structured `conflict`; it is never overwritten
 implicitly. Catalog commands call the same services as Studio and serve as the

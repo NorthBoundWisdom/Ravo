@@ -10,6 +10,7 @@ target_sources(ravo_adapters
     src/heic_decoder.cpp
     src/jpeg_encoder.cpp
     src/crs_xmp.cpp
+    src/lightroom_develop.cpp
     src/xmp_adjacent_metadata.cpp
     src/legacy_xmp.cpp
     src/legacy_xmp_balance.cpp
@@ -27,6 +28,7 @@ target_sources(ravo_adapters
     src/qt_raster_tiff_contract.cpp
     src/radiance_rgbe_decoder.cpp
     src/sqlite_catalog.cpp
+    src/sqlite_catalog_foreign.cpp
     src/sqlite_catalog_assets.cpp
     src/sqlite_catalog_import_content.cpp
     src/sqlite_catalog_internal.cpp

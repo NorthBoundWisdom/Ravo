@@ -542,13 +542,15 @@ TEST(VideoCatalogTest, MigrationTransactionFailureAndSourceChangeAreExplicit)
         ASSERT_TRUE(connection.open());
         QSqlQuery query(connection);
         ASSERT_TRUE(query.exec("DROP TABLE asset_video"));
+        ASSERT_TRUE(query.exec("DROP TABLE foreign_catalog_chunk"));
+        ASSERT_TRUE(query.exec("DROP TABLE foreign_catalog_source"));
         ASSERT_TRUE(query.exec("UPDATE schema_info SET schema_version = 17"));
         connection.close();
     }
     QSqlDatabase::removeDatabase("video-migration-fixture");
     auto repository = SqliteCatalogRepository::open(database.toStdString());
     ASSERT_TRUE(repository);
-    EXPECT_EQ(repository.value()->snapshot().value().schema_version, 18);
+    EXPECT_EQ(repository.value()->snapshot().value().schema_version, kCatalogSchemaVersion);
     auto *faults = repository.value().get();
     auto cache = FilesystemPreviewCache::create(database.toStdString() + ".preview");
     ASSERT_TRUE(cache);

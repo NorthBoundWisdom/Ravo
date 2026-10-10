@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "ravo/domain/types.h"
+#include "ravo/domain/foreign_catalog.h"
 #include "ravo/foundation/error.h"
 
 namespace ravo
@@ -40,6 +41,16 @@ public:
     virtual ~CatalogRepository() = default;
 
     [[nodiscard]] virtual Result<CatalogSnapshot> snapshot() const = 0;
+    // Verified, chunked immutable source bytes live in the catalog and are
+    // included in ordinary SQLite backup/restore. No source handle escapes.
+    [[nodiscard]] virtual Result<ForeignCatalogArchive>
+    archive_foreign_catalog(std::string_view source_path, std::string_view expected_sha256,
+                            const CancellationToken &cancellation) = 0;
+    [[nodiscard]] virtual Result<std::vector<ForeignCatalogArchive>>
+    list_foreign_catalog_archives() const = 0;
+    [[nodiscard]] virtual Result<void>
+    export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
+                                   const CancellationToken &cancellation) const = 0;
     [[nodiscard]] virtual Result<std::vector<AssetRecord>> list_assets() const = 0;
     [[nodiscard]] virtual Result<LibraryPage>
     list_assets_page(const LibraryPageRequest &request) const = 0;

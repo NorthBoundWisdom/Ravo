@@ -1,5 +1,13 @@
 # Ravo Migration Policy
 
+2026-10-10: requested RAWmakase Lightroom integration extends ADR-0164 through
+[ADR-0166](adr/0166-lightroom-data-preservation-and-develop.md): immutable source
+archives, compatible database Develop, virtual copies, catalog XMP, named
+history/snapshots, static collections and explicit import path mappings.
+Remaining renderer and offline-identity gates live in
+[TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md). No Adobe runtime or
+silent rendering fallback is admitted.
+
 2026-10-09: explicitly requested video library/playback work is admitted by
 [ADR-0165](adr/0165-video-library-and-playback.md): independent video assets,
 source-preserving import, SDR poster/playback presentation and original-copy
@@ -8,8 +16,8 @@ remain outside this boundary. No leftover application or OpenCL owner is restore
 
 2026-10-08: ADR-0164 admits closed Lightroom Classic SQLite catalog import via
 the native adapter/shared conversion service. This supersedes the real-Lightroom
-reader deferral only; Capture One, Lightroom Develop translation, virtual copies
-and resumable conversion remain outside this tranche.
+reader deferral only. ADR-0166 extends Develop and virtual-copy support;
+Capture One and resumable conversion remain outside this tranche.
 
 2026-10-08 product decision: synthesized RAW baselines use Sigmoid; Studio Light
 removes the RapidRAW selector and dedicated controls while retaining common EV

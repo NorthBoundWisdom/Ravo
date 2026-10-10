@@ -35,6 +35,16 @@ using namespace sqlite_internal;
 namespace
 {
 
+constexpr const char *kSchemaV19Foreign[] = {
+    "CREATE TABLE foreign_catalog_source (id TEXT PRIMARY KEY, source_path TEXT NOT NULL, "
+    "sha256 TEXT NOT NULL UNIQUE CHECK(length(sha256)=64 AND sha256 NOT GLOB '*[^0-9a-f]*'), "
+    "size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0 AND size_bytes <= 2000000000))",
+    "CREATE TABLE foreign_catalog_chunk (source_id TEXT NOT NULL REFERENCES foreign_catalog_source(id) ON DELETE CASCADE, "
+    "ordinal INTEGER NOT NULL CHECK(ordinal >= 0), bytes BLOB NOT NULL "
+    "CHECK(typeof(bytes)='blob' AND length(bytes)>0 AND length(bytes)<=1048576), "
+    "PRIMARY KEY(source_id,ordinal))",
+};
+
 constexpr const char *kSchemaV18Video =
     "CREATE TABLE asset_video(asset_id TEXT PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE, "
     "info_json TEXT NOT NULL CHECK(typeof(info_json) = 'text' AND length(info_json) <= 16384))";
@@ -557,6 +567,12 @@ SqliteCatalogRepository::create(const std::string_view database_path)
         impl->exec(QString::fromUtf8(kSchemaV18Video), "create_video_metadata");
     if (!video_table)
         return impl->abort_transaction(video_table.error());
+    for (const char *statement : kSchemaV19Foreign)
+    {
+        auto created = impl->exec(QString::fromUtf8(statement), "create_foreign_catalog_archive");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
     impl->snapshot.catalog_id = generate_catalog_id();
     impl->snapshot.database_path = impl->database_path;
     impl->snapshot.schema_version = kCatalogSchemaVersion;
@@ -1131,6 +1147,17 @@ SqliteCatalogRepository::open(const std::string_view database_path)
             if (!created)
                 return impl->abort_transaction(created.error());
             version = 18;
+        }
+        if (version == 18)
+        {
+            for (const char *statement : kSchemaV19Foreign)
+            {
+                auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v19_foreign_catalog");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 19;
         }
         if (version != kCatalogSchemaVersion)
         {

@@ -93,6 +93,10 @@ struct CatalogCliArguments
     bool ensure = false;
     std::string_view foreign_source;
     std::string_view foreign_source_kind;
+    std::string_view source_id;
+    std::vector<std::pair<std::string, std::string>> foreign_path_mappings;
+    std::vector<std::string> foreign_ids;
+    std::string_view expected_foreign_source_sha256;
     std::string_view from_asset;
     std::string_view fields;
     std::string_view output;
@@ -247,6 +251,8 @@ open_catalog_session(const EngineFacade &engine, std::string_view path, bool cre
 [[nodiscard]] Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                                             std::string_view subcommand,
                                                             const CatalogCliArguments &flags);
+[[nodiscard]] Result<JsonValue>
+run_catalog_inspect_foreign_command(const CatalogCliArguments &flags);
 [[nodiscard]] Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine,
                                                           CatalogService &service,
                                                           const CatalogCliArguments &flags);

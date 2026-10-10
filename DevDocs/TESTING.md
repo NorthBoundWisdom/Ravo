@@ -70,6 +70,18 @@ active journals, invalid references, cancellation and destination conflict in
 `catalog_lightroom_test.cpp`. This is synthetic structural coverage, not vendor
 release certification. Real private catalogs, large-catalog memory/disk pressure
 and platform-specific volume remapping require separate evidence (ADR-0164).
+ADR-0166 adds database-only Develop, independent virtual-copy recipes,
+catalog XMP, named history/snapshots, collection membership, source archive
+hash/export/reopen and cancellation/rollback contracts. Source preservation is
+not evidence that an unsupported control renders correctly. Schema 19 and
+ordinary backup/restore must retain verified archive bytes.
+Catalog XMP contracts cover plain and declared-length zlib packets, while empty
+current settings remain unedited. Read-only CLI inventory must leave source
+hashes unchanged, require no destination and bound diagnostic/sample payloads.
+Virtual-copy contracts must cover empty edits, tags, labels and writable text
+independently of a modified master. History-only conversion must publish a
+verified recovery artifact and restore through the ordinary snapshot owner;
+prepared snapshots reject a mismatched asset/source before writes.
 
 Release artifacts also run on fresh CI runners without the build bootstrap or
 Qt SDK. `ravo_studio --startup-smoke -platform cocoa|windows|xcb` loads the

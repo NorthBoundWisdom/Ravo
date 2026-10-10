@@ -117,7 +117,7 @@ add_executable(ravo_contract_tests
   profile_gamma_test.cpp
   primaries_test.cpp)
 target_link_libraries(ravo_contract_tests
-  PRIVATE GTest::gtest_main ravo_cli ravo_libtiff Qt6::Gui ZLIB::ZLIB)
+  PRIVATE GTest::gtest_main ravo_cli ravo_libtiff Qt6::Gui Qt6::Sql ZLIB::ZLIB)
 target_include_directories(ravo_contract_tests PRIVATE
   $<TARGET_PROPERTY:lcms2,INTERFACE_INCLUDE_DIRECTORIES>
   $<TARGET_PROPERTY:PNG::PNG,INTERFACE_INCLUDE_DIRECTORIES>

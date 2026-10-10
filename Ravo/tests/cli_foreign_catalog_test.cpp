@@ -5,6 +5,11 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QVariant>
+#include <QProcess>
+#include "ravo/adapters/text_file.h"
 
 #include "ravo/cli/application.h"
 #include "ravo/domain/types.h"
@@ -57,6 +62,91 @@ namespace
 }
 
 } // namespace
+
+TEST_F(CliTest, NativeLightroomConvertListsAndExportsVerifiedArchive)
+{
+    const auto root =
+        std::filesystem::temp_directory_path() / ("ravo-native-lr-" + generate_catalog_id());
+    std::filesystem::create_directories(root);
+    const auto source = (root / "source.lrcat").string();
+    const auto catalog = (root / "library.sqlite").string();
+    const auto output = (root / "exported.lrcat").string();
+    const auto original = std::filesystem::path(RAVO_REPOSITORY_ROOT) /
+                          "Ravo/tests/fixtures/frozen/0000-nop/expected.png";
+    const QString connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(source));
+        ASSERT_TRUE(db.open());
+        QSqlQuery q(db);
+        for (
+            const auto *sql :
+            {"CREATE TABLE AgLibraryRootFolder(id_local INTEGER,absolutePath TEXT)",
+             "CREATE TABLE AgLibraryFolder(id_local INTEGER,rootFolder INTEGER,pathFromRoot TEXT)",
+             "CREATE TABLE AgLibraryFile(id_local INTEGER,folder INTEGER,idx_filename TEXT,baseName TEXT,extension TEXT)",
+             "CREATE TABLE Adobe_images(id_local INTEGER,rootFile INTEGER,rating INTEGER,pick INTEGER,colorLabels TEXT,masterImage INTEGER)",
+             "CREATE TABLE Adobe_imageDevelopSettings(image INTEGER,text TEXT)",
+             "INSERT INTO AgLibraryFolder VALUES(1,1,'')",
+             "INSERT INTO AgLibraryFile VALUES(1,1,'expected.png','expected','png')",
+             "INSERT INTO Adobe_images VALUES(1,1,4,1,'Red',NULL)",
+             "INSERT INTO Adobe_imageDevelopSettings VALUES(1,'s={Exposure2012=0.5}')"})
+            ASSERT_TRUE(q.exec(sql)) << sql;
+        ASSERT_TRUE(q.prepare("INSERT INTO AgLibraryRootFolder VALUES(1,?)"));
+        q.addBindValue(QString::fromStdString(original.parent_path().string()));
+        ASSERT_TRUE(q.exec());
+    }
+    QSqlDatabase::removeDatabase(connection);
+    const auto source_hash = sha256_file_hex(source).value();
+    const auto original_hash = sha256_file_hex(original.string()).value();
+    const auto run = [&](const QStringList &arguments, const bool success = true) -> std::string
+    {
+        QProcess process;
+        process.start(QString::fromUtf8(RAVO_CLI_EXECUTABLE), arguments);
+        EXPECT_TRUE(process.waitForFinished(30000));
+        const auto bytes = process.readAllStandardOutput();
+        if (success)
+            EXPECT_EQ(process.exitCode(), 0)
+                << bytes.toStdString() << process.readAllStandardError().toStdString();
+        else
+            EXPECT_NE(process.exitCode(), 0);
+        return bytes.toStdString();
+    };
+    auto inspected = parse_json(run({"catalog", "inspect-foreign", "--foreign-source",
+                                     QString::fromStdString(source), "--json"}));
+    ASSERT_TRUE(inspected);
+    EXPECT_EQ(string_at(inspected.value(), {"data", "schema"}),
+              "ravo.lightroom-catalog-inspection/v1");
+    EXPECT_EQ(number_at(inspected.value(), {"data", "current_edits"}), "1");
+    EXPECT_EQ(string_at(inspected.value(), {"data", "source_sha256"}), source_hash);
+    EXPECT_FALSE(std::filesystem::exists(catalog));
+    run({"catalog", "create", "--path", QString::fromStdString(catalog), "--json"});
+    auto converted =
+        parse_json(run({"catalog", "convert-foreign", "--catalog", QString::fromStdString(catalog),
+                        "--foreign-source", QString::fromStdString(source), "--foreign-id", "1",
+                        "--expect-source-sha256", QString::fromStdString(source_hash), "--json"}));
+    ASSERT_TRUE(converted);
+    EXPECT_EQ(number_at(converted.value(), {"data", "imported"}), "1");
+    EXPECT_EQ(string_at(converted.value(), {"data", "source_archive", "sha256"}), source_hash);
+    auto listed = parse_json(run(
+        {"catalog", "foreign-sources", "--catalog", QString::fromStdString(catalog), "--json"}));
+    ASSERT_TRUE(listed);
+    EXPECT_EQ(string_at(listed.value(), {"data", "schema"}), "ravo.foreign-catalog-sources/v1");
+    const QStringList export_args{"catalog",     "foreign-source-export",
+                                  "--catalog",   QString::fromStdString(catalog),
+                                  "--source-id", QString::fromStdString(source_hash),
+                                  "--output",    QString::fromStdString(output),
+                                  "--json"};
+    auto exported = parse_json(run(export_args));
+    ASSERT_TRUE(exported);
+    EXPECT_EQ(sha256_file_hex(output).value(), source_hash);
+    auto conflict = parse_json(run(export_args, false));
+    ASSERT_TRUE(conflict);
+    EXPECT_EQ(string_at(conflict.value(), {"error", "code"}), "conflict");
+    EXPECT_EQ(sha256_file_hex(source).value(), source_hash);
+    EXPECT_EQ(sha256_file_hex(original.string()).value(), original_hash);
+    std::error_code ignored;
+    std::filesystem::remove_all(root, ignored);
+}
 
 TEST_F(CliTest, CatalogConvertForeignReportsMappedSkippedAndUnsupported)
 {

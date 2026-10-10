@@ -179,3 +179,4 @@ decision bodies remain stable.
 | [0161](0161-full-source-crop-workspace.md) | Accepted | Complete transformed crop backdrop, fixed source scale, canonical output-frame mapping |
 | [0162](0162-versioned-raw-rendering-profiles.md) | Accepted design; implementation pending | Separate camera calibration, versioned default rendering and user edits; reproducible Standard and Camera Matching profiles |
 | [0165](0165-video-library-and-playback.md) | Accepted | Independent video assets, shared FFmpeg decode, SDR presentation and Qt-owned playback |
+| [0166](0166-lightroom-data-preservation-and-develop.md) | Accepted | Immutable foreign catalog archive and compatible database Develop, copies, metadata, history/snapshots and static sets |

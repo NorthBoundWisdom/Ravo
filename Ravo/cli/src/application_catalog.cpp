@@ -52,7 +52,8 @@ bool catalog_output_flag_is_allowed(const std::string_view subcommand) noexcept
     return subcommand == "video-frame" || subcommand == "export" ||
            subcommand == "export-preset-save" || subcommand == "probe" || subcommand == "preview" ||
            subcommand == "backup-restore" || subcommand == "dng-convert" ||
-           subcommand == "hdr-merge" || subcommand == "panorama";
+           subcommand == "hdr-merge" || subcommand == "panorama" ||
+           subcommand == "foreign-source-export";
 }
 
 [[nodiscard]] Result<std::vector<std::string>>
@@ -103,6 +104,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
             "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-burst-compare|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|offline-proxy-delete|offline-proxy-pin|offline-proxy-evict|"
+            "inspect-foreign|foreign-sources|foreign-source-export|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -225,17 +227,28 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         subcommand == "cull-near-duplicates" || subcommand == "cull-review";
     const bool ingest_command = subcommand == "ingest-probe" || subcommand == "ingest";
     const bool convert_command =
-        subcommand == "convert-foreign" || subcommand == "dng-convert" ||
+        subcommand == "convert-foreign" || subcommand == "foreign-sources" ||
+        subcommand == "foreign-source-export" || subcommand == "dng-convert" ||
         subcommand == "smart-preview" || subcommand == "offline-proxy-create" ||
         subcommand == "offline-proxy-list" || subcommand == "offline-proxy-verify" ||
         subcommand == "offline-proxy-status" || subcommand == "offline-proxy-reconnect" ||
         subcommand == "offline-proxy-delete" || subcommand == "offline-proxy-pin" ||
         subcommand == "offline-proxy-evict";
-    if ((!flags.value().foreign_source.empty() || !flags.value().foreign_source_kind.empty()) &&
-        subcommand != "convert-foreign")
+    if ((!flags.value().foreign_source.empty() || !flags.value().foreign_source_kind.empty() ||
+         !flags.value().foreign_path_mappings.empty()) &&
+        subcommand != "convert-foreign" && subcommand != "inspect-foreign")
         return make_error(
             ErrorCode::kInvalidArgument,
-            "--foreign-source/--source-kind are only valid for catalog convert-foreign");
+            "--foreign-source/--source-kind/--foreign-map are only valid for catalog convert-foreign");
+    if (!flags.value().source_id.empty() && subcommand != "foreign-source-export")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--source-id is only valid for catalog foreign-source-export");
+    if (!flags.value().foreign_ids.empty() && subcommand != "convert-foreign")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--foreign-id is only valid for catalog convert-foreign");
+    if (!flags.value().expected_foreign_source_sha256.empty() && subcommand != "convert-foreign")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--expect-source-sha256 is only valid for catalog convert-foreign");
     if (flags.value().ensure && subcommand != "smart-preview")
         return make_error(ErrorCode::kInvalidArgument,
                           "--ensure is only valid for catalog smart-preview");
@@ -505,6 +518,23 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return restore_result_to_json(restored.value());
     }
 
+    if (subcommand == "inspect-foreign")
+    {
+        for (std::size_t i = 2; i < positional.size(); ++i)
+        {
+            if (positional[i] == "--json")
+                continue;
+            if (positional[i] == "--foreign-source" || positional[i] == "--source-kind")
+            {
+                ++i;
+                continue;
+            }
+            return make_error(ErrorCode::kInvalidArgument,
+                              "Option is not valid for catalog inspect-foreign",
+                              {{"option", std::string(positional[i])}});
+        }
+        return run_catalog_inspect_foreign_command(flags.value());
+    }
     if (flags.value().catalog.empty())
     {
         return make_error(ErrorCode::kInvalidArgument,

@@ -45,7 +45,10 @@ resolution and Linux PipeWire/VA-API requirements belong to
 [Dependency Workflow](Dependency_Workflow.md) and [Packaging](Packaging.md).
 
 For source-safe Lightroom Classic import, begin with
-[ADR-0164](adr/0164-lightroom-catalog-reader.md). For mask-scoped Develop,
+[ADR-0164](adr/0164-lightroom-catalog-reader.md) and
+[ADR-0166](adr/0166-lightroom-data-preservation-and-develop.md). Remaining
+RAWmakase integration gates are in [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md).
+For mask-scoped Develop,
 begin with [ADR-0158](adr/0158-mask-scoped-develop-workspace.md).
 
 ## Execution documents
@@ -56,6 +59,7 @@ begin with [ADR-0158](adr/0158-mask-scoped-develop-workspace.md).
 | [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) | Remaining ownership/refactor qualification |
 | [TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md) | RAW rendering/profile qualification |
 | [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md) | Video host, audio, corpus and package qualification |
+| [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md) | Lightroom data, Develop, offline identity and corpus qualification |
 | [ProductRoadmap.md](ProductRoadmap.md) | Product-level questions requiring a bounded decision |
 
 A green build is not a substitute for the corpus, platform or package evidence

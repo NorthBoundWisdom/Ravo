@@ -32,6 +32,10 @@ class MetadataService;
 class ConversionService
 {
 public:
+    // Read-only source inspection does not require or create a destination.
+    [[nodiscard]] static Result<ForeignCatalogInspection>
+    inspect_lightroom_catalog(std::string_view source_path,
+                              const CancellationToken &cancellation = {});
     ConversionService(const ConversionService &) = delete;
     ConversionService &operator=(const ConversionService &) = delete;
     ConversionService(ConversionService &&) = delete;
@@ -39,6 +43,10 @@ public:
 
     [[nodiscard]] Result<ForeignCatalogConversionReport>
     convert_foreign_catalog(const ForeignCatalogConversionRequest &request);
+    [[nodiscard]] Result<std::vector<ForeignCatalogArchive>> foreign_catalog_archives() const;
+    [[nodiscard]] Result<void>
+    export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
+                                   const CancellationToken &cancellation = {}) const;
     [[nodiscard]] Result<DngConversionResult>
     convert_asset_to_dng(const DngConversionRequest &request);
     [[nodiscard]] Result<SmartPreviewStatus> smart_preview_status(std::string_view asset_id) const;

@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-08
 - Extends: [ADR-0131](0131-foreign-catalog-conversion.md)
+- Develop, copies, metadata, collections and source preservation are extended by
+  [ADR-0166](0166-lightroom-data-preservation-and-develop.md).
 
 ## Decision
 

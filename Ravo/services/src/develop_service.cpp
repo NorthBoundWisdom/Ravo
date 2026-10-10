@@ -375,6 +375,20 @@ DevelopService::list_recipe_history(const std::string_view asset_id) const
 Result<AssetRecord> DevelopService::create_recipe_snapshot(const std::string_view asset_id,
                                                            const std::string_view label)
 {
+    return create_recipe_snapshot_impl(asset_id, label, nullptr);
+}
+
+Result<AssetRecord> DevelopService::create_recipe_snapshot(const std::string_view asset_id,
+                                                           const Recipe &recipe,
+                                                           const std::string_view label)
+{
+    return create_recipe_snapshot_impl(asset_id, label, &recipe);
+}
+
+Result<AssetRecord> DevelopService::create_recipe_snapshot_impl(const std::string_view asset_id,
+                                                                const std::string_view label,
+                                                                const Recipe *recipe)
+{
     if (repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -394,12 +408,34 @@ Result<AssetRecord> DevelopService::create_recipe_snapshot(const std::string_vie
         return make_error(ErrorCode::kNotFound, "Asset does not exist",
                           {{"asset_id", std::string(asset_id)}});
     }
-    auto json = repository_->load_recipe_json(asset_id);
-    if (!json)
+    std::string recipe_json;
+    if (recipe != nullptr)
     {
-        return json.error();
+        if (engine_ == nullptr)
+            return make_error(ErrorCode::kIo, "Engine is unavailable");
+        auto location = normalize_local_input(recipe->asset.input_uri);
+        if (!location)
+            return location.error();
+        if (recipe->asset.id != asset_id ||
+            recipe->asset.content_hash != asset.value()->content_fingerprint ||
+            location.value().uri != asset.value()->normalized_uri)
+            return make_error(ErrorCode::kConflict, "Snapshot recipe belongs to a different source",
+                              {{"reason", "snapshot_asset_mismatch"}});
+        auto valid = engine_->validate(*recipe);
+        if (!valid)
+            return valid.error();
+        auto json = serialize_recipe(*recipe);
+        if (!json)
+            return json.error();
+        recipe_json = std::move(json).value();
     }
-    const std::string recipe_json = json.value().value_or(std::string{});
+    else
+    {
+        auto json = repository_->load_recipe_json(asset_id);
+        if (!json)
+            return json.error();
+        recipe_json = json.value().value_or(std::string{});
+    }
     auto recorded = repository_->append_recipe_history(
         asset_id, kRecipeHistoryKindSnapshot, std::string_view{trimmed.value()}, recipe_json);
     if (!recorded)

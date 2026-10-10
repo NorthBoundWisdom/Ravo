@@ -55,6 +55,9 @@ public:
     list_recipe_history(std::string_view asset_id) const;
     [[nodiscard]] Result<AssetRecord> create_recipe_snapshot(std::string_view asset_id,
                                                              std::string_view label);
+    // Stores a validated historical recipe without replacing the current edit.
+    [[nodiscard]] Result<AssetRecord>
+    create_recipe_snapshot(std::string_view asset_id, const Recipe &recipe, std::string_view label);
     [[nodiscard]] Result<AssetRecord> rename_recipe_snapshot(std::string_view asset_id,
                                                              std::int64_t history_id,
                                                              std::string_view label);
@@ -66,6 +69,11 @@ public:
                          const CancellationToken &cancellation);
 
 private:
+    // recipe is borrowed only for this synchronous call; null preserves the
+    // existing current-state/empty-baseline snapshot contract.
+    [[nodiscard]] Result<AssetRecord> create_recipe_snapshot_impl(std::string_view asset_id,
+                                                                  std::string_view label,
+                                                                  const Recipe *recipe);
     friend class CatalogService;
     // Borrowed owner slots stay valid until this capability is destroyed. The
     // composition owner is immovable; reset slots make post-close calls fail.

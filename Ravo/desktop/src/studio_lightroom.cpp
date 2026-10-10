@@ -59,7 +59,11 @@ void StudioPresenter::importLightroomCatalog(const QString &path)
                                 .arg(report.unsupported)
                                 .arg(report.failed)
                                 .arg(report.unsupported_fields));
-                        if (report.unsupported_fields != 0)
+                        bool has_omissions =
+                            report.unsupported_fields != 0 || !report.archived_only_tables.empty();
+                        for (const auto &collection : report.collections)
+                            has_omissions |= !collection.reasons.empty();
+                        if (has_omissions)
                             setError(QCoreApplication::translate(
                                 "StudioPresenter",
                                 "Lightroom adjustments, history, collections and custom metadata may not be converted. Original photos and the Lightroom catalog are unchanged."));

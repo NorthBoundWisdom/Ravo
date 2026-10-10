@@ -10,6 +10,6 @@ namespace ravo
 {
 // Synchronous, caller-thread reader. Borrows path only for the call. A private
 // snapshot and its read-only SQL connection are destroyed before return.
-[[nodiscard]] Result<std::vector<ForeignCatalogPhoto>>
+[[nodiscard]] Result<ForeignCatalogSnapshot>
 read_lightroom_catalog(std::string_view path, const CancellationToken &cancellation = {});
 } // namespace ravo
