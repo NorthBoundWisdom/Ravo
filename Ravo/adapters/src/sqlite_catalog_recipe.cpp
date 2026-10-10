@@ -913,6 +913,48 @@ Result<RecipeHistoryEntry> SqliteCatalogRepository::append_recipe_history(
     return entry;
 }
 
+Result<RecipeHistoryEntry>
+SqliteCatalogRepository::commit_recipe_snapshot(const std::string_view asset_id,
+                                                const std::string_view label,
+                                                const std::string_view recipe_json)
+{
+    if (!impl_ || !impl_->database.isOpen())
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (!impl_->database.transaction())
+        return make_error(ErrorCode::kIo, "Cannot start snapshot transaction");
+    auto entry = append_recipe_history(asset_id, kRecipeHistoryKindSnapshot, label, recipe_json);
+    if (!entry)
+        return impl_->abort_transaction(entry.error());
+    auto bumped =
+        impl_->exec("UPDATE schema_info SET revision=revision+1 WHERE id=1", "snapshot_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    if (!impl_->database.commit())
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Cannot commit snapshot transaction"));
+    return entry;
+}
+
+Result<void> SqliteCatalogRepository::commit_recipe_snapshot_label(const std::int64_t history_id,
+                                                                   const std::string_view label)
+{
+    if (!impl_ || !impl_->database.isOpen())
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    if (!impl_->database.transaction())
+        return make_error(ErrorCode::kIo, "Cannot start snapshot label transaction");
+    auto changed = update_recipe_history_label(history_id, label);
+    if (!changed)
+        return impl_->abort_transaction(changed.error());
+    auto bumped = impl_->exec("UPDATE schema_info SET revision=revision+1 WHERE id=1",
+                              "snapshot_label_revision");
+    if (!bumped)
+        return impl_->abort_transaction(bumped.error());
+    if (!impl_->database.commit())
+        return impl_->abort_transaction(
+            make_error(ErrorCode::kIo, "Cannot commit snapshot label transaction"));
+    return {};
+}
+
 Result<void> SqliteCatalogRepository::update_recipe_history_label(const std::int64_t history_id,
                                                                   const std::string_view label)
 {

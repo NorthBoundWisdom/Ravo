@@ -85,6 +85,8 @@ public:
     [[nodiscard]] Result<void> remove_original_and_catalog(std::string_view asset_id);
 
 private:
+    [[nodiscard]] Result<AssetRecord> apply_review_patch(std::string_view asset_id,
+                                                         const ReviewPatch &patch);
     friend class CatalogService;
     // Borrowed owner slots stay valid until this capability is destroyed. The
     // composition owner is immovable; reset slots make post-close calls fail.

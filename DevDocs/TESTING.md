@@ -87,6 +87,17 @@ resume without duplicate history/versions/sets, ambiguous partial records,
 destination revision conflicts and real CLI journal inspection. Final source
 audit cancellation, disappearance and observed changes must retain committed
 receipts, with no false `originals_unchanged` success.
+Schema 21 contracts additionally exit a real subprocess after import, rating,
+metadata, history snapshot, Develop and collection commits, before receipt publication; reopened
+journals must retain the proven target and allow untouched work to continue.
+Second-connection writes must not be adopted as task progress. Proof insertion
+failure rolls back the business data/revision, and exceptional stage callbacks
+close their connection without leaking provenance into later writes. Collection
+tests restore a missing original, reuse the same set, add no duplicate members,
+retain explicit subset boundaries and reject manual destination edits. Schema
+20 upgrades retain wide 64-bit revisions without inventing old commit proofs.
+`SingleReviewPatchesRollbackDataAndRevisionTogether` covers all four single-photo
+commands, revision-failure rollback, unrelated-field preservation and stale guards.
 
 `StudioPipelinePriority.RecipeLoadRejectsOldAAfterABAAndSessionReplacement`
 drains an old worker read while delaying GUI publication, then uses a second

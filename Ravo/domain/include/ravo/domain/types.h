@@ -20,7 +20,7 @@
 namespace ravo
 {
 
-inline constexpr std::int64_t kCatalogSchemaVersion = 20;
+inline constexpr std::int64_t kCatalogSchemaVersion = 21;
 inline constexpr std::int64_t kCatalogRecoveryMinimumSchemaVersion = 6;
 inline constexpr std::int64_t kRecoverySidecarSchemaVersion = 1;
 inline constexpr std::int64_t kCatalogBackupFormatVersion = 3;
@@ -385,6 +385,14 @@ struct ReviewState
     ColorLabel color_label = ColorLabel::kNone;
     bool rejected = false;
     bool picked = false;
+};
+
+struct ReviewPatch
+{
+    std::optional<int> rating;
+    std::optional<ColorLabel> color_label;
+    std::optional<bool> rejected;
+    std::optional<bool> picked;
 };
 
 enum class EditFilter

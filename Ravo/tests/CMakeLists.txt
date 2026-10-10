@@ -185,6 +185,7 @@ target_include_directories(ravo_catalog_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/Ravo/adapters/src
   ${CMAKE_SOURCE_DIR}/Ravo/services/src)
 target_compile_definitions(ravo_catalog_tests PRIVATE
+  RAVO_CATALOG_TEST_EXECUTABLE="$<TARGET_FILE:ravo_catalog_tests>"
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}")
 ravo_configure_target(ravo_catalog_tests)
 ravo_copy_windows_runtime_dlls(ravo_catalog_tests)

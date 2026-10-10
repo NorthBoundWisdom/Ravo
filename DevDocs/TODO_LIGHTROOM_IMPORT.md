@@ -19,9 +19,9 @@ preservation does not complete the following operational capabilities.
 - Add per-computer root/folder locations, descendant precedence, clearing and
   ambiguity handling through shared services/CLI. Preserve source identity
   checks rather than relinking by filename alone.
-- Qualify finer atomic mutation-plus-checkpoint primitives for safe automatic
-  retry of partial photos. ADR-0167 resumes complete/untouched records but blocks
-  ambiguous partial stages; it does not establish per-photo atomicity.
+- Qualify stage completion, idempotence and recovery-publication checks for
+  automatic retry of partial photos. ADR-0167 commits business proofs atomically
+  and resumes untouched work, but does not establish whole-photo completion.
 
 ## Develop and dependencies
 

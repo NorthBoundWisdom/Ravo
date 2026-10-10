@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <functional>
 
 #include "ravo/domain/types.h"
 #include "ravo/domain/foreign_catalog.h"
@@ -58,6 +59,12 @@ public:
     save_foreign_conversion_checkpoint(std::string_view conversion_id,
                                        const ForeignConversionCheckpoint &record,
                                        std::int64_t expected_revision) = 0;
+    // Synchronous connection-local provenance binding, not an enclosing SQL
+    // transaction. Each business revision commits its proof atomically. Borrows
+    // action only for this call and returns the confirmed task revision.
+    [[nodiscard]] virtual Result<ForeignConversionJournal::Commit> run_foreign_conversion_stage(
+        std::string_view conversion_id, const ForeignConversionCheckpoint &record,
+        std::int64_t expected_revision, const std::function<void()> &action) = 0;
     [[nodiscard]] virtual Result<void>
     export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
                                    const CancellationToken &cancellation) const = 0;
@@ -143,6 +150,11 @@ public:
     // previous review and revision visible.
     [[nodiscard]] virtual Result<std::int64_t> commit_review(std::string_view asset_id,
                                                              const ReviewState &review) = 0;
+    // Updates only supplied fields in the same transaction as revision. Pick
+    // and Reject remain mutually exclusive. The patch is borrowed for the call.
+    [[nodiscard]] virtual Result<std::int64_t>
+    commit_review_patch(std::string_view asset_id, const ReviewPatch &patch,
+                        std::optional<std::int64_t> expected_revision = {}) = 0;
     // One transaction: delete the asset cascade and bump catalog revision.
     // Failure leaves the asset and prior revision visible.
     [[nodiscard]] virtual Result<void> remove_asset(std::string_view asset_id) = 0;
@@ -211,6 +223,13 @@ public:
     [[nodiscard]] virtual Result<RecipeHistoryEntry>
     append_recipe_history(std::string_view asset_id, std::string_view kind,
                           std::optional<std::string_view> label, std::string_view recipe_json) = 0;
+    // Snapshot data/label and revision are committed together; recovery files
+    // remain the service's post-commit responsibility. Views are call-borrowed.
+    [[nodiscard]] virtual Result<RecipeHistoryEntry>
+    commit_recipe_snapshot(std::string_view asset_id, std::string_view label,
+                           std::string_view recipe_json) = 0;
+    [[nodiscard]] virtual Result<void> commit_recipe_snapshot_label(std::int64_t history_id,
+                                                                    std::string_view label) = 0;
     [[nodiscard]] virtual Result<void> update_recipe_history_label(std::int64_t history_id,
                                                                    std::string_view label) = 0;
     [[nodiscard]] virtual Result<std::optional<PreviewRecord>>

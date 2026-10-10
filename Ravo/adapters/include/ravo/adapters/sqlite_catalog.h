@@ -60,6 +60,9 @@ public:
     save_foreign_conversion_checkpoint(std::string_view conversion_id,
                                        const ForeignConversionCheckpoint &record,
                                        std::int64_t expected_revision) override;
+    [[nodiscard]] Result<ForeignConversionJournal::Commit> run_foreign_conversion_stage(
+        std::string_view conversion_id, const ForeignConversionCheckpoint &record,
+        std::int64_t expected_revision, const std::function<void()> &action) override;
     [[nodiscard]] Result<void>
     export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
                                    const CancellationToken &cancellation) const override;
@@ -135,6 +138,9 @@ public:
                                              const ReviewState &review) override;
     [[nodiscard]] Result<std::int64_t> commit_review(std::string_view asset_id,
                                                      const ReviewState &review) override;
+    [[nodiscard]] Result<std::int64_t>
+    commit_review_patch(std::string_view asset_id, const ReviewPatch &patch,
+                        std::optional<std::int64_t> expected_revision = {}) override;
     [[nodiscard]] Result<void> remove_asset(std::string_view asset_id) override;
     [[nodiscard]] Result<std::optional<std::string>>
     load_recipe_json(std::string_view asset_id) const override;
@@ -192,6 +198,11 @@ public:
     append_recipe_history(std::string_view asset_id, std::string_view kind,
                           std::optional<std::string_view> label,
                           std::string_view recipe_json) override;
+    [[nodiscard]] Result<RecipeHistoryEntry>
+    commit_recipe_snapshot(std::string_view asset_id, std::string_view label,
+                           std::string_view recipe_json) override;
+    [[nodiscard]] Result<void> commit_recipe_snapshot_label(std::int64_t history_id,
+                                                            std::string_view label) override;
     [[nodiscard]] Result<void> update_recipe_history_label(std::int64_t history_id,
                                                            std::string_view label) override;
     [[nodiscard]] Result<std::optional<PreviewRecord>>

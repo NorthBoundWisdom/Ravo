@@ -47,8 +47,8 @@ resolution and Linux PipeWire/VA-API requirements belong to
 For source-safe Lightroom Classic import, begin with
 [ADR-0164](adr/0164-lightroom-catalog-reader.md) and
 [ADR-0166](adr/0166-lightroom-data-preservation-and-develop.md).
-[ADR-0167](adr/0167-foreign-conversion-checkpoints.md) specifies durable receipts
-and conservative resume. Remaining
+[ADR-0167](adr/0167-foreign-conversion-checkpoints.md) specifies durable receipts,
+atomic business commit proofs and conservative resume with member reconciliation. Remaining
 RAWmakase integration gates are in [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md).
 For mask-scoped Develop,
 begin with [ADR-0158](adr/0158-mask-scoped-develop-workspace.md).

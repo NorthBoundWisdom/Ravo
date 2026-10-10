@@ -20,6 +20,50 @@ namespace ravo
 namespace
 {
 
+TEST_F(CatalogServiceTest, SingleReviewPatchesRollbackDataAndRevisionTogether)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto id = imported.value().asset->id;
+    const auto before = service->library().snapshot().value().revision;
+    for (int field = 0; field < 4; ++field)
+    {
+        testing::SqliteCatalogTestControl::inject_review(
+            *sqlite_repository, testing::SqliteReviewFailure::kRevisionBump);
+        auto changed = field == 0 ? service->library().set_rating(id, 5) :
+                       field == 1 ? service->library().set_color_label(id, ColorLabel::kBlue) :
+                       field == 2 ? service->library().set_rejected(id, true) :
+                                    service->library().set_picked(id, true);
+        ASSERT_FALSE(changed);
+        EXPECT_EQ(changed.error().context.at("reason"), "injected_review_revision_bump");
+        const auto asset = sqlite_repository->find_asset_by_id(id).value().value();
+        EXPECT_EQ(asset.review.rating, 0);
+        EXPECT_EQ(asset.review.color_label, ColorLabel::kNone);
+        EXPECT_FALSE(asset.review.rejected);
+        EXPECT_FALSE(asset.review.picked);
+        EXPECT_EQ(service->library().snapshot().value().revision, before);
+    }
+    ASSERT_TRUE(service->library().set_color_label(id, ColorLabel::kBlue));
+    ASSERT_TRUE(service->library().set_picked(id, true));
+    auto rated = service->library().set_rating(id, 3);
+    ASSERT_TRUE(rated);
+    EXPECT_EQ(rated.value().review.color_label, ColorLabel::kBlue);
+    EXPECT_TRUE(rated.value().review.picked);
+    auto rejected = service->library().set_rejected(id, true);
+    ASSERT_TRUE(rejected);
+    EXPECT_TRUE(rejected.value().review.rejected);
+    EXPECT_FALSE(rejected.value().review.picked);
+    EXPECT_EQ(rejected.value().review.rating, 3);
+    EXPECT_EQ(rejected.value().review.color_label, ColorLabel::kBlue);
+    ReviewPatch patch;
+    patch.rating = 4;
+    auto stale = sqlite_repository->commit_review_patch(id, patch, before);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(sqlite_repository->find_asset_by_id(id).value()->review.rating, 3);
+}
+
 [[nodiscard]] bool write_jpeg(const std::filesystem::path &path, const QColor &color)
 {
     QImage image(16, 12, QImage::Format_RGB888);

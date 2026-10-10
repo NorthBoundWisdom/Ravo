@@ -436,16 +436,10 @@ Result<AssetRecord> DevelopService::create_recipe_snapshot_impl(const std::strin
             return json.error();
         recipe_json = json.value().value_or(std::string{});
     }
-    auto recorded = repository_->append_recipe_history(
-        asset_id, kRecipeHistoryKindSnapshot, std::string_view{trimmed.value()}, recipe_json);
+    auto recorded = repository_->commit_recipe_snapshot(asset_id, trimmed.value(), recipe_json);
     if (!recorded)
     {
         return recorded.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
     }
     auto recovered = recovery_service_.synchronize_committed_change(asset_id);
     if (!recovered)
@@ -493,15 +487,10 @@ Result<AssetRecord> DevelopService::rename_recipe_snapshot(const std::string_vie
         return make_error(ErrorCode::kValidation, "Only snapshots can be renamed",
                           {{"kind", entry.value()->kind}});
     }
-    auto updated = repository_->update_recipe_history_label(history_id, trimmed.value());
+    auto updated = repository_->commit_recipe_snapshot_label(history_id, trimmed.value());
     if (!updated)
     {
         return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
     }
     auto recovered = recovery_service_.synchronize_committed_change(asset_id);
     if (!recovered)

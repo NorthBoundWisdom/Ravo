@@ -100,17 +100,7 @@ namespace
     for (const auto &collection : report.collections)
     {
         collection_issues += collection.reasons.size();
-        JsonValue::Array reasons;
-        for (const auto &reason : collection.reasons)
-            reasons.emplace_back(reason);
-        JsonValue::Object entry{
-            {"foreign_id", collection.foreign_id},
-            {"name", collection.name},
-            {"imported_members", JsonValue::number(std::to_string(collection.imported_members))},
-            {"reasons", std::move(reasons)}};
-        if (collection.set_id)
-            entry.emplace("set_id", *collection.set_id);
-        collections.emplace_back(std::move(entry));
+        collections.push_back(foreign_catalog_collection_to_json(collection));
     }
     object.emplace("collections", std::move(collections));
     object.emplace("collection_issue_count", JsonValue::number(std::to_string(collection_issues)));
@@ -205,6 +195,17 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
         if (!journal.value())
             return make_error(ErrorCode::kNotFound, "Conversion journal not found");
         JsonValue::Array records;
+        JsonValue::Array commits;
+        for (const auto &proof : journal.value()->commits)
+        {
+            JsonValue::Object entry{
+                {"foreign_id", proof.foreign_id},
+                {"phase", proof.phase},
+                {"revision", JsonValue::number(std::to_string(proof.revision))}};
+            if (proof.target_id)
+                entry.emplace("target_id", *proof.target_id);
+            commits.emplace_back(std::move(entry));
+        }
         for (const auto &record : journal.value()->records)
         {
             auto receipt = parse_json(record.receipt_json);
@@ -224,7 +225,8 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
             {"source_sha256", journal.value()->source_sha256},
             {"catalog_revision",
              JsonValue::number(std::to_string(journal.value()->catalog_revision))},
-            {"records", std::move(records)}}};
+            {"records", std::move(records)},
+            {"commits", std::move(commits)}}};
     }
     if (subcommand == "foreign-sources")
     {

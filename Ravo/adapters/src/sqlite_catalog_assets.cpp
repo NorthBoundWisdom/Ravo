@@ -769,11 +769,28 @@ Result<void> SqliteCatalogRepository::update_review(const std::string_view asset
 Result<std::int64_t> SqliteCatalogRepository::commit_review(const std::string_view asset_id,
                                                             const ReviewState &review)
 {
+    auto valid = validate_review_state(review);
+    if (!valid)
+        return valid.error();
+    return commit_review_patch(asset_id,
+                               {review.rating, review.color_label, review.rejected, review.picked});
+}
+
+Result<std::int64_t>
+SqliteCatalogRepository::commit_review_patch(const std::string_view asset_id,
+                                             const ReviewPatch &patch,
+                                             const std::optional<std::int64_t> expected_revision)
+{
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     }
-    auto valid = validate_review_state(review);
+    ReviewState requested;
+    requested.rating = patch.rating.value_or(0);
+    requested.color_label = patch.color_label.value_or(ColorLabel::kNone);
+    requested.rejected = patch.rejected.value_or(false);
+    requested.picked = patch.picked.value_or(false);
+    auto valid = validate_review_state(requested);
     if (!valid)
     {
         return valid.error();
@@ -785,12 +802,25 @@ Result<std::int64_t> SqliteCatalogRepository::commit_review(const std::string_vi
                            {"reason", "review_commit_begin_failed"}});
     }
     QSqlQuery query(impl_->database);
-    query.prepare(QStringLiteral(
-        "UPDATE asset SET rating = ?, color_label = ?, rejected = ?, picked = ? WHERE id = ?"));
-    query.addBindValue(review.rating);
-    query.addBindValue(qstring_from_utf8(color_label_name(review.color_label)));
-    query.addBindValue(review.rejected ? 1 : 0);
-    query.addBindValue(review.picked ? 1 : 0);
+    if (expected_revision)
+    {
+        if (!query.exec("SELECT revision FROM schema_info WHERE id=1") || !query.next())
+            return impl_->abort_transaction(map_sql_error(query, "review_revision_read"));
+        if (query.value(0).toLongLong() != *expected_revision)
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kConflict, "Catalog revision changed"));
+    }
+    query.prepare("UPDATE asset SET rating=COALESCE(?,rating),color_label=COALESCE(?,color_label),"
+                  "rejected=COALESCE(?,rejected),picked=COALESCE(?,picked) WHERE id=?");
+    query.addBindValue(patch.rating ? QVariant(*patch.rating) : QVariant{});
+    query.addBindValue(patch.color_label ?
+                           QVariant(qstring_from_utf8(color_label_name(*patch.color_label))) :
+                           QVariant{});
+    const auto rejected =
+        patch.picked.value_or(false) ? std::optional<bool>{false} : patch.rejected;
+    const auto picked = patch.rejected.value_or(false) ? std::optional<bool>{false} : patch.picked;
+    query.addBindValue(rejected ? QVariant(*rejected ? 1 : 0) : QVariant{});
+    query.addBindValue(picked ? QVariant(*picked ? 1 : 0) : QVariant{});
     query.addBindValue(qstring_from_utf8(asset_id));
     if (!query.exec())
     {

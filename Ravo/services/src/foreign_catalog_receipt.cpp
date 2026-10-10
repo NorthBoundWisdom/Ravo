@@ -122,13 +122,17 @@ Result<ForeignCatalogItemReport> foreign_catalog_item_from_json(const std::strin
 JsonValue foreign_catalog_collection_to_json(const ForeignCatalogCollectionReport &item)
 {
     JsonValue::Array reasons;
+    JsonValue::Array pending;
+    for (const auto &id : item.pending_photo_ids)
+        pending.emplace_back(id);
     for (const auto &reason : item.reasons)
         reasons.emplace_back(reason);
     JsonValue::Object value{
         {"foreign_id", item.foreign_id},
         {"name", item.name},
         {"imported_members", JsonValue::number(std::to_string(item.imported_members))},
-        {"reasons", std::move(reasons)}};
+        {"reasons", std::move(reasons)},
+        {"pending_photo_ids", std::move(pending)}};
     if (item.set_id)
         value.emplace("set_id", *item.set_id);
     return JsonValue{std::move(value)};
@@ -167,6 +171,17 @@ foreign_catalog_collection_from_json(const std::string_view text)
         if (!reason.string_if())
             return make_error(ErrorCode::kValidation, "Invalid collection reason");
         item.reasons.push_back(*reason.string_if());
+    }
+    if (const auto *pending = parsed.value().find("pending_photo_ids"))
+    {
+        if (!pending->array_if())
+            return make_error(ErrorCode::kValidation, "Invalid pending collection members");
+        for (const auto &pending_id : *pending->array_if())
+        {
+            if (!pending_id.string_if())
+                return make_error(ErrorCode::kValidation, "Invalid pending collection member");
+            item.pending_photo_ids.push_back(*pending_id.string_if());
+        }
     }
     return item;
 }

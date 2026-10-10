@@ -35,6 +35,12 @@ using namespace sqlite_internal;
 namespace
 {
 
+constexpr const char *kSchemaV21Foreign =
+    "CREATE TABLE foreign_conversion_commit(conversion_id TEXT NOT NULL REFERENCES foreign_conversion(id), "
+    "revision INTEGER NOT NULL UNIQUE, foreign_id TEXT NOT NULL, phase TEXT NOT NULL, target_id TEXT, "
+    "PRIMARY KEY(conversion_id,revision), FOREIGN KEY(conversion_id,foreign_id) "
+    "REFERENCES foreign_conversion_record(conversion_id,foreign_id))";
+
 constexpr const char *kSchemaV20Foreign[] = {
     "CREATE TABLE foreign_conversion(id TEXT PRIMARY KEY CHECK(length(id)=64), "
     "source_sha256 TEXT NOT NULL REFERENCES foreign_catalog_source(sha256), "
@@ -589,6 +595,10 @@ SqliteCatalogRepository::create(const std::string_view database_path)
         if (!created)
             return impl->abort_transaction(created.error());
     }
+    auto provenance =
+        impl->exec(QString::fromUtf8(kSchemaV21Foreign), "create_foreign_commit_proof");
+    if (!provenance)
+        return impl->abort_transaction(provenance.error());
     impl->snapshot.catalog_id = generate_catalog_id();
     impl->snapshot.database_path = impl->database_path;
     impl->snapshot.schema_version = kCatalogSchemaVersion;
@@ -1185,6 +1195,14 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(created.error());
             }
             version = 20;
+        }
+        if (version == 20)
+        {
+            auto created = impl->exec(QString::fromUtf8(kSchemaV21Foreign),
+                                      "migrate_v21_foreign_commit_proof");
+            if (!created)
+                return impl->abort_transaction(created.error());
+            version = 21;
         }
         if (version != kCatalogSchemaVersion)
         {

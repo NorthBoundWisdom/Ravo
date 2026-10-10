@@ -307,122 +307,25 @@ LibraryService::find_library_stack(const std::string_view stack_id) const
 
 Result<AssetRecord> LibraryService::set_rating(const std::string_view asset_id, const int rating)
 {
-    auto valid = validate_rating(rating);
-    if (!valid)
-    {
-        return valid.error();
-    }
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    ReviewState review = asset.value()->review;
-    review.rating = rating;
-    const auto updated = repository_->update_review(asset_id, review);
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->review = review;
-    auto recovered = recovery_service_.synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
+    ReviewPatch patch;
+    patch.rating = rating;
+    return apply_review_patch(asset_id, patch);
 }
 
 Result<AssetRecord> LibraryService::set_color_label(const std::string_view asset_id,
                                                     const ColorLabel label)
 {
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    ReviewState review = asset.value()->review;
-    review.color_label = label;
-    const auto updated = repository_->update_review(asset_id, review);
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->review = review;
-    auto recovered = recovery_service_.synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
+    ReviewPatch patch;
+    patch.color_label = label;
+    return apply_review_patch(asset_id, patch);
 }
 
 Result<AssetRecord> LibraryService::set_rejected(const std::string_view asset_id,
                                                  const bool rejected)
 {
-    if (repository_ == nullptr)
-    {
-        return make_error(ErrorCode::kIo, "Catalog session is closed");
-    }
-    auto asset = repository_->find_asset_by_id(asset_id);
-    if (!asset)
-    {
-        return asset.error();
-    }
-    if (!asset.value())
-    {
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    }
-    ReviewState review = asset.value()->review;
-    review.rejected = rejected;
-    if (rejected)
-        review.picked = false;
-    const auto updated = repository_->update_review(asset_id, review);
-    if (!updated)
-    {
-        return updated.error();
-    }
-    const auto revision = repository_->bump_revision();
-    if (!revision)
-    {
-        return revision.error();
-    }
-    asset.value()->review = review;
-    auto recovered = recovery_service_.synchronize_committed_change(asset_id);
-    if (!recovered)
-    {
-        return recovered.error();
-    }
-    return *asset.value();
+    ReviewPatch patch;
+    patch.rejected = rejected;
+    return apply_review_patch(asset_id, patch);
 }
 
 Result<void> LibraryService::remove_from_catalog(const std::string_view asset_id)
@@ -782,35 +685,28 @@ LibraryService::remove_folder_from_catalog(const std::string_view folder_uri,
 
 Result<AssetRecord> LibraryService::set_picked(const std::string_view asset_id, const bool picked)
 {
-    if (repository_ == nullptr)
+    ReviewPatch patch;
+    patch.picked = picked;
+    return apply_review_patch(asset_id, patch);
+}
+
+Result<AssetRecord> LibraryService::apply_review_patch(const std::string_view asset_id,
+                                                       const ReviewPatch &patch)
+{
+    if (!repository_)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
-    auto found = repository_->find_asset_by_id(asset_id);
-    if (!found)
-        return found.error();
-    if (!found.value())
-        return make_error(ErrorCode::kNotFound, "Asset does not exist",
-                          {{"asset_id", std::string(asset_id)}});
-    Result<AssetRecord> asset = *found.value();
-    if (!asset)
-        return asset.error();
-    ReviewState review = asset.value().review;
-    review.picked = picked;
-    if (picked)
-        review.rejected = false;
-    auto valid = validate_review_state(review);
-    if (!valid)
-        return valid.error();
-    const auto revision = repository_->commit_review(asset_id, review);
-    if (!revision)
-        return revision.error();
-    asset.value().review = review;
+    auto committed = repository_->commit_review_patch(asset_id, patch);
+    if (!committed)
+        return committed.error();
     auto recovered = recovery_service_.synchronize_committed_change(asset_id);
     if (!recovered)
-    {
-        // Catalog mutation is durable; surface committed vs recovery explicitly.
         return recovered.error();
-    }
-    return asset.value();
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+        return asset.error();
+    if (!asset.value())
+        return make_error(ErrorCode::kNotFound, "Committed asset no longer exists");
+    return *asset.value();
 }
 
 } // namespace ravo

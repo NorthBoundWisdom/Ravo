@@ -1,10 +1,17 @@
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
 
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QVariant>
 #include <QByteArray>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QImage>
+#include <QColorSpace>
+#include <cstdlib>
+#include <stdexcept>
 #include <gtest/gtest.h>
 
 #include "catalog_test_support.h"
@@ -55,6 +62,369 @@ void make_lightroom(const std::string &path, const std::string &original, const 
     QSqlDatabase::removeDatabase(name);
 }
 } // namespace
+
+TEST_F(CatalogServiceTest, LightroomCrashAfterBusinessCommitChild)
+{
+    const auto *catalog = std::getenv("RAVO_FOREIGN_CRASH_CATALOG");
+    const auto *source = std::getenv("RAVO_FOREIGN_CRASH_SOURCE");
+    const auto *phase = std::getenv("RAVO_FOREIGN_CRASH_PHASE");
+    if (!catalog || !source || !phase)
+        GTEST_SKIP() << "Subprocess-only crash fixture";
+    database_path = catalog;
+    ASSERT_TRUE(open_service(true));
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    request.progress = [&](std::string_view stage, std::size_t, std::size_t)
+    {
+        if (stage == phase)
+            std::_Exit(86); // Intentionally skip all destructors after durable commit.
+    };
+    auto result = service->conversion().convert_foreign_catalog(request);
+    FAIL() << "Crash checkpoint was not reached: " << phase << ": "
+           << (result ? "completed" : result.error().message);
+}
+
+TEST_F(CatalogServiceTest, LightroomCommitProofSurvivesProcessExitBeforeReceipt)
+{
+    for (const std::string phase :
+         {"committed:import", "committed:rating", "committed:metadata", "committed:history:0",
+          "committed:develop", "committed:collection"})
+    {
+        const auto case_root = root / generate_catalog_id();
+        std::filesystem::create_directories(case_root);
+        const auto original = (case_root / "online.png").string();
+        std::filesystem::copy_file(png_fixture_path(), original);
+        QImage second(24, 16, QImage::Format_RGB888);
+        second.setColorSpace(QColorSpace(QColorSpace::SRgb));
+        second.fill(Qt::blue);
+        ASSERT_TRUE(
+            second.save(QString::fromStdString((case_root / "missing.png").string()), "PNG"));
+        const auto source = (case_root / "source.lrcat").string();
+        make_lightroom(source, original);
+        const QString connection = QString::fromStdString(generate_catalog_id());
+        {
+            auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(QString::fromStdString(source));
+            ASSERT_TRUE(db.open());
+            QSqlQuery q(db);
+            ASSERT_TRUE(
+                q.exec("INSERT INTO Adobe_imageDevelopSettings VALUES(1,'s={Exposure2012=1}')"));
+            ASSERT_TRUE(q.exec(
+                "CREATE TABLE Adobe_libraryImageDevelopHistoryStep(id_local INTEGER,image INTEGER,name TEXT,dateCreated REAL,text BLOB)"));
+            ASSERT_TRUE(q.exec(
+                "INSERT INTO Adobe_libraryImageDevelopHistoryStep VALUES(1,1,'Saved',1,'s={Exposure2012=0.5}')"));
+            ASSERT_TRUE(q.exec("CREATE TABLE Adobe_AdditionalMetadata(image INTEGER,xmp TEXT)"));
+            ASSERT_TRUE(q.exec(
+                "INSERT INTO Adobe_AdditionalMetadata VALUES(1,'<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">Title</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF>')"));
+            ASSERT_TRUE(q.exec(
+                "CREATE TABLE AgLibraryCollection(id_local INTEGER,name TEXT,parent INTEGER,creationId TEXT)"));
+            ASSERT_TRUE(
+                q.exec("INSERT INTO AgLibraryCollection VALUES(10,'Both',NULL,'collection')"));
+            ASSERT_TRUE(q.exec(
+                "CREATE TABLE AgLibraryCollectionImage(collection INTEGER,image INTEGER,positionInCollection TEXT)"));
+            ASSERT_TRUE(q.exec("INSERT INTO AgLibraryCollectionImage VALUES(10,1,'a'),(10,2,'b')"));
+        }
+        QSqlDatabase::removeDatabase(connection);
+        const auto source_hash = sha256_file_hex(source).value();
+        const auto original_hash = sha256_file_hex(original).value();
+        database_path = (case_root / "destination.sqlite").string();
+        QProcess process;
+        auto environment = QProcessEnvironment::systemEnvironment();
+        environment.insert("RAVO_FOREIGN_CRASH_CATALOG", QString::fromStdString(database_path));
+        environment.insert("RAVO_FOREIGN_CRASH_SOURCE", QString::fromStdString(source));
+        environment.insert("RAVO_FOREIGN_CRASH_PHASE", QString::fromStdString(phase));
+        process.setProcessEnvironment(environment);
+        process.start(QString::fromUtf8(RAVO_CATALOG_TEST_EXECUTABLE),
+                      {"--gtest_filter=CatalogServiceTest.LightroomCrashAfterBusinessCommitChild"});
+        ASSERT_TRUE(process.waitForFinished(30000));
+        ASSERT_EQ(process.exitCode(), 86) << process.readAllStandardOutput().toStdString()
+                                          << process.readAllStandardError().toStdString();
+        ASSERT_TRUE(open_service(false));
+        auto ids = service->conversion().foreign_conversion_ids();
+        ASSERT_TRUE(ids);
+        ASSERT_EQ(ids.value().size(), 1U);
+        auto journal = service->conversion().foreign_conversion_status(ids.value().front()).value();
+        ASSERT_TRUE(journal);
+        EXPECT_EQ(journal->catalog_revision, service->library().snapshot().value().revision);
+        ASSERT_FALSE(journal->commits.empty());
+        EXPECT_TRUE(journal->commits.back().target_id);
+        const auto history_count = phase == "committed:history:0" ?
+                                       service->develop()
+                                           .list_recipe_history(*journal->commits.back().target_id)
+                                           .value()
+                                           .size() :
+                                       0U;
+        ForeignCatalogConversionRequest request;
+        request.source_path = source;
+        request.resume = true;
+        request.expected_source_sha256 = source_hash;
+        auto resumed = service->conversion().convert_foreign_catalog(request);
+        ASSERT_TRUE(resumed) << phase << ": " << resumed.error().message;
+        EXPECT_EQ(service->library().list_assets().value().size(), 2U) << phase;
+        if (phase == "committed:collection")
+        {
+            EXPECT_EQ(resumed.value().failed, 0U);
+            EXPECT_EQ(service->library().list_library_sets().value().size(), 1U);
+            EXPECT_EQ(resumed.value().collections.front().set_id,
+                      journal->commits.back().target_id);
+        }
+        else
+        {
+            EXPECT_EQ(resumed.value().failed, 1U);
+            EXPECT_EQ(resumed.value().imported, 1U);
+            ASSERT_TRUE(resumed.value().items.front().asset_id);
+            EXPECT_EQ(resumed.value().items.front().asset_id, journal->commits.back().target_id);
+            if (phase == "committed:history:0")
+                EXPECT_EQ(service->develop()
+                              .list_recipe_history(*journal->commits.back().target_id)
+                              .value()
+                              .size(),
+                          history_count);
+        }
+        EXPECT_EQ(sha256_file_hex(source).value(), source_hash);
+        EXPECT_EQ(sha256_file_hex(original).value(), original_hash);
+        service.reset();
+    }
+}
+
+TEST_F(CatalogServiceTest, LightroomExternalWriterIsNeverAdoptedAsConversionProgress)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = (root / "concurrent.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    bool injected = false;
+    std::int64_t external_revision = 0;
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    request.progress = [&](std::string_view stage, std::size_t, std::size_t)
+    {
+        if (stage != "rating" || injected)
+            return;
+        injected = true;
+        const QString connection = QString::fromStdString(generate_catalog_id());
+        {
+            auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(QString::fromStdString(database_path));
+            ASSERT_TRUE(db.open());
+            ASSERT_TRUE(db.transaction());
+            QSqlQuery q(db);
+            ASSERT_TRUE(q.exec("UPDATE asset SET color_label='blue'"));
+            ASSERT_TRUE(q.exec("UPDATE schema_info SET revision=revision+1 WHERE id=1"));
+            ASSERT_TRUE(q.exec("SELECT revision FROM schema_info WHERE id=1"));
+            ASSERT_TRUE(q.next());
+            external_revision = q.value(0).toLongLong();
+            q.finish();
+            ASSERT_TRUE(db.commit());
+        }
+        QSqlDatabase::removeDatabase(connection);
+    };
+    auto result = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(injected);
+    ASSERT_FALSE(result.value().issues.empty());
+    auto journal =
+        service->conversion().foreign_conversion_status(result.value().conversion_id).value();
+    ASSERT_TRUE(journal);
+    EXPECT_LT(journal->catalog_revision, external_revision);
+    EXPECT_EQ(service->library().snapshot().value().revision, external_revision);
+    const auto assets = service->library().list_assets().value();
+    ASSERT_EQ(assets.size(), 1U);
+    EXPECT_EQ(assets.front().review.rating, 0);
+    EXPECT_EQ(assets.front().review.color_label, ColorLabel::kBlue);
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    request.resume = true;
+    request.progress = {};
+    request.expected_source_sha256 = sha256_file_hex(source).value();
+    auto conflict = service->conversion().convert_foreign_catalog(request);
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().context.at("reason"), "foreign_conversion_revision_conflict");
+}
+
+TEST_F(CatalogServiceTest, LightroomCommitProofFailureRollsBackBusinessWrite)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = (root / "proof-failure.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    service.reset();
+    const QString connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(db.open());
+        QSqlQuery q(db);
+        ASSERT_TRUE(q.exec(
+            "CREATE TRIGGER fail_rating_proof BEFORE INSERT ON foreign_conversion_commit "
+            "WHEN NEW.phase='rating' BEGIN SELECT RAISE(ABORT,'injected proof failure'); END"));
+    }
+    QSqlDatabase::removeDatabase(connection);
+    ASSERT_TRUE(open_service(false));
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    auto converted = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(converted);
+    EXPECT_EQ(converted.value().failed, 1U);
+    const auto assets = service->library().list_assets().value();
+    ASSERT_EQ(assets.size(), 1U);
+    EXPECT_EQ(assets.front().review.rating, 0);
+    auto journal =
+        service->conversion().foreign_conversion_status(converted.value().conversion_id).value();
+    ASSERT_TRUE(journal);
+    EXPECT_EQ(journal->catalog_revision, service->library().snapshot().value().revision);
+    ASSERT_FALSE(journal->commits.empty());
+    for (const auto &proof : journal->commits)
+        EXPECT_NE(proof.phase, "rating");
+}
+
+TEST_F(CatalogServiceTest, LightroomMissingCollectionMemberIsAddedToTheSameSetOnResume)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = (root / "online.png").string();
+    std::filesystem::copy_file(png_fixture_path(), original);
+    const auto source = (root / "membership.lrcat").string();
+    make_lightroom(source, original);
+    const QString connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(source));
+        ASSERT_TRUE(db.open());
+        QSqlQuery q(db);
+        ASSERT_TRUE(q.exec(
+            "CREATE TABLE AgLibraryCollection(id_local INTEGER,name TEXT,parent INTEGER,creationId TEXT)"));
+        ASSERT_TRUE(q.exec("INSERT INTO AgLibraryCollection VALUES(10,'Both',NULL,'collection')"));
+        ASSERT_TRUE(q.exec(
+            "CREATE TABLE AgLibraryCollectionImage(collection INTEGER,image INTEGER,positionInCollection TEXT)"));
+        ASSERT_TRUE(q.exec("INSERT INTO AgLibraryCollectionImage VALUES(10,1,'a'),(10,2,'b')"));
+    }
+    QSqlDatabase::removeDatabase(connection);
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    auto first = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(first);
+    const auto set_id = first.value().collections.front().set_id;
+    ASSERT_TRUE(set_id);
+    EXPECT_EQ(first.value().collections.front().pending_photo_ids, std::vector<std::string>{"2"});
+    EXPECT_EQ(first.value().collections.front().imported_members, 1U);
+    QImage second(24, 16, QImage::Format_RGB888);
+    second.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    second.fill(Qt::blue);
+    ASSERT_TRUE(second.save(QString::fromStdString((root / "missing.png").string()), "PNG"));
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    request.resume = true;
+    request.expected_source_sha256 = sha256_file_hex(source).value();
+    auto second_run = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(second_run);
+    ASSERT_EQ(second_run.value().collections.size(), 1U);
+    EXPECT_EQ(second_run.value().collections.front().set_id, set_id);
+    EXPECT_TRUE(second_run.value().collections.front().pending_photo_ids.empty());
+    EXPECT_EQ(second_run.value().collections.front().imported_members, 2U);
+    auto third = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(third);
+    const auto sets = service->library().list_library_sets().value();
+    ASSERT_EQ(sets.size(), 1U);
+    EXPECT_EQ(sets.front().id, *set_id);
+    EXPECT_EQ(sets.front().asset_count, 2U);
+    LibraryQuery query;
+    query.collection_id = *set_id;
+    EXPECT_EQ(service->library().list_assets(query).value().size(), 2U);
+    ASSERT_TRUE(service->library().rename_library_set(*set_id, "User edit"));
+    auto conflict = service->conversion().convert_foreign_catalog(request);
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(service->library().find_library_set(*set_id).value()->name, "User edit");
+    EXPECT_EQ(service->library().find_library_set(*set_id).value()->asset_count, 2U);
+    service.reset();
+    database_path = (root / "subset.sqlite").string();
+    ASSERT_TRUE(open_service(true));
+    request.resume = false;
+    request.foreign_ids = {"1"};
+    auto subset = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(subset);
+    ASSERT_EQ(subset.value().collections.size(), 1U);
+    EXPECT_TRUE(subset.value().collections.front().pending_photo_ids.empty());
+    EXPECT_NE(std::find(subset.value().collections.front().reasons.begin(),
+                        subset.value().collections.front().reasons.end(),
+                        "partial_selection_membership"),
+              subset.value().collections.front().reasons.end());
+    request.resume = true;
+    auto repeated = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(repeated);
+    EXPECT_EQ(service->library().list_assets().value().size(), 1U);
+    EXPECT_EQ(repeated.value().collections.front().imported_members, 1U);
+}
+
+TEST_F(CatalogServiceTest, LightroomSchema20MigrationRetainsWideJournalRevisions)
+{
+    ASSERT_TRUE(open_service(true));
+    service.reset();
+    const QString connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(db.open());
+        QSqlQuery q(db);
+        ASSERT_TRUE(q.exec("UPDATE schema_info SET revision=10000000000 WHERE id=1"));
+    }
+    QSqlDatabase::removeDatabase(connection);
+    ASSERT_TRUE(open_service(false));
+    const auto source = (root / "wide.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    const auto hash = sha256_file_hex(source).value();
+    ASSERT_TRUE(sqlite_repository->archive_foreign_catalog(source, hash, {}));
+    const auto revision = service->library().snapshot().value().revision;
+    ASSERT_TRUE(sqlite_repository->begin_foreign_conversion(hash, hash, revision));
+    ForeignCatalogItemReport row;
+    row.foreign_id = "1";
+    row.phase = "import";
+    ASSERT_TRUE(sqlite_repository->save_foreign_conversion_checkpoint(
+        hash, {"1", "import", {}, false, serialize_json(foreign_catalog_item_to_json(row))},
+        revision + 1));
+    EXPECT_EQ(sqlite_repository->load_foreign_conversion(hash).value()->catalog_revision,
+              revision + 2);
+    service.reset();
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(db.open());
+        QSqlQuery q(db);
+        ASSERT_TRUE(q.exec("DROP TABLE foreign_conversion_commit"));
+        ASSERT_TRUE(q.exec("UPDATE schema_info SET schema_version=20 WHERE id=1"));
+    }
+    QSqlDatabase::removeDatabase(connection);
+    ASSERT_TRUE(open_service(false));
+    EXPECT_EQ(service->library().snapshot().value().schema_version, kCatalogSchemaVersion);
+    const auto journal = sqlite_repository->load_foreign_conversion(hash).value();
+    ASSERT_TRUE(journal);
+    EXPECT_EQ(journal->catalog_revision, revision + 2);
+    EXPECT_TRUE(journal->commits.empty());
+    EXPECT_EQ(journal->records.size(), 1U);
+}
+
+TEST_F(CatalogServiceTest, LightroomExceptionalStageClosesBindingWithoutTaggingLaterWrites)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = (root / "exception.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    const auto hash = sha256_file_hex(source).value();
+    ASSERT_TRUE(sqlite_repository->archive_foreign_catalog(source, hash, {}));
+    ASSERT_TRUE(sqlite_repository->begin_foreign_conversion(
+        hash, hash, sqlite_repository->snapshot().value().revision));
+    auto failed = sqlite_repository->run_foreign_conversion_stage(
+        hash, {"1", "import", {}, false, ""}, sqlite_repository->snapshot().value().revision,
+        [] { throw std::runtime_error("injected stage exception"); });
+    ASSERT_FALSE(failed);
+    EXPECT_EQ(failed.error().context.at("detail"), "injected stage exception");
+    EXPECT_FALSE(sqlite_repository->snapshot());
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    auto journal = sqlite_repository->load_foreign_conversion(hash).value();
+    ASSERT_TRUE(journal);
+    EXPECT_TRUE(journal->commits.empty());
+    EXPECT_LT(journal->catalog_revision, service->library().snapshot().value().revision);
+}
 
 TEST_F(CatalogServiceTest, LightroomVirtualCopiesDoNotConsumeOriginalIdentity)
 {
@@ -772,6 +1142,7 @@ TEST_F(CatalogServiceTest, LightroomSchema18UpgradesAndPreservesArchiveThroughBa
         db.setDatabaseName(QString::fromStdString(database_path));
         ASSERT_TRUE(db.open());
         QSqlQuery q(db);
+        ASSERT_TRUE(q.exec("DROP TABLE foreign_conversion_commit"));
         ASSERT_TRUE(q.exec("DROP TABLE foreign_conversion_record"));
         ASSERT_TRUE(q.exec("DROP TABLE foreign_conversion"));
         ASSERT_TRUE(q.exec("DROP TABLE foreign_catalog_chunk"));

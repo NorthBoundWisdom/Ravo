@@ -105,6 +105,7 @@ struct ForeignCatalogCollectionReport
     std::string name;
     std::vector<std::string> reasons;
     std::size_t imported_members = 0;
+    std::vector<std::string> pending_photo_ids;
 };
 [[nodiscard]] JsonValue
 foreign_catalog_collection_to_json(const ForeignCatalogCollectionReport &item);

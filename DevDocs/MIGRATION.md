@@ -1,5 +1,10 @@
 # Ravo Migration Policy
 
+2026-10-10: ADR-0167's schema 21 extension binds actual business revisions to
+conversion commit proofs and reconciles pending selected collection members.
+Unproven photo-stage completion still requires explicit resolution; no global
+transaction runtime or whole-catalog writer lock is introduced.
+
 2026-10-10: [ADR-0167](adr/0167-foreign-conversion-checkpoints.md) admits native
 Lightroom per-record journals, conservative resume and cancellable source audits.
 Completed work is not replayed; ambiguous partial records remain explicit.

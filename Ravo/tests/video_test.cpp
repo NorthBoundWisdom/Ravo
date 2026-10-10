@@ -542,6 +542,7 @@ TEST(VideoCatalogTest, MigrationTransactionFailureAndSourceChangeAreExplicit)
         ASSERT_TRUE(connection.open());
         QSqlQuery query(connection);
         ASSERT_TRUE(query.exec("DROP TABLE asset_video"));
+        ASSERT_TRUE(query.exec("DROP TABLE foreign_conversion_commit"));
         ASSERT_TRUE(query.exec("DROP TABLE foreign_conversion_record"));
         ASSERT_TRUE(query.exec("DROP TABLE foreign_conversion"));
         ASSERT_TRUE(query.exec("DROP TABLE foreign_catalog_chunk"));

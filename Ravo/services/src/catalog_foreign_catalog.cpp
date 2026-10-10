@@ -725,6 +725,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             {"preview", JsonValue::number(std::to_string(static_cast<int>(request.preview)))},
             {"defer_previews", request.defer_previews}}));
     std::map<std::string, ForeignConversionCheckpoint> checkpoints;
+    std::int64_t confirmed_revision = snapshot.value().revision;
     bool journal_failed = false;
     if (request.resume)
     {
@@ -738,21 +739,45 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             journal.value()->catalog_revision != snapshot.value().revision)
             return make_error(ErrorCode::kConflict, "Catalog changed since conversion checkpoint",
                               {{"reason", "foreign_conversion_revision_conflict"}});
+        std::map<std::string, std::string> committed_targets;
+        for (const auto &proof : journal.value()->commits)
+            if (proof.target_id)
+            {
+                auto [position, inserted] =
+                    committed_targets.emplace(proof.foreign_id, *proof.target_id);
+                if (!inserted && position->second != *proof.target_id)
+                    return make_error(ErrorCode::kValidation,
+                                      "Conflicting conversion target proofs");
+            }
         for (auto &record : journal.value()->records)
         {
+            // Commit proofs survive an exit between business commit and receipt
+            // publication. They identify the affected item without replaying it.
+            if (const auto proof = committed_targets.find(record.foreign_id);
+                proof != committed_targets.end())
+            {
+                if (record.asset_id && record.asset_id != proof->second)
+                    return make_error(ErrorCode::kValidation, "Conversion target proof mismatch");
+                record.asset_id = proof->second;
+            }
             if (record.foreign_id.starts_with("collection/"))
             {
                 auto receipt = foreign_catalog_collection_from_json(record.receipt_json);
                 if (!receipt || "collection/" + receipt.value().foreign_id != record.foreign_id ||
-                    receipt.value().set_id != record.asset_id)
+                    (receipt.value().set_id && receipt.value().set_id != record.asset_id))
                     return make_error(ErrorCode::kValidation, "Corrupt collection checkpoint");
+                receipt.value().set_id = record.asset_id;
+                record.receipt_json =
+                    serialize_json(foreign_catalog_collection_to_json(receipt.value()));
                 checkpoints.emplace(record.foreign_id, std::move(record));
                 continue;
             }
             auto receipt = foreign_catalog_item_from_json(record.receipt_json);
             if (!receipt || receipt.value().foreign_id != record.foreign_id ||
-                receipt.value().asset_id != record.asset_id)
+                (receipt.value().asset_id && receipt.value().asset_id != record.asset_id))
                 return make_error(ErrorCode::kValidation, "Corrupt conversion checkpoint");
+            receipt.value().asset_id = record.asset_id;
+            record.receipt_json = serialize_json(foreign_catalog_item_to_json(receipt.value()));
             checkpoints.emplace(record.foreign_id, std::move(record));
         }
     }
@@ -761,22 +786,17 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
     {
         if (report.conversion_id.empty())
             return {};
-        auto current = repository_->snapshot();
-        if (!current)
-        {
-            journal_failed = true;
-            report.issues.push_back(current.error());
-            return current.error();
-        }
         ForeignConversionCheckpoint record{row.foreign_id, row.phase, row.asset_id, complete,
                                            serialize_json(foreign_catalog_item_to_json(row))};
         auto saved = repository_->save_foreign_conversion_checkpoint(report.conversion_id, record,
-                                                                     current.value().revision);
+                                                                     confirmed_revision);
         if (!saved)
         {
             journal_failed = true;
             report.issues.push_back(saved.error());
         }
+        else
+            ++confirmed_revision;
         return saved;
     };
     const auto publish_item = [&](ForeignCatalogItemReport row)
@@ -872,19 +892,15 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         if (!archived)
             return archived.error();
         report.source_archive = std::move(archived).value();
-        auto current = repository_->snapshot();
-        if (!current)
-        {
-            report.issues.push_back(current.error());
-            return report;
-        }
+        ++confirmed_revision; // Archive owner commits exactly one revision.
         auto begun = repository_->begin_foreign_conversion(
-            report.conversion_id, fixture.value().source_sha256, current.value().revision);
+            report.conversion_id, fixture.value().source_sha256, confirmed_revision);
         if (!begun)
         {
             report.issues.push_back(begun.error());
             return report;
         }
+        ++confirmed_revision;
     }
 
     for (const auto &item : fixture.value().items)
@@ -929,7 +945,32 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             active = request.cancellation.check();
             if (!active)
                 return active.error();
-            return action();
+            using Outcome = decltype(action());
+            Outcome outcome = make_error(ErrorCode::kIo, "Conversion stage was not started");
+            if (report.conversion_id.empty())
+                return action();
+            bool ran = false;
+            auto committed = repository_->run_foreign_conversion_stage(
+                report.conversion_id, {row.foreign_id, row.phase, row.asset_id, false, ""},
+                confirmed_revision,
+                [&]
+                {
+                    ran = true;
+                    outcome = action();
+                });
+            if (!committed)
+            {
+                journal_failed = true;
+                report.issues.push_back(committed.error());
+                return ran ? std::move(outcome) : Outcome(committed.error());
+            }
+            confirmed_revision = committed.value().revision;
+            if (committed.value().target_id)
+                row.asset_id = committed.value().target_id;
+            if (request.progress && outcome)
+                request.progress("committed:" + phase, report.items.size(),
+                                 fixture.value().items.size());
+            return outcome;
         };
         if (!still)
         {
@@ -987,31 +1028,9 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 auto version = library_service_.create_asset_version(master->second);
                 if (!version)
                     return version.error();
-                const auto &copy_id = version.value().version.id;
-                row.asset_id = copy_id;
-                const auto committed_error = [&](TaskError error)
-                {
-                    error.context.emplace("committed_asset_id", copy_id);
-                    return error;
-                };
-                // The ordinary version command clones user state. Foreign copies
-                // have independent source records, including explicitly empty state.
-                auto reset =
-                    mutate("copy_reset", [&] { return develop_service_.reset_recipe(copy_id); });
-                if (!reset)
-                    return committed_error(reset.error());
-                auto tags = mutate("copy_keywords_clear",
-                                   [&] { return metadata_service_.set_tags(copy_id, {}); });
-                if (!tags)
-                    return committed_error(tags.error());
-                auto metadata =
-                    mutate("copy_metadata_clear",
-                           [&] { return metadata_service_.set_writable_metadata(copy_id, {}); });
-                if (!metadata)
-                    return committed_error(metadata.error());
                 ImportItemResult result;
                 result.status = ImportItemStatus::kImported;
-                result.asset = std::move(metadata).value();
+                result.asset = version.value().version;
                 return result;
             });
         if (!imported)
@@ -1051,6 +1070,29 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         const auto asset_id = imported.value().asset->id;
         row.asset_id = asset_id;
         foreign_assets.emplace(item.foreign_id, asset_id);
+        if (item.master_id)
+        {
+            // Version creation is its own committed stage. Independent-copy
+            // clearing has separate provenance, without nested stage bindings.
+            auto reset =
+                mutate("copy_reset", [&] { return develop_service_.reset_recipe(asset_id); });
+            auto tags = reset ? mutate("copy_keywords_clear",
+                                       [&] { return metadata_service_.set_tags(asset_id, {}); }) :
+                                Result<AssetRecord>(reset.error());
+            auto metadata =
+                tags ? mutate("copy_metadata_clear", [&]
+                              { return metadata_service_.set_writable_metadata(asset_id, {}); }) :
+                       Result<AssetRecord>(tags.error());
+            if (!metadata)
+            {
+                row.reasons.push_back("copy_initialization_failed");
+                report.cancelled |= metadata.error().code == ErrorCode::kCancelled;
+                publish_item(std::move(row));
+                continue;
+            }
+            imported.value().asset = metadata.value();
+        }
+
         add_mapped(row, "original");
         if (item.master_id)
             add_mapped(row, "virtual_copy");
@@ -1360,10 +1402,18 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         if (const auto previous = checkpoints.find(record_id); previous != checkpoints.end())
         {
             row = foreign_catalog_collection_from_json(previous->second.receipt_json).value();
-            if (!previous->second.complete)
-                row.reasons.push_back("incomplete_conversion_requires_resolution");
-            report.collections.push_back(std::move(row));
-            continue;
+            const bool pending =
+                !row.pending_photo_ids.empty() ||
+                std::any_of(row.reasons.begin(), row.reasons.end(), [](const auto &reason)
+                            { return reason.starts_with("member_not_imported:"); });
+            if (previous->second.complete && !pending)
+            {
+                report.collections.push_back(std::move(row));
+                continue;
+            }
+            row.reasons.clear();
+            row.pending_photo_ids.clear();
+            row.name = collection.name;
         }
         auto parent = collection.parent_id;
         if (parent && *parent != "0")
@@ -1395,7 +1445,10 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 }
                 const auto found = foreign_assets.find(id);
                 if (found == foreign_assets.end())
+                {
                     row.reasons.push_back("member_not_imported:" + id);
+                    row.pending_photo_ids.push_back(id);
+                }
                 else
                     members.push_back(found->second);
             }
@@ -1411,14 +1464,14 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             {
                 if (report.conversion_id.empty())
                     return {};
-                auto current = repository_->snapshot();
-                if (!current)
-                    return current.error();
-                return repository_->save_foreign_conversion_checkpoint(
+                auto saved = repository_->save_foreign_conversion_checkpoint(
                     report.conversion_id,
                     {record_id, complete ? "complete" : "collection", row.set_id, complete,
                      serialize_json(foreign_catalog_collection_to_json(row))},
-                    current.value().revision);
+                    confirmed_revision);
+                if (saved)
+                    ++confirmed_revision;
+                return saved;
             };
             auto started = save_collection(false);
             if (!started)
@@ -1429,16 +1482,51 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 report.collections.push_back(std::move(row));
                 continue;
             }
-            auto created = library_service_.create_library_set(LibrarySetKind::kManual, row.name,
-                                                               std::nullopt, members);
+            Result<LibrarySetMutation> created =
+                make_error(ErrorCode::kIo, "Collection stage was not started");
+            const auto action = [&]
+            {
+                created = row.set_id ?
+                              library_service_.add_library_set_members(*row.set_id, members,
+                                                                       confirmed_revision) :
+                              library_service_.create_library_set(LibrarySetKind::kManual, row.name,
+                                                                  std::nullopt, members,
+                                                                  confirmed_revision);
+            };
+            if (report.conversion_id.empty())
+                action();
+            else
+            {
+                auto committed = repository_->run_foreign_conversion_stage(
+                    report.conversion_id, {record_id, "collection", row.set_id, false, ""},
+                    confirmed_revision, action);
+                if (!committed)
+                {
+                    journal_failed = true;
+                    report.issues.push_back(committed.error());
+                }
+                else
+                {
+                    confirmed_revision = committed.value().revision;
+                    if (committed.value().target_id)
+                        row.set_id = committed.value().target_id;
+                    if (request.progress && created)
+                        request.progress("committed:collection", report.collections.size(),
+                                         fixture.value().collections.size());
+                }
+            }
             if (!created)
                 row.reasons.push_back("collection_create_failed:" + created.error().message);
             else
             {
                 row.set_id = created.value().set.id;
-                row.imported_members = members.size();
+                row.imported_members = static_cast<std::size_t>(created.value().set.asset_count);
             }
-            auto saved = save_collection(static_cast<bool>(created));
+            auto saved =
+                journal_failed ?
+                    Result<void>(make_error(ErrorCode::kConflict,
+                                            "Conversion journal is no longer writable")) :
+                    save_collection(static_cast<bool>(created) && row.pending_photo_ids.empty());
             if (!saved)
             {
                 journal_failed = true;

@@ -79,5 +79,13 @@ struct ForeignConversionJournal
     std::string source_sha256;
     std::int64_t catalog_revision = 0;
     std::vector<ForeignConversionCheckpoint> records;
+    struct Commit
+    {
+        std::string foreign_id;
+        std::string phase;
+        std::optional<std::string> target_id;
+        std::int64_t revision = 0;
+    };
+    std::vector<Commit> commits;
 };
 } // namespace ravo

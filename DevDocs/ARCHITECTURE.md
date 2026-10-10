@@ -126,11 +126,27 @@ Services own copies, review/keywords, named history snapshots and static sets.
 Explicit longest-prefix import mappings do not fall back to unavailable paths.
 Unsupported groups remain explicit omissions. Cancellation retains completed
 destination items; archive cancellation rolls back metadata/chunks/revision.
-Schema 20 journals per-record phases and receipts with catalog revisions.
+Schema 20 journals per-record phases and receipts. Schema 21 records business
+commit proofs and advances the confirmed task revision in each business SQL
+transaction through a connection-private TEMP binding. Other connections cannot
+inherit it; unexplained revision changes reject further writes. Receipt updates
+use the confirmed task head, never a newly observed catalog revision. Stage
+binding adds no enclosing transaction around preparation or recovery publication;
+source archival retains its separate bounded chunk transaction.
 Resume skips complete records and continues untouched work; ambiguous partial
-records remain blocked, never replayed. Final source audit is cancellable and
+photos remain blocked, never replayed; proven targets survive an exit before
+receipt publication. Pending collection members reconcile into the original
+set by guarded additive membership, with excluded selections kept distinct.
+Final source audit is cancellable and
 returns explicit per-source completion/errors without discarding committed IDs.
 No new thread, runtime or renderer is introduced.
+
+Single-photo review commands use the existing SQLite review transaction owner
+with field patches. Review data and revision commit or roll back together;
+unmodified fields are not rewritten. Pick/Reject exclusion remains explicit,
+and recovery publication follows the durable database commit.
+Snapshot creation and label changes also commit their data and revision in the
+SQLite snapshot owner, so imported history cannot precede its revision/proof.
 
 Develop Recipe loads use independent session and load generations plus the
 captured asset/catalog identity. GUI selection, catalog replacement, external
