@@ -538,10 +538,11 @@ TEST(EngineFacadeTest, GpuSigmoidHuePreservesEveryChannelOrderAndTies)
     ASSERT_TRUE(engine);
     if (!gpu_available(engine.value()))
         GTEST_SKIP() << "GPU adapter is unavailable";
-    auto input = make_preview_working(9, 1);
+    auto input = make_preview_working(12, 1);
     input.rgb = {0.05F, 0.25F, 0.95F, 0.05F, 0.95F, 0.25F, 0.25F, 0.05F, 0.95F,
                  0.25F, 0.95F, 0.05F, 0.95F, 0.05F, 0.25F, 0.95F, 0.25F, 0.05F,
-                 0.25F, 0.25F, 0.25F, 0.05F, 0.05F, 0.95F, 0.95F, 0.25F, 0.25F};
+                 0.25F, 0.25F, 0.25F, 0.05F, 0.05F, 0.95F, 0.95F, 0.25F, 0.25F,
+                 0.95F, 0.95F, 0.05F, 0.95F, 0.05F, 0.95F, 0.05F, 0.95F, 0.95F};
     auto gpu = GpuAdapter::try_create();
     ASSERT_TRUE(gpu);
     for (const double preservation : {0.0, 0.5, 1.0})

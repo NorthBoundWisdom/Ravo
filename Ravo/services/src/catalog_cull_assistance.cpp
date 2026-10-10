@@ -32,6 +32,14 @@
 namespace ravo
 {
 
+Result<void> CullService::check_analysis_thread() const
+{
+    if (std::this_thread::get_id() != owner_thread_)
+        return make_error(ErrorCode::kValidation, "Cull analysis requires the catalog owner thread",
+                          {{"reason", "catalog_owner_thread_required"}});
+    return {};
+}
+
 CullService::CullService(const std::unique_ptr<CatalogRepository> &repository,
                          ImportService &import_service, LibraryService &library_service,
                          RecoveryService &recovery_service) noexcept
@@ -77,6 +85,8 @@ namespace
 Result<ExactDuplicateReport>
 CullService::find_exact_duplicate_groups(const ExactDuplicateRequest &request) const
 {
+    if (auto owner = check_analysis_thread(); !owner)
+        return owner.error();
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
 
@@ -122,9 +132,18 @@ CullService::find_exact_duplicate_groups(const ExactDuplicateRequest &request) c
             report.skipped.push_back(std::move(skip));
             continue;
         }
-        auto digest = sha256_file_hex(location.value().path);
+        const auto progress = [&](std::uint64_t completed, std::uint64_t total)
+        {
+            if (request.hash_progress)
+                request.hash_progress(asset.id, completed, total);
+        };
+        auto digest = sha256_file_hex(
+            location.value().path, request.cancellation,
+            request.hash_progress ? progress : std::function<void(std::uint64_t, std::uint64_t)>{});
         if (!digest)
         {
+            if (digest.error().code == ErrorCode::kCancelled)
+                return digest.error();
             ExactDuplicateSkip skip;
             skip.asset_id = asset.id;
             skip.reason = "hash_failed";
@@ -206,6 +225,8 @@ CullService::find_exact_duplicate_groups(const ExactDuplicateRequest &request) c
 Result<BurstProposeReport>
 CullService::propose_burst_groups(const BurstProposeRequest &request) const
 {
+    if (auto owner = check_analysis_thread(); !owner)
+        return owner.error();
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
 
@@ -390,6 +411,8 @@ CullService::accept_burst_group_proposal(const BurstAcceptRequest &request)
 Result<NearDuplicateReport>
 CullService::find_near_duplicate_groups(const NearDuplicateRequest &request) const
 {
+    if (auto owner = check_analysis_thread(); !owner)
+        return owner.error();
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
 

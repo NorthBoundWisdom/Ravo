@@ -81,6 +81,8 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     auto valid = validate_library_page_request(request);
     if (!valid)
         return valid.error();
+    if (auto active = request.cancellation.check(); !active)
+        return active.error();
     std::optional<std::int64_t> anchor_revision;
     if (request.around_asset_id)
     {
@@ -95,6 +97,28 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     append_library_query_predicates(request.query, predicates, bindings);
     if (request.additional_query)
         append_library_query_predicates(*request.additional_query, predicates, bindings);
+    if (request.candidate_asset_ids)
+    {
+        // Connection-private scratch state; one bound ID per insert avoids the
+        // SQLite variable limit for large candidate sets. Never persisted.
+        QSqlQuery candidates(impl_->database);
+        if (!candidates.exec(
+                QStringLiteral("CREATE TEMP TABLE IF NOT EXISTS ravo_library_candidates "
+                               "(id TEXT PRIMARY KEY) WITHOUT ROWID")) ||
+            !candidates.exec(QStringLiteral("DELETE FROM ravo_library_candidates")))
+            return map_sql_error(candidates, "library_candidates_prepare");
+        candidates.prepare(
+            QStringLiteral("INSERT OR IGNORE INTO ravo_library_candidates VALUES (?)"));
+        for (const auto &id : *request.candidate_asset_ids)
+        {
+            if (auto active = request.cancellation.check(); !active)
+                return active.error();
+            candidates.bindValue(0, qstring_from_utf8(id));
+            if (!candidates.exec())
+                return map_sql_error(candidates, "library_candidates_insert");
+        }
+        predicates.push_back(QStringLiteral("a.id IN (SELECT id FROM ravo_library_candidates)"));
+    }
     if (request.collapse_stacks)
     {
         predicates.push_back(
@@ -244,8 +268,13 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
         predicates.empty() ? QString{} :
                              QStringLiteral(" WHERE ") + predicates.join(QStringLiteral(" AND "));
     QSqlQuery page_query(impl_->database);
-    page_query.prepare(QString::fromUtf8(kAssetPageSelect) + page_where +
-                       QStringLiteral(" ORDER BY ") + order.join(QStringLiteral(", ")) +
+    const auto projection =
+        request.selection_only ?
+            QStringLiteral("SELECT a.id, a.media_type, a.import_state, a.version_ordinal "
+                           "FROM asset a LEFT JOIN asset_metadata m ON m.asset_id = a.id") :
+            QString::fromUtf8(kAssetPageSelect);
+    page_query.prepare(projection + page_where + QStringLiteral(" ORDER BY ") +
+                       order.join(QStringLiteral(", ")) +
                        (request.after_asset_id ? QStringLiteral(" LIMIT ?") :
                                                  QStringLiteral(" LIMIT ? OFFSET ?")));
     for (const auto &binding : bindings)
@@ -258,10 +287,27 @@ SqliteCatalogRepository::list_assets_page(const LibraryPageRequest &request) con
     std::vector<AssetRecord> assets;
     assets.reserve(request.limit);
     while (page_query.next())
-        assets.push_back(read_asset(page_query));
-    auto attached = attach_asset_fields(impl_->database, assets);
-    if (!attached)
-        return attached.error();
+    {
+        if (auto active = request.cancellation.check(); !active)
+            return active.error();
+        if (request.selection_only)
+        {
+            AssetRecord asset;
+            asset.id = utf8_from_qstring(page_query.value(0).toString());
+            asset.media_type = utf8_from_qstring(page_query.value(1).toString());
+            asset.import_state = utf8_from_qstring(page_query.value(2).toString());
+            asset.version_ordinal = page_query.value(3).toInt();
+            assets.push_back(std::move(asset));
+        }
+        else
+            assets.push_back(read_asset(page_query));
+    }
+    if (!request.selection_only)
+    {
+        auto attached = attach_asset_fields(impl_->database, assets);
+        if (!attached)
+            return attached.error();
+    }
 
     if (request.around_asset_id)
     {

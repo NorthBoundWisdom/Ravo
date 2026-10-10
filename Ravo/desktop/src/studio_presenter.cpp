@@ -123,7 +123,8 @@ void fill_thumbnail_maps(CatalogService &service, CatalogListing &listing)
 
 CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery &query,
                                     const bool collapse_stacks,
-                                    const std::optional<std::string> &anchor = std::nullopt)
+                                    const std::optional<std::string> &anchor = std::nullopt,
+                                    std::shared_ptr<const std::vector<std::string>> candidates = {})
 {
     CatalogListing listing;
     if (service == nullptr)
@@ -137,6 +138,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
     }
     LibraryPageRequest page_request;
     page_request.query = query;
+    page_request.candidate_asset_ids = std::move(candidates);
     page_request.collapse_stacks = collapse_stacks;
     page_request.around_asset_id = anchor;
     auto page = service->library().list_assets_page(page_request);
@@ -192,6 +194,8 @@ StudioPresenter::~StudioPresenter()
         backup_schedule_timer_->stop();
     }
     static_cast<void>(shutdown_.cancel("window_closed"));
+    invalidateCullFilter();
+    cancelSelectionResolution();
     static_cast<void>(thumbnail_work_.cancel("window_closed"));
     static_cast<void>(catalog_operation_.cancel("window_closed"));
     if (import_workspace_)
@@ -317,7 +321,7 @@ bool StudioPresenter::defaultCatalogExists() const
 
 bool StudioPresenter::busy() const noexcept
 {
-    return busy_;
+    return busy_ || selection_resolution_pending_;
 }
 
 QString StudioPresenter::statusText() const
@@ -337,7 +341,13 @@ QString StudioPresenter::selectedAssetId() const
 
 int StudioPresenter::selectedIndex() const
 {
-    return assets_.indexOf(selected_asset_id_);
+    const auto resident = assets_.indexOf(selected_asset_id_);
+    if (resident >= 0)
+        return resident;
+    const auto found = std::find_if(selection_snapshot_.begin(), selection_snapshot_.end(),
+                                    [this](const auto &asset)
+                                    { return asset.id == utf8_from_qstring(selected_asset_id_); });
+    return found == selection_snapshot_.end() ? -1 : static_cast<int>(found->row);
 }
 
 int StudioPresenter::selectedCount() const noexcept
@@ -387,11 +397,12 @@ bool StudioPresenter::canDeleteFromDisk() const
     {
         return false;
     }
-    for (const auto &id : selected_ids_)
+    if (selection_resolution_pending_ || selection_snapshot_.size() != selected_ids_.size())
+        return false;
+    for (const auto &asset : selection_snapshot_)
     {
-        const auto asset = assets_.assetById(qstring_from_utf8(id));
-        if (!asset || asset->import_state == kImportStateMissing ||
-            asset->version_ordinal != kAssetVersionOrdinalPrimary)
+        if (asset.import_state == kImportStateMissing ||
+            asset.version_ordinal != kAssetVersionOrdinalPrimary)
         {
             return false;
         }
@@ -477,6 +488,7 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
                                   const std::size_t total, const bool has_more,
                                   const std::size_t offset)
 {
+    cancelSelectionResolution();
     // Clear old listing demand before modelReset can synchronously admit the
     // replacement delegates' requests. Clearing it afterwards strands them.
     resetThumbnailDemand();
@@ -500,18 +512,8 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
         assets_.setPage(offset, std::move(assets), std::move(thumbnail_urls),
                         std::move(thumbnail_states), total);
     }
-    for (auto it = thumbnail_base_paths_.begin(); it != thumbnail_base_paths_.end();)
-    {
-        if (!assets_.assetById(qstring_from_utf8(it->first)))
-        {
-            thumbnail_base_profiles_.erase(it->first);
-            it = thumbnail_base_paths_.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
+    std::erase_if(thumbnail_bases_, [this](const auto &entry)
+                  { return assets_.indexOf(qstring_from_utf8(entry.first)) < 0; });
     for (const auto &[id, url] : incoming_thumbs)
     {
         if (!url.isLocalFile() || !assets_.assetById(qstring_from_utf8(id)))
@@ -553,6 +555,7 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
         selected_asset_id_.clear();
         selection_anchor_id_.clear();
         selected_ids_.clear();
+        selection_snapshot_.clear();
         assets_.setSelectedIds({});
         inspect_.clear_displayed_preview();
         inspect_.setPreviewLoading(false);
@@ -730,7 +733,7 @@ void StudioPresenter::selectLibrarySet(const QString &set_id)
 
 void StudioPresenter::createManualLibrarySet(const QString &name)
 {
-    if (catalog_path_.isEmpty())
+    if (catalog_path_.isEmpty() || selection_resolution_pending_)
         return;
     const auto ids = selected_asset_ids();
     const auto revision = observed_catalog_revision_;
@@ -872,7 +875,7 @@ void StudioPresenter::deleteLibrarySet(const QString &set_id)
 
 void StudioPresenter::addSelectionToLibrarySet(const QString &set_id)
 {
-    if (catalog_path_.isEmpty() || selected_ids_.empty())
+    if (catalog_path_.isEmpty() || selected_ids_.empty() || selection_resolution_pending_)
         return;
     const auto ids = selected_asset_ids();
     const auto revision = observed_catalog_revision_;
@@ -903,7 +906,7 @@ void StudioPresenter::addSelectionToLibrarySet(const QString &set_id)
 
 void StudioPresenter::removeSelectionFromLibrarySet(const QString &set_id)
 {
-    if (catalog_path_.isEmpty() || selected_ids_.empty())
+    if (catalog_path_.isEmpty() || selected_ids_.empty() || selection_resolution_pending_)
         return;
     const auto ids = selected_asset_ids();
     const auto revision = observed_catalog_revision_;
@@ -934,6 +937,9 @@ void StudioPresenter::removeSelectionFromLibrarySet(const QString &set_id)
 
 void StudioPresenter::reloadVisibleAssets()
 {
+    cancelSelectionResolution();
+    std::erase_if(selection_snapshot_,
+                  [this](const auto &asset) { return !selected_ids_.contains(asset.id); });
     pending_library_selection_.reset();
     if (catalog_path_.isEmpty())
     {
@@ -945,11 +951,13 @@ void StudioPresenter::reloadVisibleAssets()
     const auto cancellation = library_reload_cancel_.token();
     const auto generation = ++library_query_generation_;
     executor_.post(
-        [this, query = current_query(), collapse = collapse_stacks_, cancellation, generation]()
+        [this, query = current_query(), collapse = collapse_stacks_, cancellation, generation,
+         candidates = cull_suggestion_asset_ids_]()
         {
             if (cancellation.is_cancellation_requested())
                 return;
-            auto listing = load_catalog_listing(service_.get(), query, collapse);
+            auto listing =
+                load_catalog_listing(service_.get(), query, collapse, std::nullopt, candidates);
             QMetaObject::invokeMethod(
                 this,
                 [this, listing = std::move(listing), cancellation, generation]() mutable
@@ -979,21 +987,7 @@ void StudioPresenter::reloadVisibleAssets()
                         library_.apply(std::move(listing.capture_facets).value(),
                                        std::move(listing.location_facets).value());
                     auto assets = std::move(listing.assets).value();
-                    if (cull_suggestion_filter_ != QStringLiteral("none"))
-                    {
-                        std::vector<AssetRecord> filtered;
-                        filtered.reserve(assets.size());
-                        for (auto &asset : assets)
-                        {
-                            if (cull_suggestion_asset_ids_.count(asset.id) > 0U)
-                            {
-                                filtered.push_back(std::move(asset));
-                            }
-                        }
-                        listing.total = filtered.size();
-                        listing.has_more = false;
-                        assets = std::move(filtered);
-                    }
+                    observed_catalog_revision_ = listing.revision;
                     applyAssets(std::move(assets), true, std::move(listing.thumbnail_urls),
                                 std::move(listing.thumbnail_states), listing.total,
                                 listing.has_more);
@@ -1038,6 +1032,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
     }
     const auto generation = library_query_generation_;
     const auto query = current_query();
+    const auto candidates = cull_suggestion_asset_ids_;
     const auto known_total = library_total_;
     const auto collapse = collapse_stacks_;
     library_page_in_flight_ = true;
@@ -1045,7 +1040,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
     emit libraryWorkChanged();
     executor_.post(
         [this, offset, generation, query, cursor = std::move(cursor), known_total, sequential,
-         collapse]
+         collapse, candidates]
         {
             Result<LibraryPage> page = make_error(ErrorCode::kIo, "Catalog session is closed");
             CatalogListing listing;
@@ -1053,6 +1048,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
             {
                 LibraryPageRequest request;
                 request.query = query;
+                request.candidate_asset_ids = candidates;
                 request.collapse_stacks = collapse;
                 request.offset = offset;
                 request.after_asset_id = cursor;
@@ -1085,6 +1081,8 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
                     assets_.setPage(page.value().offset, std::move(listing.assets).value(),
                                     std::move(listing.thumbnail_urls),
                                     std::move(listing.thumbnail_states), page.value().total);
+                    std::erase_if(thumbnail_bases_, [this](const auto &entry)
+                                  { return assets_.indexOf(qstring_from_utf8(entry.first)) < 0; });
                     for (const auto &[id, url] : incoming_thumbs)
                     {
                         if (url.isLocalFile() && assets_.assetById(qstring_from_utf8(id)))
@@ -1140,8 +1138,10 @@ void StudioPresenter::pollCatalogRevision()
     const auto collapse = collapse_stacks_;
     const auto session_generation = develop_presenter_->catalog_session_generation_;
     const auto load_generation = develop_presenter_->recipe_load_generation_;
+    const auto query_generation = library_query_generation_;
     executor_.post(
-        [this, query, selected, observed, collapse, session_generation, load_generation]()
+        [this, query, selected, observed, collapse, session_generation, load_generation,
+         query_generation, candidates = cull_suggestion_asset_ids_]()
         {
             Result<CatalogSnapshot> snapshot =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1156,7 +1156,8 @@ void StudioPresenter::pollCatalogRevision()
                 if (snapshot && snapshot.value().revision != observed)
                 {
                     changed = true;
-                    listing = load_catalog_listing(service_.get(), query, collapse);
+                    listing = load_catalog_listing(service_.get(), query, collapse, std::nullopt,
+                                                   candidates);
                     if (!selected.empty())
                     {
                         recipe = service_->develop().load_recipe(selected);
@@ -1168,10 +1169,11 @@ void StudioPresenter::pollCatalogRevision()
                 this,
                 [this, snapshot = std::move(snapshot), listing = std::move(listing),
                  recipe = std::move(recipe), history = std::move(history), selected, changed,
-                 session_generation, load_generation]() mutable
+                 session_generation, load_generation, query_generation]() mutable
                 {
                     catalog_poll_in_flight_ = false;
-                    if (session_generation != develop_presenter_->catalog_session_generation_ ||
+                    if (query_generation != library_query_generation_ ||
+                        session_generation != develop_presenter_->catalog_session_generation_ ||
                         load_generation != develop_presenter_->recipe_load_generation_)
                         return;
                     if (catalog_path_.isEmpty() || busy_ || import_workspace_->importWorkActive() ||
@@ -1262,6 +1264,10 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
         return;
     }
     persistLibraryPosition();
+    invalidateCullFilter();
+    cancelSelectionResolution();
+    static_cast<void>(library_reload_cancel_.cancel("catalog_replaced"));
+    ++library_query_generation_;
     setBusy(true);
     setError({});
     import_workspace_->closeImportPage();
@@ -1313,6 +1319,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                         setError(failure);
                         setStatus(QCoreApplication::translate("StudioPresenter", "Create failed."));
                         develop_presenter_->load_develop_for_selection();
+                        reloadVisibleAssets();
                         return;
                     }
                     library_.replaceQuery(initial_query);
@@ -1356,6 +1363,10 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
             QCoreApplication::translate("StudioPresenter", "Catalog path is not a local file."));
         return;
     }
+    invalidateCullFilter();
+    cancelSelectionResolution();
+    static_cast<void>(library_reload_cancel_.cancel("catalog_replaced"));
+    ++library_query_generation_;
     setBusy(true);
     setError({});
     import_workspace_->closeImportPage();
@@ -1375,6 +1386,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
         setBusy(false);
         setError(qstring_from_utf8(restored_query.error().message));
         develop_presenter_->load_develop_for_selection();
+        reloadVisibleAssets();
         return;
     }
     initial_query = std::move(restored_query).value();
@@ -1439,6 +1451,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                         setError(failure);
                         setStatus(QCoreApplication::translate("StudioPresenter", "Open failed."));
                         develop_presenter_->load_develop_for_selection();
+                        reloadVisibleAssets();
                         return;
                     }
                     library_.replaceQuery(initial_query);
@@ -1453,10 +1466,12 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                     develop_presenter_->reload_presets();
                     selected_asset_id_.clear();
                     selected_ids_.clear();
+                    selection_snapshot_.clear();
                     selection_anchor_id_.clear();
                     inspect_.clear_displayed_preview();
                     thumbnail_requests_.clear();
                     clear_thumbnail_presentation_cache();
+                    assets_.setAssets({});
                     emit catalogChanged();
                     emit selectionChanged();
                     inspect_.notifyPreviewChanged();

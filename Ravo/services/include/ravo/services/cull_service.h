@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "ravo/domain/types.h"
@@ -60,6 +61,8 @@ private:
     ImportService &import_service_;
     LibraryService &library_service_;
     RecoveryService &recovery_service_;
+    const std::thread::id owner_thread_{std::this_thread::get_id()};
+    [[nodiscard]] Result<void> check_analysis_thread() const;
 };
 
 } // namespace ravo

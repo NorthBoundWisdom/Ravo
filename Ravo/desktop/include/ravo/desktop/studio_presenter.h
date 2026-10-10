@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -60,6 +61,8 @@ namespace testing
 {
 class StudioImportTestControl;
 class StudioPipelineTestControl;
+class StudioLibraryTestControl;
+class StudioThumbnailTestControl;
 } // namespace testing
 
 struct StudioLibraryResume;
@@ -228,6 +231,10 @@ public:
                                               double strength = 0.35) const;
 
     [[nodiscard]] bool busy() const noexcept;
+    [[nodiscard]] bool selectionResolving() const noexcept
+    {
+        return selection_resolution_pending_;
+    }
     [[nodiscard]] QString statusText() const;
     [[nodiscard]] QString errorText() const;
     [[nodiscard]] QString selectedAssetId() const;
@@ -235,7 +242,9 @@ public:
     [[nodiscard]] int selectedCount() const noexcept;
     [[nodiscard]] bool selectionHasVideo() const noexcept
     {
-        return assets_.selectedContainsVideo();
+        return std::any_of(
+            selection_snapshot_.begin(), selection_snapshot_.end(), [this](const auto &asset)
+            { return selected_ids_.contains(asset.id) && is_video_media_type(asset.media_type); });
     }
     Q_INVOKABLE bool isAssetSelected(const QString &asset_id) const;
     [[nodiscard]] int selectedRating() const;
@@ -450,6 +459,8 @@ private:
     friend class StudioCommandController;
     friend class testing::StudioImportTestControl;
     friend class testing::StudioPipelineTestControl;
+    friend class testing::StudioLibraryTestControl;
+    friend class testing::StudioThumbnailTestControl;
     friend class StudioLiveSessionController;
 
     void setBusy(bool busy);
@@ -477,6 +488,11 @@ private:
     void apply_burst_compare_pair(const BurstComparePair &pair, bool preserve_inspect_roi);
     void request_burst_compare(BurstCompareStep step, bool preserve_inspect_roi);
     void reloadVisibleAssets();
+    void invalidateCullFilter();
+    void cancelSelectionResolution();
+    void resolveLibrarySelection(int first, int last, const QString &primary,
+                                 const QString &anchor = {});
+    [[nodiscard]] LibraryPageRequest currentPageRequest() const;
     void start_catalog_revision_watch(std::int64_t revision);
     void resetThumbnailDemand();
     void requestLibraryPage(std::size_t offset, std::optional<std::string> cursor, bool sequential);
@@ -553,7 +569,9 @@ private:
     FolderListModel folders_;
     LibrarySetListModel library_sets_;
     QString cull_suggestion_filter_{QStringLiteral("none")};
-    std::unordered_set<std::string> cull_suggestion_asset_ids_;
+    std::shared_ptr<const std::vector<std::string>> cull_suggestion_asset_ids_;
+    CancellationSource cull_filter_cancel_;
+    std::uint64_t cull_filter_generation_ = 0;
     StudioLibraryPresenter library_;
     QString catalog_path_;
     QString startup_catalog_path_;
@@ -595,6 +613,10 @@ private:
     QString selected_asset_id_;
     QString selection_anchor_id_;
     std::unordered_set<std::string> selected_ids_;
+    std::vector<LibrarySelectionAsset> selection_snapshot_;
+    CancellationSource selection_resolution_cancel_;
+    std::uint64_t selection_generation_ = 0;
+    bool selection_resolution_pending_ = false;
     QPointer<StudioDisplayPresentation> display_presentation_;
     QString browse_mode_{QStringLiteral("grid")};
     bool collapse_stacks_ = true;
@@ -623,8 +645,13 @@ private:
 
     std::uint64_t thumbnail_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_requests_;
-    std::unordered_map<std::string, QString> thumbnail_base_paths_;
-    std::unordered_map<std::string, ColorProfileState> thumbnail_base_profiles_;
+    struct ThumbnailBase
+    {
+        QString path;
+        ColorProfileState profile;
+        QString terminal_state;
+    };
+    std::unordered_map<std::string, ThumbnailBase> thumbnail_bases_;
     QString thumbnail_presented_root_;
 
     // Borrowed session/view slots and executors outlive the edit owner.

@@ -200,6 +200,8 @@ State resolve_state(const StudioPresenter &presenter, const Condition condition,
     case Condition::kSelection:
         if (!catalog_open)
             return {false, tr_command(QStringLiteral("Open a library first."))};
+        if (presenter.selectionResolving())
+            return {false, tr_command(QStringLiteral("Wait for library work to finish."))};
         return selection ? State{} :
                            State{false, tr_command(QStringLiteral("Select a photo first."))};
     case Condition::kReadySelection:

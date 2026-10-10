@@ -28,8 +28,13 @@ one desktop-owned deque bounded by the three resident pages; it is deduplicated,
 newer viewport demand leads older demand, and only one browse request at a time
 is submitted to the serial executor. Develop cancels that request token and
 retained demand resumes afterwards. Page eviction, catalog replacement, and
-close prevent a late result from updating the model. Selection protects its
-resident page and remains ID-based across eviction.
+close prevent a late result from updating the model. Selection remains ID-based
+across eviction. The 2026-10-10 correction removes selection-based page pinning:
+insertion protects the incoming page, and an ordered compact selection snapshot
+owns identity and command eligibility independently of the three display pages.
+Range/all selection resolves through the same revision-checked service query;
+Cull candidate intersections apply before count and paging. See the current
+[architecture](../ARCHITECTURE.md) for cancellation and publication ownership.
 
 The first exact loupe or Develop request may use the selected verified browse
 thumbnail as a loading-only presentation layer. The presenter seeds the

@@ -63,6 +63,22 @@ real-corpus quality remain separate native acceptance.
 under parallel Windows CI load. This is a setup budget, not a performance claim;
 page-resolution waits and unloaded-row/selection assertions retain their original
 contracts. Open failures report catalog-open, busy, visible-count and error state.
+Its range/all regressions also use 1,000 files, resolve rows 50–850 into 801
+ordered nonempty identities, verify the actual persisted tag batch and preserve
+selection through page eviction. Blocked-executor cases reject superseded query,
+selection and Cull-mode results. A duplicate pair only on rows 801/802 must still
+be listed; an empty burst result must remain empty until Clear Filters.
+`CullCandidatesConstrainCountPagesAnchorsAndSelectionBeforePaging` covers service
+intersection, large candidate sets beyond a single SQL parameter bound, rating,
+folder, collection, stacks, stale revision and cancellation. Cull analysis rejects
+a non-owner thread structurally; partial-hash callbacks verify cancellation
+inside the current file and unchanged source bytes.
+`StudioDisplayPresentationTest` covers cancellation before/during a held cache
+lock, terminal proxy/missing state across superseded presentation, synchronous
+Presenter notification and same-path/size/mtime source-content replacement.
+GPU contracts include all tied maximum-channel Sigmoid permutations and RCD
+edge pixels for all four Bayer patterns at odd/non-workgroup dimensions. A skipped
+GPU case is not GPU evidence.
 
 Lightroom import contracts construct SQLite catalogs with the vendor table
 relationships and verify source hashes, metadata after reopen, missing files,

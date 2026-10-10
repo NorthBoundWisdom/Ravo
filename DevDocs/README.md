@@ -32,7 +32,8 @@ The architecture and testing authorities cover:
   Import success/failure becomes idle only after final Gallery publication.
 - Gallery/Inspect/Develop ownership, preview scheduling, immutable CPU/GPU
   image publication, visible-thumbnail priority, bounded cache repair and shared
-  display-cache accounting, colour management, masks and revision-bound controls.
+  display-cache accounting, query-wide Cull intersections, revision-bound complete
+  selection snapshots, colour management, masks and revision-bound controls.
 - Video metadata, FFmpeg decoding, SDR frame artifacts, Qt Multimedia playback,
   mapped frame colour ranges and selection-bound teardown.
 - Settings navigation, per-user language and workspace layout, current-catalog

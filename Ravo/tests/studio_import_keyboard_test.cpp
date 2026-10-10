@@ -425,6 +425,7 @@ TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
     EXPECT_TRUE(controller.executeAction(action, QStringLiteral("keyboard"))
                     .value(QStringLiteral("accepted"))
                     .toBool());
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     EXPECT_EQ(presenter.selectedCount(), 2);
 
     // Import context: same command highlights candidates, does not grow Gallery selection.

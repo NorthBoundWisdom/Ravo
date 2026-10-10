@@ -932,6 +932,7 @@ TEST(StudioCommands, SelectAllShortcutSelectsLoadedPhotosAndYieldsToTextInput)
 
     const auto selected = controller.executeAction(action_id, QStringLiteral("keyboard"));
     EXPECT_TRUE(selected.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     EXPECT_EQ(presenter.selectedCount(), 3);
     EXPECT_EQ(presenter.selectedAssetId(), second_id);
     EXPECT_TRUE(presenter.isAssetSelected(first_id));
@@ -941,6 +942,7 @@ TEST(StudioCommands, SelectAllShortcutSelectsLoadedPhotosAndYieldsToTextInput)
     presenter.setBrowseMode(QStringLiteral("loupe"));
     const auto from_loupe = controller.executeAction(action_id, QStringLiteral("keyboard"));
     EXPECT_TRUE(from_loupe.value(QStringLiteral("accepted")).toBool());
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     EXPECT_EQ(presenter.selectedCount(), 3);
 
     controller.setTextInputActive(true);

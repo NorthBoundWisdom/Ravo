@@ -23,14 +23,15 @@ namespace
 {
 
 [[nodiscard]] DecodedRaw smooth_bayer(const std::uint32_t width = 64U,
-                                      const std::uint32_t height = 64U)
+                                      const std::uint32_t height = 64U,
+                                      const std::array<std::uint8_t, 4> pattern = {0U, 1U, 1U, 2U})
 {
     DecodedRaw raw;
     raw.width = width;
     raw.height = height;
     raw.cfa_width = 2U;
     raw.cfa_height = 2U;
-    raw.cfa_channels = {0U, 1U, 1U, 2U};
+    raw.cfa_channels.assign(pattern.begin(), pattern.end());
     raw.black_level = 0U;
     raw.white_level = 65535U;
     raw.has_as_shot_white_balance = true;
@@ -412,6 +413,31 @@ TEST(BayerDemosaicTest, GpuRcdWindowMatchesCpuGoldWhenAvailable)
     {
         EXPECT_NEAR(gpu_image.value().rgb[index], cpu.value().rgb[index], 2.0e-3F) << index;
     }
+}
+
+TEST(BayerDemosaicTest, GpuRcdPreservesEdgesForAllPatternsAndOddNonWorkgroupSizes)
+{
+    auto gpu = GpuAdapter::try_create();
+    if (!gpu)
+        GTEST_SKIP() << gpu.error().message;
+    const std::array<std::array<std::uint8_t, 4>, 4> patterns{
+        {{0, 1, 1, 2}, {1, 0, 2, 1}, {1, 2, 0, 1}, {2, 1, 1, 0}}};
+    for (const auto &pattern : patterns)
+        for (const auto dimensions : {std::pair{65U, 49U}, std::pair{70U, 54U}})
+        {
+            const auto raw = smooth_bayer(dimensions.first, dimensions.second, pattern);
+            const std::array<float, 4> wb{1.2F, 1.0F, 1.4F, 1.0F};
+            auto cpu = demosaic_bayer_window(raw, 0, 0, raw.width, raw.height, wb,
+                                             BayerDemosaicMode::kRcd, {});
+            auto actual = demosaic_bayer_window(raw, 0, 0, raw.width, raw.height, wb,
+                                                BayerDemosaicMode::kRcd, {}, gpu.value().get());
+            ASSERT_TRUE(cpu) << cpu.error().message;
+            ASSERT_TRUE(actual) << actual.error().message;
+            ASSERT_EQ(actual.value().rgb.size(), cpu.value().rgb.size());
+            for (std::size_t index = 0; index < cpu.value().rgb.size(); ++index)
+                EXPECT_NEAR(actual.value().rgb[index], cpu.value().rgb[index], 2.0e-3F)
+                    << "size=" << raw.width << "x" << raw.height << " channel=" << index;
+        }
 }
 
 TEST(BayerDemosaicTest, Mire1WindowMatchesFullFrameCropFloat)

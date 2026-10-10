@@ -35,6 +35,11 @@ public:
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query,
                                                                bool collapse_stacks) const;
     [[nodiscard]] Result<LibraryPage> list_assets_page(const LibraryPageRequest &request) const;
+    // Resolve [offset, offset + count) in the same listing, independently of
+    // display residency. A stale revision or cancellation publishes no snapshot.
+    [[nodiscard]] Result<std::vector<LibrarySelectionAsset>>
+    resolve_selection_ids(LibraryPageRequest request, std::size_t count,
+                          std::int64_t expected_revision) const;
     [[nodiscard]] Result<std::vector<FolderRecord>> list_folders() const;
     [[nodiscard]] Result<std::vector<LibrarySetRecord>> list_library_sets() const;
     [[nodiscard]] Result<std::optional<LibrarySetRecord>>

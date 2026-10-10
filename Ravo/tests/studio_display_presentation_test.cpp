@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
+#include <future>
 
 #include <QColor>
 #include <QColorSpace>
@@ -40,10 +41,141 @@
 
 namespace ravo
 {
+namespace testing
+{
+class StudioThumbnailTestControl
+{
+public:
+    static void remember(StudioPresenter &presenter, const QString &path, const QString &state)
+    {
+        presenter.remember_thumbnail_base("ast_terminal", path, {}, state);
+    }
+    static void reapply(StudioPresenter &presenter)
+    {
+        presenter.reapply_display_presentation_to_cached_thumbnails();
+    }
+    static bool block(StudioPresenter &presenter, std::shared_ptr<std::promise<void>> entered,
+                      std::shared_future<void> release)
+    {
+        return presenter.thumbnail_presentation_executor_.post(
+            [entered, release]
+            {
+                entered->set_value();
+                release.wait();
+            });
+    }
+};
+} // namespace testing
 namespace
 {
 using studio_test_support::ensure_qt_core;
 using studio_test_support::wait_until;
+
+TEST(StudioDisplayPresentationTest, CancelledPublicationDoesNotWaitForBusyLock)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    QLockFile lock(directory.filePath("publish.lock"));
+    ASSERT_TRUE(lock.tryLock());
+    StudioGalleryThumbnailCache cache;
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("closed"));
+    QElapsedTimer elapsed;
+    elapsed.start();
+    auto stopped = cache.publish(directory.path(), "cancelled", {}, false, cancelled.token());
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+    EXPECT_LT(elapsed.elapsed(), 250);
+    CancellationSource waiting;
+    auto result = std::async(
+        std::launch::async,
+        [&] { return cache.publish(directory.path(), "waiting", {}, false, waiting.token()); });
+    QThread::msleep(40);
+    ASSERT_TRUE(waiting.cancel("closed_during_lock"));
+    ASSERT_EQ(result.wait_for(std::chrono::milliseconds(250)), std::future_status::ready);
+    auto cancelled_wait = result.get();
+    ASSERT_FALSE(cancelled_wait);
+    EXPECT_EQ(cancelled_wait.error().code, ErrorCode::kCancelled);
+    EXPECT_FALSE(QFileInfo::exists(directory.filePath("waiting.png")));
+}
+
+TEST(StudioDisplayPresentationTest, ReapplyPreservesTerminalStateAndContentIdentity)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    QImage source(32, 24, QImage::Format_RGB888);
+    source.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    source.fill(Qt::red);
+    const auto path = directory.filePath("source.png");
+    ASSERT_TRUE(source.save(path));
+    StudioDisplayPresentation display;
+    ASSERT_TRUE(display.injectSyntheticMatrixForTesting());
+    StudioPresenter presenter;
+    presenter.bindDisplayPresentation(&display);
+    AssetRecord asset;
+    asset.id = "ast_terminal";
+    presenter.assets()->setAssets({asset});
+    std::size_t notifications = 0;
+    QObject::connect(&presenter, &StudioPresenter::thumbnailsChanged, &presenter,
+                     [&] { ++notifications; });
+    auto entered = std::make_shared<std::promise<void>>();
+    std::promise<void> release;
+    ASSERT_TRUE(testing::StudioThumbnailTestControl::block(presenter, entered,
+                                                           release.get_future().share()));
+    auto unblock = qScopeGuard([&] { release.set_value(); });
+    ASSERT_EQ(entered->get_future().wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    testing::StudioThumbnailTestControl::remember(presenter, path, "proxy");
+    EXPECT_EQ(presenter.assets()->thumbnailState(asset.id), "presenting");
+    EXPECT_GT(notifications, 0U);
+    testing::StudioThumbnailTestControl::reapply(presenter);
+    unblock.dismiss();
+    release.set_value();
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.assets()->thumbnailState(asset.id) == "proxy"; }));
+    const auto first_url =
+        presenter.assets()
+            ->data(presenter.assets()->index(0, 0), AssetListModel::ThumbnailUrlRole)
+            .toUrl();
+    QFile bytes(path);
+    ASSERT_TRUE(bytes.open(QIODevice::ReadOnly));
+    const auto original = bytes.readAll();
+    bytes.close();
+    const auto original_time = QFileInfo(path).lastModified();
+    source.fill(Qt::blue);
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    ASSERT_TRUE(buffer.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(source.save(&buffer, "PNG"));
+    // Equal-length PNG streams with harmless bytes after IEND isolate content
+    // identity from path, length and timestamp.
+    const auto equal_size = std::max(original.size(), encoded.size()) + 32;
+    ASSERT_TRUE(bytes.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(bytes.write(original + QByteArray(equal_size - original.size(), '\0')), equal_size);
+    ASSERT_TRUE(bytes.setFileTime(original_time, QFileDevice::FileModificationTime));
+    bytes.close();
+    testing::StudioThumbnailTestControl::remember(presenter, path, "missing");
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.assets()->thumbnailState(asset.id) == "missing"; }));
+    const auto padded_url =
+        presenter.assets()
+            ->data(presenter.assets()->index(0, 0), AssetListModel::ThumbnailUrlRole)
+            .toUrl();
+    ASSERT_TRUE(bytes.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(bytes.write(encoded + QByteArray(equal_size - encoded.size(), '\0')), equal_size);
+    ASSERT_TRUE(bytes.setFileTime(original_time, QFileDevice::FileModificationTime));
+    bytes.close();
+    testing::StudioThumbnailTestControl::remember(presenter, path, "missing");
+    ASSERT_TRUE(
+        wait_until([&] { return presenter.assets()->thumbnailState(asset.id) == "missing"; }));
+    const auto second_url =
+        presenter.assets()
+            ->data(presenter.assets()->index(0, 0), AssetListModel::ThumbnailUrlRole)
+            .toUrl();
+    EXPECT_NE(second_url, padded_url);
+    EXPECT_NE(second_url, first_url);
+    EXPECT_NE(QImage(second_url.toLocalFile()).pixelColor(0, 0),
+              QImage(padded_url.toLocalFile()).pixelColor(0, 0));
+}
 
 TEST(StudioDisplayPresentationTest, ThumbnailCellReportsReaderFailureAndAcceptsRepairedUrl)
 {

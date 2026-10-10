@@ -149,8 +149,7 @@ void StudioPresenter::applyPhotoMerge(const QVariantMap &options)
                         // the full library with newest imports first.
                         clearLastImportQuery();
                         library_.replaceQuery(LibraryQuery{});
-                        cull_suggestion_filter_ = QStringLiteral("none");
-                        cull_suggestion_asset_ids_.clear();
+                        invalidateCullFilter();
                         emit filterChanged();
                         emit folderChanged();
                         selected_asset_id_ = qstring_from_utf8(result.value().asset.id);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -97,6 +98,9 @@ struct ExactDuplicateReport
 struct ExactDuplicateRequest
 {
     CancellationToken cancellation{};
+    // Synchronous owner-thread observation, including partial current-file
+    // hashing. The callback is borrowed for the duration of the analysis.
+    std::function<void(std::string_view, std::uint64_t, std::uint64_t)> hash_progress;
 };
 
 struct BurstGroupMember

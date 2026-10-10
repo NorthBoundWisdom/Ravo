@@ -73,13 +73,17 @@ public:
     void updateAsset(const AssetRecord &asset);
     void markOriginalMissing(const std::string &asset_id);
     void setSelectedIds(std::unordered_set<std::string> ids);
+    void retainPrimary(const QString &asset_id);
+    void retainPrimaryRecord(AssetRecord asset);
     [[nodiscard]] bool isSelected(const std::string &asset_id) const;
     [[nodiscard]] int indexOf(const QString &asset_id) const;
     [[nodiscard]] std::optional<AssetRecord> assetById(const QString &asset_id) const;
     [[nodiscard]] QString assetIdAt(int row) const;
     [[nodiscard]] bool rowLoaded(int row) const noexcept;
     [[nodiscard]] int loadedCount() const noexcept;
-    [[nodiscard]] bool selectedContainsVideo() const noexcept;
+
+signals:
+    void originalMissing(const QString &asset_id);
 
 private:
     struct Page
@@ -88,7 +92,7 @@ private:
         int count = 0;
     };
 
-    void trimPages();
+    void trimPages(int protected_first);
 
     std::map<int, AssetRecord> assets_;
     std::deque<Page> pages_;
@@ -96,6 +100,9 @@ private:
     std::unordered_map<std::string, QUrl> thumbnail_urls_;
     std::unordered_map<std::string, QString> thumbnail_states_;
     std::unordered_set<std::string> selected_ids_;
+    // A single inspector record may outlive its display page; selection never
+    // retains pages or all selected AssetRecords.
+    std::optional<AssetRecord> primary_asset_;
 };
 
 } // namespace ravo

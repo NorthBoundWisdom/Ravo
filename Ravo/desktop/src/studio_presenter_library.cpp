@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QStringList>
+#include <QMetaObject>
 #include <QUrl>
 
 #include "ravo/domain/types.h"
@@ -14,6 +15,123 @@
 
 namespace ravo
 {
+
+LibraryPageRequest StudioPresenter::currentPageRequest() const
+{
+    LibraryPageRequest request;
+    request.query = current_query();
+    request.collapse_stacks = collapse_stacks_;
+    request.candidate_asset_ids = cull_suggestion_asset_ids_;
+    return request;
+}
+
+void StudioPresenter::cancelSelectionResolution()
+{
+    static_cast<void>(selection_resolution_cancel_.cancel("selection_replaced"));
+    ++selection_generation_;
+    if (selection_resolution_pending_)
+    {
+        selection_resolution_pending_ = false;
+        emit busyChanged();
+    }
+}
+
+void StudioPresenter::resolveLibrarySelection(const int first, const int last,
+                                              const QString &primary, const QString &anchor)
+{
+    cancelSelectionResolution();
+    if (first < 0 || last < first || catalog_path_.isEmpty())
+        return;
+    selection_resolution_cancel_ = CancellationSource{};
+    auto request = currentPageRequest();
+    request.offset = static_cast<std::size_t>(first);
+    request.cancellation = selection_resolution_cancel_.token();
+    const auto count = static_cast<std::size_t>(last - first + 1);
+    const auto generation = selection_generation_;
+    const auto listing = library_query_generation_;
+    const auto revision = observed_catalog_revision_;
+    const auto catalog = catalog_path_;
+    const auto primary_record = assets_.assetById(primary);
+    selection_resolution_pending_ = true;
+    emit busyChanged();
+    const bool queued = executor_.post(
+        [this, request, count, generation, listing, revision, catalog, primary, anchor,
+         primary_record]() mutable
+        {
+            Result<std::vector<LibrarySelectionAsset>> result =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            if (auto active = request.cancellation.check(); !active)
+                result = active.error();
+            else if (service_)
+            {
+                auto resolved_count = count;
+                bool ready = true;
+                if (!anchor.isEmpty())
+                {
+                    auto locate = request;
+                    locate.offset = 0;
+                    locate.limit = 1;
+                    locate.around_asset_id = utf8_from_qstring(anchor);
+                    locate.selection_only = true;
+                    auto page = service_->library().list_assets_page(locate);
+                    if (!page)
+                    {
+                        result = page.error();
+                        ready = false;
+                    }
+                    else
+                    {
+                        const auto clicked = request.offset;
+                        request.offset = std::min(clicked, page.value().offset);
+                        resolved_count =
+                            std::max(clicked, page.value().offset) - request.offset + 1;
+                    }
+                }
+                if (ready)
+                    result = service_->library().resolve_selection_ids(request, resolved_count,
+                                                                       revision);
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, request, generation, listing, revision, catalog, primary, primary_record,
+                 result = std::move(result)]() mutable
+                {
+                    if (request.cancellation.is_cancellation_requested() ||
+                        generation != selection_generation_ ||
+                        listing != library_query_generation_ || catalog != catalog_path_)
+                        return;
+                    cancelSelectionResolution();
+                    if (!result || revision != observed_catalog_revision_)
+                    {
+                        if (!result && result.error().code != ErrorCode::kCancelled)
+                            setError(qstring_from_utf8(result.error().message));
+                        else if (result)
+                            setError(QStringLiteral("Library changed during selection"));
+                        return;
+                    }
+                    selection_snapshot_ = std::move(result).value();
+                    selected_ids_.clear();
+                    for (const auto &asset : selection_snapshot_)
+                        selected_ids_.insert(asset.id);
+                    const auto chosen = selected_ids_.contains(utf8_from_qstring(primary)) ?
+                                            primary :
+                                        selection_snapshot_.empty() ?
+                                            QString{} :
+                                            qstring_from_utf8(selection_snapshot_.front().id);
+                    if (!selected_ids_.contains(utf8_from_qstring(selection_anchor_id_)))
+                        selection_anchor_id_ = chosen;
+                    if (primary_record && chosen == primary)
+                        assets_.retainPrimaryRecord(*primary_record);
+                    activate_primary(chosen, false);
+                },
+                Qt::QueuedConnection);
+        });
+    if (!queued)
+    {
+        cancelSelectionResolution();
+        setError(QStringLiteral("Catalog selection worker is unavailable."));
+    }
+}
 
 void StudioPresenter::selectLibraryRow(const int row, const QString &mode, const bool open_loupe)
 {

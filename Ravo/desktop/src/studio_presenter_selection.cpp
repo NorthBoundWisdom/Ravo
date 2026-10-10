@@ -45,6 +45,38 @@ namespace ravo
 
 void StudioPresenter::publish_selection()
 {
+    cancelSelectionResolution();
+    std::erase_if(selection_snapshot_,
+                  [this](const auto &asset) { return !selected_ids_.contains(asset.id); });
+    std::unordered_map<std::string, std::size_t> positions;
+    positions.reserve(selection_snapshot_.size());
+    for (std::size_t index = 0; index < selection_snapshot_.size(); ++index)
+        positions.emplace(selection_snapshot_[index].id, index);
+    bool order_changed = false;
+    // Residency only refreshes compact metadata; it never removes logical IDs.
+    for (const auto &asset : assets_.records())
+    {
+        if (!selected_ids_.contains(asset.id))
+            continue;
+        const auto row = static_cast<std::size_t>(assets_.indexOf(qstring_from_utf8(asset.id)));
+        const LibrarySelectionAsset entry{asset.id, asset.media_type, asset.import_state,
+                                          asset.version_ordinal, row};
+        const auto found = positions.find(asset.id);
+        if (found == positions.end())
+        {
+            positions.emplace(asset.id, selection_snapshot_.size());
+            selection_snapshot_.push_back(entry);
+            order_changed = true;
+        }
+        else
+        {
+            order_changed = order_changed || selection_snapshot_[found->second].row != row;
+            selection_snapshot_[found->second] = entry;
+        }
+    }
+    if (order_changed)
+        std::stable_sort(selection_snapshot_.begin(), selection_snapshot_.end(),
+                         [](const auto &a, const auto &b) { return a.row < b.row; });
     ++burst_compare_context_revision_;
     assets_.setSelectedIds(selected_ids_);
     emit selectionChanged();
@@ -54,6 +86,7 @@ void StudioPresenter::activate_primary(const QString &asset_id, const bool reloa
 {
     const bool same = selected_asset_id_ == asset_id;
     selected_asset_id_ = asset_id;
+    assets_.retainPrimary(asset_id);
     if (!reload_preview && same && !inspect_.previewUrl().isEmpty())
     {
         publish_selection();
@@ -92,7 +125,7 @@ std::vector<std::string> StudioPresenter::selected_asset_ids() const
 {
     std::vector<std::string> ids;
     ids.reserve(selected_ids_.size());
-    for (const auto &asset : assets_.records())
+    for (const auto &asset : selection_snapshot_)
     {
         if (selected_ids_.contains(asset.id))
             ids.push_back(asset.id);
@@ -102,6 +135,7 @@ std::vector<std::string> StudioPresenter::selected_asset_ids() const
 
 void StudioPresenter::selectAsset(const QString &asset_id)
 {
+    cancelSelectionResolution();
     pending_library_selection_.reset();
     if (selected_asset_id_ == asset_id && selected_ids_.size() == 1U &&
         !inspect_.previewUrl().isEmpty())
@@ -130,6 +164,11 @@ void StudioPresenter::selectAssetRange(const QString &asset_id)
         return;
     }
     int anchor = assets_.indexOf(selection_anchor_id_);
+    if (anchor < 0 && !selection_anchor_id_.isEmpty())
+    {
+        resolveLibrarySelection(clicked, clicked, asset_id, selection_anchor_id_);
+        return;
+    }
     if (anchor < 0)
     {
         anchor = assets_.indexOf(selected_asset_id_);
@@ -141,16 +180,12 @@ void StudioPresenter::selectAssetRange(const QString &asset_id)
     }
     const int begin = std::min(anchor, clicked);
     const int end = std::max(anchor, clicked);
-    selected_ids_.clear();
-    for (int row = begin; row <= end; ++row)
-    {
-        selected_ids_.insert(utf8_from_qstring(assets_.assetIdAt(row)));
-    }
-    activate_primary(asset_id, true);
+    resolveLibrarySelection(begin, end, asset_id);
 }
 
 void StudioPresenter::toggleAssetSelected(const QString &asset_id)
 {
+    cancelSelectionResolution();
     pending_library_selection_.reset();
     if (asset_id.isEmpty())
     {
@@ -179,35 +214,12 @@ void StudioPresenter::toggleAssetSelected(const QString &asset_id)
 void StudioPresenter::selectAllVisible()
 {
     pending_library_selection_.reset();
-    std::unordered_set<std::string> ids;
-    QString first_id;
-    for (int row = 0; row < assets_.rowCount(); ++row)
-    {
-        const auto id = assets_.assetIdAt(row);
-        if (id.isEmpty())
-            continue;
-        if (first_id.isEmpty())
-            first_id = id;
-        ids.insert(utf8_from_qstring(id));
-    }
-    if (ids.empty())
-        return;
-    const bool keep_primary =
-        !selected_asset_id_.isEmpty() && ids.contains(utf8_from_qstring(selected_asset_id_));
-    if (ids == selected_ids_ && keep_primary)
-        return;
-    selected_ids_ = std::move(ids);
-    const auto primary = keep_primary ? selected_asset_id_ : first_id;
-    if (selection_anchor_id_.isEmpty() ||
-        !selected_ids_.contains(utf8_from_qstring(selection_anchor_id_)))
-        selection_anchor_id_ = first_id;
-    activate_primary(primary, false);
+    resolveLibrarySelection(0, assets_.rowCount() - 1, selected_asset_id_);
 }
 
 void StudioPresenter::selectNext()
 {
-    const auto row = pending_library_selection_ ? pending_library_selection_->row :
-                                                  assets_.indexOf(selected_asset_id_);
+    const auto row = pending_library_selection_ ? pending_library_selection_->row : selectedIndex();
     if (row < 0 || row + 1 >= assets_.rowCount())
     {
         return;
@@ -217,8 +229,7 @@ void StudioPresenter::selectNext()
 
 void StudioPresenter::selectPrevious()
 {
-    const auto row = pending_library_selection_ ? pending_library_selection_->row :
-                                                  assets_.indexOf(selected_asset_id_);
+    const auto row = pending_library_selection_ ? pending_library_selection_->row : selectedIndex();
     if (row <= 0)
     {
         return;
@@ -383,7 +394,7 @@ void StudioPresenter::createAssetVersion()
 
 void StudioPresenter::stackSelection()
 {
-    if (catalog_path_.isEmpty())
+    if (catalog_path_.isEmpty() || selection_resolution_pending_)
         return;
     const auto ids = selected_asset_ids();
     if (ids.size() < 2)
@@ -506,7 +517,7 @@ void StudioPresenter::setThumbnailSize(const int size)
 void StudioPresenter::mutate_selected_review(
     const std::function<Result<AssetRecord>(CatalogService &, std::string_view)> &action)
 {
-    if (selected_ids_.empty() || catalog_path_.isEmpty())
+    if (selected_ids_.empty() || catalog_path_.isEmpty() || selection_resolution_pending_)
     {
         return;
     }
@@ -560,7 +571,7 @@ void StudioPresenter::apply_cull_review_request(const CullReviewFlagAction flag_
                                                 const std::optional<ColorLabel> color_label,
                                                 const bool auto_advance)
 {
-    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty() || selection_resolution_pending_)
     {
         return;
     }
@@ -764,6 +775,8 @@ void StudioPresenter::applyCullReview(const QString &flag_action, const QVariant
 
 void StudioPresenter::setAssetTags(const QString &text)
 {
+    if (selection_resolution_pending_)
+        return;
     auto parsed = parse_tag_list(utf8_from_qstring(text));
     if (!parsed)
     {
@@ -781,6 +794,7 @@ void StudioPresenter::setAssetTags(const QString &text)
         {
             TaskError error = make_error(ErrorCode::kIo, "Catalog session is closed");
             std::vector<AssetRecord> updated;
+            std::int64_t committed_revision = -1;
             bool ok = false;
             if (service_ != nullptr)
             {
@@ -796,18 +810,22 @@ void StudioPresenter::setAssetTags(const QString &text)
                 else
                 {
                     ok = true;
+                    committed_revision = mutated.value().revision;
                     updated = std::move(mutated).value().assets;
                 }
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, ok, error = std::move(error), updated = std::move(updated)]() mutable
+                [this, ok, committed_revision, error = std::move(error),
+                 updated = std::move(updated)]() mutable
                 {
                     if (!ok)
                     {
                         setError(qstring_from_utf8(error.message));
                         return;
                     }
+                    observed_catalog_revision_ =
+                        std::max(observed_catalog_revision_, committed_revision);
                     for (const auto &asset : updated)
                     {
                         assets_.updateAsset(asset);
@@ -869,6 +887,8 @@ Result<WritableMetadataPatch> StudioPresenter::metadataPatch(const QVariantMap &
 
 void StudioPresenter::setMetadataFields(const QVariantMap &fields, const QVariantMap &context)
 {
+    if (selection_resolution_pending_)
+        return;
     if (!context.isEmpty())
     {
         const auto error = metadataEditContextError(context);
@@ -1071,70 +1091,107 @@ void StudioPresenter::setCullSuggestionFilter(const QString &mode)
             "Cull suggestion filter must be none, exact_duplicate, near_duplicate, or burst."));
         return;
     }
+    if (busy_ && normalized != QLatin1String("none"))
+    {
+        setError(QCoreApplication::translate("StudioCommands", "Wait for library work to finish."));
+        return;
+    }
+    invalidateCullFilter();
     cull_suggestion_filter_ = normalized;
-    cull_suggestion_asset_ids_.clear();
-    if (!service_ || normalized == QStringLiteral("none"))
+    if (normalized == QStringLiteral("none"))
     {
         emit filterChanged();
         reloadVisibleAssets();
         return;
     }
-    if (normalized == QStringLiteral("exact_duplicate"))
-    {
-        auto report = service_->cull().find_exact_duplicate_groups({});
-        if (!report)
-        {
-            setError(qstring_from_utf8(report.error().message));
-            cull_suggestion_filter_ = QStringLiteral("none");
-            emit filterChanged();
-            return;
-        }
-        for (const auto &group : report.value().groups)
-        {
-            for (const auto &member : group.members)
-            {
-                cull_suggestion_asset_ids_.insert(member.asset_id);
-            }
-        }
-    }
-    else if (normalized == QStringLiteral("near_duplicate"))
-    {
-        auto report = service_->cull().find_near_duplicate_groups({});
-        if (!report)
-        {
-            setError(qstring_from_utf8(report.error().message));
-            cull_suggestion_filter_ = QStringLiteral("none");
-            emit filterChanged();
-            return;
-        }
-        for (const auto &group : report.value().groups)
-        {
-            for (const auto &member : group.members)
-            {
-                cull_suggestion_asset_ids_.insert(member.asset_id);
-            }
-        }
-    }
-    else if (normalized == QStringLiteral("burst"))
-    {
-        auto report = service_->cull().propose_burst_groups({});
-        if (!report)
-        {
-            setError(qstring_from_utf8(report.error().message));
-            cull_suggestion_filter_ = QStringLiteral("none");
-            emit filterChanged();
-            return;
-        }
-        for (const auto &proposal : report.value().proposals)
-        {
-            for (const auto &member : proposal.members)
-            {
-                cull_suggestion_asset_ids_.insert(member.asset_id);
-            }
-        }
-    }
+    // Enabled with no candidates is an empty result, including while analysis
+    // is pending. Database and original-file access stay on the catalog owner.
+    cull_suggestion_asset_ids_ = std::make_shared<const std::vector<std::string>>();
+    const auto cancellation = cull_filter_cancel_.token();
+    const auto generation = cull_filter_generation_;
+    const auto catalog = catalog_path_;
     emit filterChanged();
     reloadVisibleAssets();
+    const bool queued = executor_.post(
+        [this, normalized, cancellation, generation, catalog]
+        {
+            Result<std::vector<std::string>> result =
+                make_error(ErrorCode::kIo, "Catalog session is closed");
+            const auto collect = [](const auto &groups)
+            {
+                std::vector<std::string> ids;
+                for (const auto &group : groups)
+                    for (const auto &member : group.members)
+                        ids.push_back(member.asset_id);
+                std::sort(ids.begin(), ids.end());
+                ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+                return ids;
+            };
+            if (auto active = cancellation.check(); !active)
+                result = active.error();
+            else if (service_)
+            {
+                if (normalized == QLatin1String("exact_duplicate"))
+                {
+                    ExactDuplicateRequest request;
+                    request.cancellation = cancellation;
+                    auto report = service_->cull().find_exact_duplicate_groups(request);
+                    result = report ?
+                                 Result<std::vector<std::string>>(collect(report.value().groups)) :
+                                 report.error();
+                }
+                else if (normalized == QLatin1String("near_duplicate"))
+                {
+                    NearDuplicateRequest request;
+                    request.cancellation = cancellation;
+                    auto report = service_->cull().find_near_duplicate_groups(request);
+                    result = report ?
+                                 Result<std::vector<std::string>>(collect(report.value().groups)) :
+                                 report.error();
+                }
+                else
+                {
+                    BurstProposeRequest request;
+                    request.cancellation = cancellation;
+                    auto report = service_->cull().propose_burst_groups(request);
+                    result =
+                        report ?
+                            Result<std::vector<std::string>>(collect(report.value().proposals)) :
+                            report.error();
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, normalized, cancellation, generation, catalog,
+                 result = std::move(result)]() mutable
+                {
+                    if (cancellation.is_cancellation_requested() ||
+                        generation != cull_filter_generation_ || catalog != catalog_path_ ||
+                        normalized != cull_suggestion_filter_)
+                        return;
+                    if (!result)
+                    {
+                        if (result.error().code != ErrorCode::kCancelled)
+                            setError(qstring_from_utf8(result.error().message));
+                        return;
+                    }
+                    cull_suggestion_asset_ids_ =
+                        std::make_shared<const std::vector<std::string>>(std::move(result).value());
+                    reloadVisibleAssets();
+                },
+                Qt::QueuedConnection);
+        });
+    if (!queued)
+        setError(QStringLiteral("Catalog cull worker is unavailable."));
+}
+
+void StudioPresenter::invalidateCullFilter()
+{
+    static_cast<void>(cull_filter_cancel_.cancel("cull_filter_replaced"));
+    cull_filter_cancel_ = CancellationSource{};
+    ++cull_filter_generation_;
+    cull_suggestion_filter_ = QStringLiteral("none");
+    cull_suggestion_asset_ids_.reset();
 }
 
 void StudioPresenter::clearFilters()
@@ -1143,6 +1200,7 @@ void StudioPresenter::clearFilters()
     {
         return;
     }
+    invalidateCullFilter();
     library_.resetFilters(last_import_selected_ ? last_import_after_unix_ms_ : std::nullopt,
                           last_import_selected_ ? last_import_before_unix_ms_ : std::nullopt);
     emit filterChanged();
@@ -1297,7 +1355,7 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
 
 void StudioPresenter::remove_selected_from_catalog()
 {
-    if (selected_ids_.empty() || catalog_path_.isEmpty())
+    if (selected_ids_.empty() || catalog_path_.isEmpty() || selection_resolution_pending_)
     {
         return;
     }

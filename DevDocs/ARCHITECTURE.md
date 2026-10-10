@@ -213,7 +213,8 @@ conflict publishes no file; no silent resize or metadata removal is added.
 Gallery thumbnail demand is owned by the desktop presenter. Replacing a
 listing clears the previous demand before publishing the model reset, so
 synchronous delegate requests belong to the new listing and remain queued.
-Completed thumbnail states may survive a listing replacement; `presenting`
+Completed thumbnail states may survive a listing replacement within the same
+catalog; catalog replacement clears model thumbnail state. `presenting`
 belongs to cancelled display work and returns to pending when there is no
 replacement preview. Visible grid cells forward fresh pending/unloaded demand
 on state and visibility changes. Decode and display work remain on their
@@ -223,6 +224,15 @@ its cached thumbnail and pending display generation. The old pixels may remain
 visible until replacement; a queued browse request uses the saved recipe after
 foreground preview work settles. Saves for another catalog and late thumbnail
 results cannot replace the current catalog's presentation.
+The source thumbnail owns its terminal `ready`/`proxy`/`missing` state independently
+of pending monitor conversion. Reapplying a monitor transform retains that state
+and publishes the `presenting` notification before dispatch. Display-cache identity
+includes a SHA-256 of immutable encoded source PNG bytes, including embedded ICC,
+under a 64 MiB input cap. Warm lookups read/hash those bytes but avoid decode,
+transform and encode; filesystem metadata alone cannot alias changed pixels.
+Publication checks cancellation before locking and between bounded 20 ms lock
+waits; a one-second unresolved conflict remains explicit. Base-thumbnail state
+is pruned with resident pages.
 During ordinary refresh, monitor conversion retains the previous presented URL.
 ThumbnailCell retains its decoded image and chrome through asynchronous replacement;
 first load, an empty source or a decode failure still shows its explicit placeholder.
@@ -796,8 +806,29 @@ records only for the current page. Studio exposes the full logical row count
 through a sparse model with at most three resident 200-row pages, while QML
 delegates request unloaded rows and one row of thumbnail look-ahead. The C++
 demand queue is bounded by those resident pages rather than total catalog size;
-only one request enters the serial executor at a time. Selection is asset-ID
-based and protects its page from eviction (ADR-0100).
+only one request enters the serial executor at a time. The newly admitted page
+is protected during its insertion; selections do not pin display pages. A single
+primary inspector record may survive eviction (ADR-0100).
+
+Cull suggestion analysis uses that catalog executor, including original-file
+hashing and cancellation within a file. Its immutable candidate-ID intersection
+is session-only on `LibraryPageRequest`: null disables it, while an enabled empty
+set yields no rows. The SQLite adapter inserts one bound identity at a time into
+a connection-private temporary table; count, sorting, stack collapse, anchors,
+later pages and selection use the same predicate without an unbounded SQL IN
+statement. Filter generation and cancellation bind publication to the current
+mode and catalog session. Clear Filters and catalog replacement revoke it.
+
+Gallery owns an ordered selection snapshot plus a membership index independently
+of full display records. Range/all selection resolves compact IDs and command
+eligibility through `LibraryService::resolve_selection_ids`, using the same page
+query and a catalog revision checked before, during and after traversal. An
+evicted range anchor is located by asset identity in the current query. Catalog,
+listing and selection generations reject late results. While resolution is
+pending the confirmed selection remains visible and batch commands are disabled;
+only a complete result replaces it. Tags, collections, stacks, export and batch
+Develop consume the confirmed vector. Video/deletion eligibility uses the compact
+snapshot rather than treating unloaded display records as absent assets.
 
 Reusable style/preset state reuses Recipe rather than introducing another
 parameter model. Schema-v1 `RecipeStyle` replaces the asset with a fixed

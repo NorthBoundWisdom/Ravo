@@ -125,7 +125,18 @@ StudioPresenter::StudioPresenter(QObject *parent)
     { return inspect_.show_preview_result(result, revision, preserve); };
     develop_host.publish_before = [this](const PreviewResult &result, std::uint64_t revision)
     { inspect_.show_comparison_before_result(result, revision); };
-    develop_host.selected_assets = [this] { return selected_asset_ids(); };
+    connect(&assets_, &AssetListModel::originalMissing, this,
+            [this](const QString &id)
+            {
+                const auto identity = utf8_from_qstring(id);
+                for (auto &asset : selection_snapshot_)
+                    if (asset.id == identity)
+                        asset.import_state = std::string(kImportStateMissing);
+                if (selected_ids_.contains(identity))
+                    emit selectionChanged();
+            });
+    develop_host.selected_assets = [this]
+    { return selection_resolution_pending_ ? std::vector<std::string>{} : selected_asset_ids(); };
     develop_host.selected_media_type = [this] { return selectedMediaType(); };
     develop_presenter_.reset(new StudioDevelopPresenter(
         {selected_asset_id_, catalog_path_, browse_mode_, busy_, catalog_operation_active_,
@@ -147,7 +158,12 @@ StudioPresenter::StudioPresenter(QObject *parent)
     export_presenter_.reset(new StudioExportPresenter(
         catalog_path_, selected_asset_id_, busy_, library_query_generation_, executor_,
         shutdown_.token(), [this] { return service_ ? &service_->exports() : nullptr; },
-        [this] { return selected_asset_ids(); }, [this] { return selectionHasVideo(); }, this));
+        [this]
+        {
+            return selection_resolution_pending_ ? std::vector<std::string>{} :
+                                                   selected_asset_ids();
+        },
+        [this] { return selectionHasVideo(); }, this));
     connect(export_presenter_.get(), &StudioExportPresenter::busyRequested, this,
             &StudioPresenter::setBusy);
     connect(export_presenter_.get(), &StudioExportPresenter::errorOccurred, this,

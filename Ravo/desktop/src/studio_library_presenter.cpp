@@ -142,6 +142,8 @@ void StudioLibraryPresenter::resetFilters(std::optional<std::int64_t> import_aft
     query_.rating_value = 0;
     query_.color_labels.clear();
     query_.reject_filter = RejectFilter::kInclude;
+    query_.pick_filter = PickFilter::kInclude;
+    query_.cull_flag_filter = CullFlagFilter::kAny;
     query_.tag.clear();
     query_.text.clear();
     query_.media_types.clear();

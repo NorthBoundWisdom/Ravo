@@ -104,6 +104,7 @@ void StudioPresenter::request_burst_compare(const BurstCompareStep step,
          context_revision, cancellation]
         {
             Result<BurstComparePair> pair = make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::vector<AssetRecord> pair_assets;
             if (auto active = cancellation.check(); !active)
                 pair = active.error();
             else if (service_)
@@ -112,11 +113,29 @@ void StudioPresenter::request_burst_compare(const BurstCompareStep step,
                 request.asset_id = utf8_from_qstring(selected);
                 request.step = step;
                 pair = service_->cull().resolve_burst_compare_pair(request);
+                if (pair)
+                {
+                    LibraryPageRequest members;
+                    members.collapse_stacks = false;
+                    members.limit = 2;
+                    members.cancellation = cancellation;
+                    members.candidate_asset_ids =
+                        std::make_shared<const std::vector<std::string>>(std::vector<std::string>{
+                            pair.value().focus_asset_id, pair.value().compare_asset_id});
+                    auto records = service_->library().list_assets_page(members);
+                    if (!records)
+                        pair = records.error();
+                    else if (records.value().assets.size() != 2)
+                        pair = make_error(ErrorCode::kConflict, "Burst compare membership changed");
+                    else
+                        pair_assets = std::move(records).value().assets;
+                }
             }
             QMetaObject::invokeMethod(
                 this,
                 [this, pair = std::move(pair), step, preserve_inspect_roi, catalog, generation,
-                 selected, selection, mode, context_revision, cancellation]() mutable
+                 selected, selection, mode, context_revision, cancellation,
+                 pair_assets = std::move(pair_assets)]() mutable
                 {
                     burst_compare_request_in_flight_ = false;
                     emit surveyChanged();
@@ -129,6 +148,15 @@ void StudioPresenter::request_burst_compare(const BurstCompareStep step,
                     {
                         setError(qstring_from_utf8(pair.error().message));
                         return;
+                    }
+                    selection_snapshot_.clear();
+                    for (const auto &asset : pair_assets)
+                    {
+                        selection_snapshot_.push_back({asset.id, asset.media_type,
+                                                       asset.import_state, asset.version_ordinal,
+                                                       selection_snapshot_.size()});
+                        if (asset.id == pair.value().focus_asset_id)
+                            assets_.retainPrimaryRecord(asset);
                     }
                     apply_burst_compare_pair(pair.value(), preserve_inspect_roi);
                     setError({});

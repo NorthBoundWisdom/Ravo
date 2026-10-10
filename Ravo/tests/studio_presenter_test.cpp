@@ -250,14 +250,14 @@ TEST(StudioPresenterTest, SelectAllVisibleSelectsLoadedPhotosAndKeepsPrimary)
     ASSERT_FALSE(second_id.isEmpty());
     presenter.selectAsset(second_id);
     ASSERT_EQ(presenter.selectedCount(), 1);
-
     presenter.selectAllVisible();
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     EXPECT_EQ(presenter.selectedCount(), 2);
     EXPECT_EQ(presenter.selectedAssetId(), second_id);
     EXPECT_TRUE(presenter.isAssetSelected(first_id));
     EXPECT_TRUE(presenter.isAssetSelected(second_id));
-
     presenter.selectAllVisible();
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     EXPECT_EQ(presenter.selectedCount(), 2);
     EXPECT_EQ(presenter.selectedAssetId(), second_id);
 }

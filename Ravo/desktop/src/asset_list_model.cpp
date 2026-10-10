@@ -182,17 +182,6 @@ QHash<int, QByteArray> AssetListModel::roleNames() const
             {StackPositionRole, "stackPosition"},
             {VideoDurationRole, "videoDurationMs"}};
 }
-bool AssetListModel::selectedContainsVideo() const noexcept
-{
-    for (const auto &[row, asset] : assets_)
-    {
-        static_cast<void>(row);
-        if (selected_ids_.contains(asset.id) && is_video_media_type(asset.media_type))
-            return true;
-    }
-    return false;
-}
-
 void AssetListModel::setAssets(std::vector<AssetRecord> assets,
                                std::unordered_map<std::string, QUrl> thumbnail_urls,
                                std::unordered_map<std::string, QString> thumbnail_states,
@@ -205,6 +194,7 @@ void AssetListModel::setAssets(std::vector<AssetRecord> assets,
     auto old_states = std::move(thumbnail_states_);
     beginResetModel();
     assets_.clear();
+    primary_asset_.reset();
     pages_.clear();
     total_count_ = next_total;
     for (std::size_t offset = 0; offset < assets.size(); ++offset)
@@ -256,30 +246,17 @@ void AssetListModel::setPage(std::size_t offset, std::vector<AssetRecord> assets
         thumbnail_states_.insert_or_assign(std::move(id), std::move(state));
     std::erase_if(pages_, [first](const Page &page) { return page.first == first; });
     pages_.push_back({first, count});
-    trimPages();
+    trimPages(first);
     emit dataChanged(this->index(first, 0), this->index(first + count - 1, 0));
 }
 
-void AssetListModel::trimPages()
+void AssetListModel::trimPages(const int protected_first)
 {
     while (pages_.size() > kMaximumResidentPages)
     {
         auto candidate = pages_.begin();
-        for (; candidate != pages_.end(); ++candidate)
-        {
-            bool contains_selection = false;
-            for (int row = candidate->first; row < candidate->first + candidate->count; ++row)
-            {
-                const auto found = assets_.find(row);
-                if (found != assets_.end() && selected_ids_.contains(found->second.id))
-                {
-                    contains_selection = true;
-                    break;
-                }
-            }
-            if (!contains_selection)
-                break;
-        }
+        while (candidate != pages_.end() && candidate->first == protected_first)
+            ++candidate;
         if (candidate == pages_.end())
             break;
         const Page removed = *candidate;
@@ -318,7 +295,7 @@ void AssetListModel::insertAsset(const int row, AssetRecord asset)
     pages_.push_back({clamped, 1});
     ++total_count_;
     endInsertRows();
-    trimPages();
+    trimPages(clamped);
 }
 
 void AssetListModel::replaceAssetAt(const int row, AssetRecord asset)
@@ -361,6 +338,8 @@ QString AssetListModel::thumbnailState(const std::string &asset_id) const
 
 void AssetListModel::updateAsset(const AssetRecord &asset)
 {
+    if (primary_asset_ && primary_asset_->id == asset.id)
+        primary_asset_ = asset;
     const auto row = indexOf(qstring_from_utf8(asset.id));
     if (row < 0)
         return;
@@ -371,29 +350,42 @@ void AssetListModel::updateAsset(const AssetRecord &asset)
 
 void AssetListModel::markOriginalMissing(const std::string &asset_id)
 {
+    if (primary_asset_ && primary_asset_->id == asset_id)
+        primary_asset_->import_state = std::string(kImportStateMissing);
     const auto row = indexOf(qstring_from_utf8(asset_id));
     if (row < 0)
+    {
+        emit originalMissing(qstring_from_utf8(asset_id));
         return;
+    }
     auto found = assets_.find(row);
     found->second.import_state = std::string(kImportStateMissing);
     if (thumbnail_states_[asset_id] != QStringLiteral("proxy"))
         thumbnail_states_[asset_id] = QStringLiteral("missing");
     const auto model_index = index(row, 0);
     emit dataChanged(model_index, model_index, {ImportStateRole, ThumbnailStateRole});
+    emit originalMissing(qstring_from_utf8(asset_id));
 }
 
 void AssetListModel::setSelectedIds(std::unordered_set<std::string> ids)
 {
-    std::unordered_set<std::string> changed = selected_ids_;
-    for (const auto &id : ids)
-        changed.insert(id);
+    auto previous = std::move(selected_ids_);
     selected_ids_ = std::move(ids);
-    for (const auto &id : changed)
+    for (const auto &[row, asset] : assets_)
     {
-        const auto row = indexOf(qstring_from_utf8(id));
-        if (row >= 0)
+        if (previous.contains(asset.id) != selected_ids_.contains(asset.id))
             emit dataChanged(index(row, 0), index(row, 0), {SelectedRole});
     }
+}
+
+void AssetListModel::retainPrimary(const QString &asset_id)
+{
+    primary_asset_ = assetById(asset_id);
+}
+
+void AssetListModel::retainPrimaryRecord(AssetRecord asset)
+{
+    primary_asset_ = std::move(asset);
 }
 
 bool AssetListModel::isSelected(const std::string &asset_id) const
@@ -414,7 +406,9 @@ std::optional<AssetRecord> AssetListModel::assetById(const QString &asset_id) co
 {
     const auto row = indexOf(asset_id);
     if (row < 0)
-        return std::nullopt;
+        return primary_asset_ && primary_asset_->id == utf8_from_qstring(asset_id) ?
+                   primary_asset_ :
+                   std::nullopt;
     return assets_.at(row);
 }
 

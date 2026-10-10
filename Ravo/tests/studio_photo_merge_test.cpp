@@ -52,6 +52,7 @@ TEST(StudioPhotoMerge, SelectionBoundDialogAndSharedServicePublishDerivedAsset)
     import_merge_pair(presenter, root);
     EXPECT_FALSE(commands.action("studio.photo.merge_hdr").value("enabled").toBool());
     presenter.selectAllVisible();
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     ASSERT_EQ(presenter.selectedCount(), 2);
     EXPECT_TRUE(commands.action("studio.photo.merge_hdr").value("enabled").toBool());
     EXPECT_TRUE(commands.action("studio.photo.panorama").value("enabled").toBool());
@@ -81,6 +82,7 @@ TEST(StudioPhotoMerge, StaleSelectionAndMalformedOptionsDoNotStartWork)
     StudioPresenter presenter;
     import_merge_pair(presenter, root);
     presenter.selectAllVisible();
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     QVariantMap context;
     QObject::connect(&presenter, &StudioPresenter::photoMergeDialogRequested, &presenter,
                      [&](const QVariantMap &value) { context = value; });
@@ -91,6 +93,7 @@ TEST(StudioPhotoMerge, StaleSelectionAndMalformedOptionsDoNotStartWork)
     EXPECT_FALSE(presenter.catalogOperationActive());
     EXPECT_FALSE(presenter.errorText().isEmpty());
     presenter.selectAllVisible();
+    ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
     presenter.preparePhotoMerge("hdr");
     presenter.applyPhotoMerge({{"token", context.value("token")}, {"maxEdge", "-1"}});
     EXPECT_FALSE(presenter.catalogOperationActive());
@@ -106,6 +109,7 @@ TEST(StudioPhotoMerge, WindowDestructionCancelsOwnedMergeWithoutChangingOriginal
         StudioPresenter presenter;
         import_merge_pair(presenter, root);
         presenter.selectAllVisible();
+        ASSERT_TRUE(wait_until([&] { return !presenter.busy(); }));
         QVariantMap context;
         QObject::connect(&presenter, &StudioPresenter::photoMergeDialogRequested, &presenter,
                          [&](const QVariantMap &value) { context = value; });

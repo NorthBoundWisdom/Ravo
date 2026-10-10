@@ -139,6 +139,50 @@ Result<LibraryPage> LibraryService::list_assets_page(const LibraryPageRequest &r
     return repository_->list_assets_page(expanded);
 }
 
+Result<std::vector<LibrarySelectionAsset>>
+LibraryService::resolve_selection_ids(LibraryPageRequest request, const std::size_t count,
+                                      const std::int64_t expected_revision) const
+{
+    const auto check_revision = [&]() -> Result<void>
+    {
+        if (auto active = request.cancellation.check(); !active)
+            return active.error();
+        auto state = snapshot();
+        if (!state)
+            return state.error();
+        if (state.value().revision != expected_revision)
+            return make_error(ErrorCode::kConflict, "Library changed during selection",
+                              {{"reason", "stale_catalog_revision"}});
+        return {};
+    };
+    if (auto valid = check_revision(); !valid)
+        return valid.error();
+    request.selection_only = true;
+    request.around_asset_id.reset();
+    request.after_asset_id.reset();
+    request.known_total.reset();
+    std::vector<LibrarySelectionAsset> selected;
+    while (selected.size() < count)
+    {
+        request.limit = std::min(kLibraryPageMaximumSize, count - selected.size());
+        auto page = list_assets_page(request);
+        if (!page)
+            return page.error();
+        for (const auto &asset : page.value().assets)
+            selected.push_back({asset.id, asset.media_type, asset.import_state,
+                                asset.version_ordinal, request.offset++});
+        if (!page.value().has_more || page.value().assets.empty())
+            break;
+        request.after_asset_id = page.value().assets.back().id;
+        request.known_total = page.value().total;
+        if (auto valid = check_revision(); !valid)
+            return valid.error();
+    }
+    if (auto valid = check_revision(); !valid)
+        return valid.error();
+    return selected;
+}
+
 Result<std::vector<FolderRecord>> LibraryService::list_folders() const
 {
     if (repository_ == nullptr)

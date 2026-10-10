@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -498,6 +499,12 @@ struct LibraryPageRequest
 {
     LibraryQuery query;
     std::optional<LibraryQuery> additional_query;
+    // Session-only intersection, applied before count, sort, stack collapse and
+    // paging. Null disables it; a present empty vector matches no assets.
+    std::shared_ptr<const std::vector<std::string>> candidate_asset_ids;
+    // Compact selection projection: identity and command eligibility only.
+    bool selection_only = false;
+    CancellationToken cancellation;
     bool collapse_stacks = true;
     std::size_t offset = 0U;
     std::size_t limit = kLibraryPageDefaultSize;
@@ -837,6 +844,15 @@ struct LibraryPage
     std::optional<std::string> next_cursor;
     std::int64_t query_elapsed_us = 0;
     std::size_t materialized_rows = 0U;
+};
+
+struct LibrarySelectionAsset
+{
+    std::string id;
+    std::string media_type;
+    std::string import_state;
+    int version_ordinal = 0;
+    std::size_t row = 0;
 };
 
 // The catalog transaction owns generation. Filesystem publication acknowledges

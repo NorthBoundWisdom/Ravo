@@ -3,6 +3,8 @@
 #include <fstream>
 #include <set>
 #include <string>
+#include <future>
+#include <thread>
 
 #include <QColor>
 #include <QColorSpace>
@@ -32,6 +34,172 @@ namespace
 }
 
 } // namespace
+
+TEST_F(CatalogServiceTest, CullHashCancellationStopsCurrentFileOnOwnerThread)
+{
+    const auto path = root / "large.bin";
+    std::ofstream output(path, std::ios::binary);
+    output << std::string(4U * 1024U * 1024U, 'x');
+    output.close();
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository);
+    auto location = normalize_local_input(path.string());
+    ASSERT_TRUE(location);
+    AssetRecord asset;
+    asset.id = "ast_hash_cancel";
+    asset.normalized_uri = location.value().uri;
+    asset.media_type = std::string(kMediaTypeJpeg);
+    asset.size_bytes = 4U * 1024U * 1024U;
+    ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    ASSERT_TRUE(repository.value()->close());
+    ASSERT_TRUE(open_service(false));
+    const auto before = sha256_file_hex(path.string());
+    ASSERT_TRUE(before);
+    CancellationSource cancelled;
+    std::uint64_t partial = 0;
+    std::thread::id observed;
+    ExactDuplicateRequest request;
+    request.cancellation = cancelled.token();
+    request.hash_progress = [&](std::string_view id, std::uint64_t completed, std::uint64_t total)
+    {
+        observed = std::this_thread::get_id();
+        EXPECT_EQ(id, asset.id);
+        if (completed > 0 && completed < total)
+        {
+            partial = completed;
+            static_cast<void>(cancelled.cancel("partial_file"));
+        }
+    };
+    auto report = service->cull().find_exact_duplicate_groups(request);
+    ASSERT_FALSE(report);
+    EXPECT_EQ(report.error().code, ErrorCode::kCancelled);
+    EXPECT_GT(partial, 0U);
+    EXPECT_LT(partial, asset.size_bytes);
+    EXPECT_EQ(observed, std::this_thread::get_id());
+    EXPECT_EQ(sha256_file_hex(path.string()).value(), before.value());
+    auto wrong_thread = std::async(std::launch::async,
+                                   [&] { return service->cull().find_exact_duplicate_groups({}); })
+                            .get();
+    ASSERT_FALSE(wrong_thread);
+    EXPECT_EQ(wrong_thread.error().context.at("reason"), "catalog_owner_thread_required");
+}
+
+TEST_F(CatalogServiceTest, CullCandidatesConstrainCountPagesAnchorsAndSelectionBeforePaging)
+{
+    auto repository = SqliteCatalogRepository::create(database_path);
+    ASSERT_TRUE(repository);
+    for (int row = 0; row < 1200; ++row)
+    {
+        AssetRecord asset;
+        asset.id = "ast_candidate_" + std::to_string(row);
+        asset.normalized_uri = "file:///library/folder-" + std::to_string(row % 2) + "/photo-" +
+                               std::to_string(row) + ".jpg";
+        asset.media_type = std::string(kMediaTypeJpeg);
+        asset.created_unix_ms = 2000 - row;
+        if (row == 777)
+        {
+            asset.media_type = "video/mp4";
+            VideoInfo video;
+            video.container = "mp4";
+            video.codec = "h264";
+            video.width = 16;
+            video.height = 12;
+            asset.video = video;
+        }
+        if (row == 778)
+            asset.import_state = std::string(kImportStateMissing);
+        asset.review.rating = row % 6;
+        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
+    }
+    ASSERT_TRUE(repository.value()->close());
+    ASSERT_TRUE(open_service(false));
+    LibraryPageRequest request;
+    request.candidate_asset_ids = std::make_shared<const std::vector<std::string>>(
+        std::vector<std::string>{"ast_candidate_801", "ast_candidate_802"});
+    auto late = service->library().list_assets_page(request);
+    ASSERT_TRUE(late) << late.error().message;
+    ASSERT_EQ(late.value().total, 2U);
+    ASSERT_EQ(late.value().assets.size(), 2U);
+    EXPECT_EQ(late.value().assets.front().id, "ast_candidate_801");
+    EXPECT_FALSE(late.value().has_more);
+    request.around_asset_id = "ast_candidate_802";
+    request.limit = 1;
+    auto located = service->library().list_assets_page(request);
+    ASSERT_TRUE(located);
+    EXPECT_EQ(located.value().offset, 1U);
+    EXPECT_EQ(located.value().assets.front().id, "ast_candidate_802");
+    request.around_asset_id.reset();
+    request.limit = kLibraryPageDefaultSize;
+    auto candidates = std::make_shared<std::vector<std::string>>();
+    for (int row = 0; row < 1200; ++row)
+        candidates->push_back("ast_candidate_" + std::to_string(row));
+    // More identities than SQLite's common single-statement parameter bound.
+    for (int row = 0; row < 33000; ++row)
+        candidates->push_back("absent_" + std::to_string(row));
+    request.candidate_asset_ids = candidates;
+    auto first = service->library().list_assets_page(request);
+    ASSERT_TRUE(first);
+    EXPECT_EQ(first.value().total, 1200U);
+    EXPECT_TRUE(first.value().has_more);
+    EXPECT_EQ(first.value().assets.size(), 200U);
+    request.offset = 200;
+    request.after_asset_id = first.value().next_cursor;
+    request.known_total = first.value().total;
+    auto second = service->library().list_assets_page(request);
+    ASSERT_TRUE(second);
+    EXPECT_EQ(second.value().assets.front().id, "ast_candidate_200");
+    request.offset = 50;
+    const auto revision = service->library().snapshot().value().revision;
+    auto selection = service->library().resolve_selection_ids(request, 801, revision);
+    ASSERT_TRUE(selection) << selection.error().message;
+    ASSERT_EQ(selection.value().size(), 801U);
+    EXPECT_TRUE(is_video_media_type(selection.value()[777 - 50].media_type));
+    EXPECT_EQ(selection.value()[778 - 50].import_state, kImportStateMissing);
+    for (std::size_t index = 0; index < selection.value().size(); ++index)
+    {
+        EXPECT_EQ(selection.value()[index].id, "ast_candidate_" + std::to_string(index + 50));
+        EXPECT_EQ(selection.value()[index].row, index + 50);
+    }
+    auto stale = service->library().resolve_selection_ids(request, 801, revision - 1);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("test"));
+    request.cancellation = cancelled.token();
+    auto stopped = service->library().resolve_selection_ids(request, 801, revision);
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+    request = LibraryPageRequest{};
+    request.candidate_asset_ids = std::make_shared<const std::vector<std::string>>();
+    auto empty = service->library().list_assets_page(request);
+    ASSERT_TRUE(empty);
+    EXPECT_EQ(empty.value().total, 0U);
+    EXPECT_TRUE(empty.value().assets.empty());
+    request.candidate_asset_ids = candidates;
+    request.query.folder_uri = "file:///library/folder-1";
+    request.query.rating_mode = RatingFilterMode::kMinimum;
+    request.query.rating_value = 4;
+    auto scoped = service->library().list_assets_page(request);
+    ASSERT_TRUE(scoped) << scoped.error().message;
+    EXPECT_EQ(scoped.value().total, 200U);
+    auto set = service->library().create_library_set(LibrarySetKind::kManual, "Candidates", {},
+                                                     {"ast_candidate_801", "ast_candidate_802"});
+    ASSERT_TRUE(set);
+    request.query = LibraryQuery{};
+    request.query.collection_id = set.value().set.id;
+    auto collection = service->library().list_assets_page(request);
+    ASSERT_TRUE(collection);
+    EXPECT_EQ(collection.value().total, 2U);
+    auto stacked = service->library().stack_assets({"ast_candidate_801", "ast_candidate_802"},
+                                                   "ast_candidate_802");
+    ASSERT_TRUE(stacked);
+    auto collapsed = service->library().list_assets_page(request);
+    ASSERT_TRUE(collapsed);
+    ASSERT_EQ(collapsed.value().total, 1U);
+    EXPECT_EQ(collapsed.value().assets.front().id, "ast_candidate_802");
+    request.collapse_stacks = false;
+    EXPECT_EQ(service->library().list_assets_page(request).value().total, 2U);
+}
 
 TEST_F(CatalogServiceTest, CullExactDuplicatesReportsSameBytesAndSameFile)
 {

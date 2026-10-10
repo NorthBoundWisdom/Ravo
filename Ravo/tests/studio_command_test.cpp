@@ -360,8 +360,8 @@ TEST(AssetListModelTest, SparsePagesKeepTotalRowsAndBoundResidentRecords)
     model.setPage(400U, make_page(400), {}, {}, 10'000U);
     model.setPage(600U, make_page(600), {}, {}, 10'000U);
     EXPECT_LE(model.loadedCount(), static_cast<int>(kLibraryPageDefaultSize * 3U));
-    EXPECT_TRUE(model.rowLoaded(0));
-    EXPECT_FALSE(model.rowLoaded(200));
+    EXPECT_FALSE(model.rowLoaded(0));
+    EXPECT_TRUE(model.rowLoaded(200));
     EXPECT_TRUE(model.rowLoaded(600));
     EXPECT_EQ(model.assetIdAt(600), QStringLiteral("ast_sparse_600"));
     EXPECT_TRUE(model.isSelected("ast_sparse_0"));
