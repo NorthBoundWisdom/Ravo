@@ -41,6 +41,12 @@ Item {
 
     signal clicked(int button, int modifiers)
     signal doubleClicked
+    signal loadFailed(url failedUrl)
+
+    onThumbnailStateChanged: {
+        if (photo.status === Image.Error)
+            root.loadFailed(photo.source);
+    }
 
     readonly property bool missing: importState === "missing" || thumbnailState === "missing"
     readonly property string kindLabel: {
@@ -117,6 +123,8 @@ Item {
                     hasReadyImage = true;
                 else if (status === Image.Null || status === Image.Error)
                     hasReadyImage = false;
+                if (status === Image.Error)
+                    root.loadFailed(source);
             }
             cache: true
             source: root.thumbnailUrl

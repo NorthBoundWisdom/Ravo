@@ -2,6 +2,7 @@
 #include "ravo/desktop/studio_import_workspace.h"
 #include "studio_import_worker.h"
 #include "studio_library_resume.h"
+#include "studio_gallery_thumbnail_cache.h"
 
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/filesystem_browser_model.h"
@@ -177,6 +178,7 @@ StudioPresenter::~StudioPresenter()
     static_cast<void>(thumbnail_presentation_cancel_.cancel("window_closed"));
     static_cast<void>(library_reload_cancel_.cancel("window_closed"));
     pending_thumbnail_presentations_.clear();
+    thumbnail_presentation_order_.clear();
     thumbnail_presentation_executor_.request_stop();
     thumbnail_presentation_executor_.wait();
     // Cancel borrowed foreground ROI work before draining that executor.
@@ -483,6 +485,8 @@ void StudioPresenter::applyAssets(std::vector<AssetRecord> assets, const bool re
     pending_thumbnail_presentations_.clear();
     thumbnail_presentation_revisions_.clear();
     thumbnail_repair_attempts_.clear();
+    thumbnail_load_repair_attempts_.clear();
+    thumbnail_presentation_order_.clear();
     ++library_query_generation_;
     const QString previous = selected_asset_id_;
     const auto incoming_thumbs = thumbnail_urls;
@@ -628,6 +632,8 @@ void StudioPresenter::kickThumbnailDemand()
         pending_thumbnail_ids_.pop_front();
         if (!assets_.assetById(qstring_from_utf8(id)) ||
             assets_.thumbnailState(id) == QLatin1String("ready") ||
+            assets_.thumbnailState(id) == QLatin1String("proxy") ||
+            assets_.thumbnailState(id) == QLatin1String("presenting") ||
             assets_.thumbnailState(id) == QLatin1String("missing") ||
             assets_.thumbnailState(id) == QLatin1String("failed"))
         {

@@ -713,20 +713,33 @@ remain owned by the C++ presenter/services; the QML timer controls only visibili
 Gallery and import-workspace grid cells fit available width in the 120–320
 range and have a vertical scroll bar. Gallery list publication never decodes or
 encodes monitor-presented thumbnails on the UI thread. A presenter-owned serial
-display worker processes one immutable source/profile snapshot at a time;
-pending requests coalesce by asset within the bounded resident library pages.
+display worker processes one immutable source/profile snapshot at a time, with
+at most four dispatched tasks to amortize GUI wakeups. Pending requests coalesce
+by asset within the bounded resident library pages. Visible Gallery/filmstrip
+cells promote their pending work ahead of page hydration; offscreen delegates
+do not request source decoding merely because they were instantiated.
 Conversion uses at most a 320-pixel long edge, with one shared immutable monitor
-profile. The persistent `ravo-gallery-display-v2` PNG cache keys immutable preview
+profile. The persistent `ravo-gallery-display-v3` PNG cache keys immutable preview
 path/size/mtime, thumbnail extent, display contract and monitor profile fingerprint.
 The preview PNG's embedded ICC owns source colour on both first use and reopen.
 Warm worker lookups inspect only the output header, bypassing source decode,
 colour conversion and encoding. Miss publication uses the existing
 `FilesystemPreviewCache` atomic writer and shared 512 MiB budget; a bounded
-cross-process lock serializes re-index/eviction/publication on misses. Lock timeout
+cross-process lock serializes eviction/publication on misses. Each window keeps
+its worker-owned index across publications. A bounded atomic epoch file changes
+before any eviction/write; another publisher or an interrupted publication makes
+the next lock holder rebuild its index. Thus a single-window cold page scans once,
+while multiple windows still share the hard budget. The v3 namespace isolates
+this protocol from older publishers and requires a first-use display rebuild.
+Lock timeout
 is an explicit conflict, not an unprofiled-image fallback. Folder revisits and
 new Studio owners reuse persisted outputs. Pending thumbnails remain placeholders
 until presentation completes. Conversion/publication failures remain visible,
-and generation checks reject replaced folder/profile results. Window teardown
+and generation checks reject replaced folder/profile results. QML image-reader
+failures carry the asset and exact failed URL back to C++; stale URLs are ignored.
+One repair per asset/listing rebuilds the display PNG and changes its URL fragment
+to release Qt's failed decoded resource. Another failure becomes explicit failed
+state. It does not loop or publish unprofiled pixels. Window teardown
 cancels and joins this worker without deleting reusable disk entries. Folder reloads cancel
 obsolete thumbnail demand and enqueue foreground catalog queries with latest-query
 publication checks; foreground queries retain their catalog connection, while

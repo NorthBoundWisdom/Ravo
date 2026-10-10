@@ -219,6 +219,13 @@ also cover listing replacement, owner destruction, cache corruption, and output
 publication conflicts. The 200-row folder/cache fixture drains the full
 monitor-change batch before taking the publication lock, so it tests an
 intentional competing publisher rather than racing its own remaining rows.
+It also requires visible demand to finish within the four dispatched background
+tasks, repairs a failed decoded URL, rejects stale URL failures and bounds repeat
+repair. `GalleryCacheReusesIndexAndObservesOtherPublishers` checks index reuse,
+cross-owner eviction under a shared byte budget, cancellation and invalid epoch
+errors. Release measurements record cold-page and warm-reopen timings on the same
+200-image fixture; they are synthetic cache/scheduling evidence, not a private
+RAW corpus or removable-drive throughput claim.
 `PagedThumbnailUsesPresentationAndEvictionRecovery` loads a cached thumbnail
 past the initial 200-row page, evicts its input at display dispatch, and requires
 recovered monitor-corrected pixels with unchanged originals. The production QML

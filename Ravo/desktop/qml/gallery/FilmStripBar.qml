@@ -92,16 +92,22 @@ Rectangle {
             required property int index
             width: Math.max(72, height)
             height: strip.height
+            readonly property bool inViewport: strip.visible && x + width > strip.contentX && x < strip.contentX + strip.width
+            function requestVisibleThumbnail() {
+                if (!root.presenter || !inViewport)
+                    return;
+                if (assetId.length === 0)
+                    root.presenter.ensureLibraryRow(index);
+                else if (thumbnailState !== "ready")
+                    root.presenter.ensureThumbnail(assetId);
+            }
+            onInViewportChanged: requestVisibleThumbnail()
+            onThumbnailStateChanged: requestVisibleThumbnail()
             Component.onCompleted: {
-                if (root.presenter) {
-                    root.presenter.ensureLibraryRow(stripDelegate.index);
-                    if (stripDelegate.assetId.length > 0 && stripDelegate.thumbnailState !== "ready")
-                        root.presenter.ensureThumbnail(stripDelegate.assetId);
-                }
+                requestVisibleThumbnail();
             }
             onAssetIdChanged: {
-                if (root.presenter && stripDelegate.assetId.length > 0 && stripDelegate.thumbnailState !== "ready")
-                    root.presenter.ensureThumbnail(stripDelegate.assetId);
+                requestVisibleThumbnail();
             }
 
             ThumbnailCell {
@@ -125,6 +131,10 @@ Rectangle {
                 pixelWidth: stripDelegate.pixelWidth
                 pixelHeight: stripDelegate.pixelHeight
                 swatchColor: root.swatchColor
+                onLoadFailed: function (url) {
+                    if (root.presenter)
+                        root.presenter.thumbnailLoadFailed(stripDelegate.assetId, url);
+                }
                 onClicked: function (button, modifiers) {
                     if (root.commands)
                         root.commands.handlePhotoRowClick(stripDelegate.index, stripDelegate.assetId, button, modifiers);

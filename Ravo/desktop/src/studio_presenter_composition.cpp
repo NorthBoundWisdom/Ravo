@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/desktop/studio_import_workspace.h"
 #include "studio_library_resume.h"
+#include "studio_gallery_thumbnail_cache.h"
 
 #include "ravo/desktop/export_option_conversion.h"
 #include "ravo/desktop/filesystem_browser_model.h"

@@ -54,6 +54,7 @@ namespace ravo
 class StudioCommandController;
 class StudioLiveSessionController;
 class StudioDisplayPresentation;
+class StudioGalleryThumbnailCache;
 struct DisplayPresentationState;
 namespace testing
 {
@@ -420,6 +421,7 @@ public:
     Q_INVOKABLE void addSelectionToLibrarySet(const QString &set_id);
     Q_INVOKABLE void removeSelectionFromLibrarySet(const QString &set_id);
     Q_INVOKABLE void ensureThumbnail(const QString &asset_id);
+    Q_INVOKABLE void thumbnailLoadFailed(const QString &asset_id, const QUrl &url);
 
     Q_INVOKABLE void ensureLibraryRow(int row);
     Q_INVOKABLE void loadNextLibraryPage();
@@ -528,12 +530,16 @@ private:
     CancellationSource thumbnail_presentation_cancel_;
     CancellationSource library_reload_cancel_;
     std::map<std::string, std::function<void()>> pending_thumbnail_presentations_;
-    bool thumbnail_presentation_in_flight_ = false;
+    std::deque<std::string> thumbnail_presentation_order_;
+    std::unique_ptr<StudioGalleryThumbnailCache> gallery_thumbnail_cache_;
+    std::size_t thumbnail_presentations_in_flight_ = 0;
     std::shared_ptr<const DisplayPresentationState> thumbnail_display_state_;
     std::uint64_t thumbnail_presentation_revision_ = 0;
     std::unordered_map<std::string, std::uint64_t> thumbnail_presentation_revisions_;
     // One cache-miss repair per presentation chain; cleared on success or listing replacement.
     std::unordered_set<std::string> thumbnail_repair_attempts_;
+    // Image-reader repair is bounded for each listing, including corrupt PNG payloads.
+    std::unordered_set<std::string> thumbnail_load_repair_attempts_;
     std::optional<EngineFacade> engine_;
     std::unique_ptr<CatalogService> service_;
     CancellationSource shutdown_;

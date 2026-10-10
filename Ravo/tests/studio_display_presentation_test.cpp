@@ -8,6 +8,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QImage>
+#include <QBuffer>
 #include <QQmlEngine>
 #include <QQmlComponent>
 #include <QTemporaryDir>
@@ -31,6 +32,7 @@
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "studio_test_support.h"
+#include "studio_gallery_thumbnail_cache.h"
 #if defined(Q_OS_MACOS)
 #include "studio_iosurface_snapshot.h"
 #include "ravo/services/display_presentation.h"
@@ -42,6 +44,87 @@ namespace
 {
 using studio_test_support::ensure_qt_core;
 using studio_test_support::wait_until;
+
+TEST(StudioDisplayPresentationTest, ThumbnailCellReportsReaderFailureAndAcceptsRepairedUrl)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral("qrc:/"));
+    engine.addImportPath(QStringLiteral(RAVO_GEOCONTROLS_QML_IMPORT_ROOT));
+    engine.addImportPath(QStringLiteral(RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT));
+    QQmlComponent component(&engine);
+    component.setData("import QtQuick\nimport \".\"\nThumbnailCell { width: 100; height: 100; "
+                      "property url failedUrl; property int failures: 0; "
+                      "onLoadFailed: function(url) { failedUrl = url; failures += 1; } }",
+                      QUrl::fromLocalFile(QStringLiteral(
+                          RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml/gallery/ReaderTest.qml")));
+    ASSERT_TRUE(component.isReady()) << component.errorString().toStdString();
+    std::unique_ptr<QObject> cell(component.create());
+    ASSERT_TRUE(cell);
+    const auto missing = QUrl::fromLocalFile(directory.filePath("thumbnail.png"));
+    ASSERT_TRUE(cell->setProperty("thumbnailUrl", missing));
+    ASSERT_TRUE(wait_until([&] { return cell->property("failedUrl").toUrl() == missing; }));
+    const int failures = cell->property("failures").toInt();
+    // A read can fail while presentation is pending. Ready publication must
+    // report that failure again even when the URL itself did not change.
+    ASSERT_TRUE(cell->setProperty("thumbnailState", "ready"));
+    EXPECT_EQ(cell->property("failures").toInt(), failures + 1);
+    QImage pixels(32, 24, QImage::Format_RGB888);
+    pixels.fill(Qt::blue);
+    ASSERT_TRUE(pixels.save(missing.toLocalFile()));
+    auto repaired = missing;
+    repaired.setFragment("repaired");
+    ASSERT_TRUE(cell->setProperty("thumbnailUrl", repaired));
+    auto *photo = cell->findChild<QObject *>("thumbnailPhoto");
+    ASSERT_TRUE(photo);
+    ASSERT_TRUE(wait_until([&] { return photo->property("status").toInt() == 1; }));
+    EXPECT_TRUE(photo->property("hasReadyImage").toBool());
+}
+
+TEST(StudioDisplayPresentationTest, GalleryCacheReusesIndexAndObservesOtherPublishers)
+{
+    ensure_qt_core();
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    QImage image(32, 24, QImage::Format_RGB888);
+    image.fill(Qt::blue);
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    ASSERT_TRUE(buffer.open(QIODevice::WriteOnly));
+    ASSERT_TRUE(image.save(&buffer, "PNG"));
+    const auto budget = static_cast<std::uint64_t>(bytes.size()) * 2U;
+    StudioGalleryThumbnailCache first(budget);
+    StudioGalleryThumbnailCache second(budget);
+    ASSERT_TRUE(first.publish(directory.path(), "one", bytes, false, {}));
+    ASSERT_TRUE(first.publish(directory.path(), "two", bytes, false, {}));
+    EXPECT_EQ(first.indexBuildCount(), 1U);
+    // Another window must account for the first one's files before eviction.
+    ASSERT_TRUE(second.publish(directory.path(), "three", bytes, false, {}));
+    EXPECT_EQ(second.indexBuildCount(), 1U);
+    EXPECT_FALSE(QFileInfo::exists(directory.filePath("one.png")));
+    ASSERT_TRUE(first.publish(directory.path(), "four", bytes, false, {}));
+    EXPECT_EQ(first.indexBuildCount(), 2U);
+    EXPECT_EQ(QDir(directory.path()).entryList({"*.png"}, QDir::Files).size(), 2);
+    ASSERT_TRUE(first.publish(directory.path(), "four", bytes, false, {}));
+    EXPECT_EQ(first.indexBuildCount(), 2U);
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("test"));
+    auto stopped = first.publish(directory.path(), "cancelled", bytes, false, cancelled.token());
+    ASSERT_FALSE(stopped);
+    EXPECT_EQ(stopped.error().code, ErrorCode::kCancelled);
+    EXPECT_FALSE(QFileInfo::exists(directory.filePath("cancelled.png")));
+    // Damaged generation metadata must be reported, never treated as permission
+    // to use a potentially stale capacity index.
+    QFile epoch(directory.filePath("index-epoch"));
+    ASSERT_TRUE(epoch.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    ASSERT_EQ(epoch.write(QByteArray(65, 'x')), 65);
+    epoch.close();
+    auto invalid = first.publish(directory.path(), "five", bytes, false, {});
+    ASSERT_FALSE(invalid);
+    EXPECT_EQ(invalid.error().code, ErrorCode::kIo);
+}
 
 enum class ThumbnailCacheLoss
 {
@@ -427,12 +510,26 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
     auto &presenter = *owned_presenter;
     presenter.bindDisplayPresentation(&display);
     bool observed_pending_presentation = false;
+    std::vector<std::string> first_completions;
+    QObject::connect(presenter.assets(), &QAbstractItemModel::dataChanged,
+                     [&](const QModelIndex &first, const QModelIndex &last, const QList<int> &)
+                     {
+                         for (int row = first.row(); row <= last.row(); ++row)
+                         {
+                             const auto id = presenter.assets()->assetIdAt(row).toStdString();
+                             if (presenter.assets()->thumbnailState(id) == "ready")
+                                 first_completions.push_back(id);
+                         }
+                     });
     QObject::connect(&presenter, &StudioPresenter::filterChanged,
                      [&]
                      {
                          if (presenter.visibleCount() == 200)
+                         {
                              observed_pending_presentation |=
                                  presenter.assets()->thumbnailState("ast_folder_0") == "presenting";
+                             presenter.ensureThumbnail("ast_folder_123");
+                         }
                      });
     QElapsedTimer cold_timer;
     cold_timer.start();
@@ -449,6 +546,11 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
         return true;
     };
     ASSERT_TRUE(wait_until(ready, 30000)) << presenter.errorText().toStdString();
+    const auto demanded =
+        std::find(first_completions.begin(), first_completions.end(), "ast_folder_123");
+    ASSERT_NE(demanded, first_completions.end());
+    EXPECT_LE(std::distance(first_completions.begin(), demanded), 4)
+        << "Visible demand waited behind the page's background presentations";
     RecordProperty("cold_open_all_thumbnails_ms", cold_timer.elapsed());
     const auto thumbnail = [&]
     {
@@ -580,6 +682,41 @@ TEST(StudioDisplayPresentationTest, FolderSwitchPublishesBeforeThumbnailWorkAndR
         },
         30000));
     EXPECT_EQ(QImage(reopened_url().toLocalFile()).size(), QSize(64, 48));
+    ASSERT_TRUE(wait_until(reopened_ready, 30000));
+    const auto damaged_url = reopened_url();
+    {
+        QFile damaged(damaged_url.toLocalFile());
+        ASSERT_TRUE(damaged.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        ASSERT_EQ(damaged.write("broken"), 6);
+    }
+    reopened.thumbnailLoadFailed("ast_folder_0", damaged_url);
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return reopened.assets()->thumbnailState("ast_folder_0") == "ready" &&
+                   reopened_url() != damaged_url;
+        },
+        30000));
+    EXPECT_FALSE(QImage(reopened_url().toLocalFile()).isNull());
+    EXPECT_FALSE(reopened_url().fragment().isEmpty());
+    // A stale QML failure must not invalidate replacement pixels.
+    reopened.thumbnailLoadFailed("ast_folder_0", damaged_url);
+    EXPECT_EQ(reopened.assets()->thumbnailState("ast_folder_0"), "ready");
+    reopened.thumbnailLoadFailed("ast_folder_0", reopened_url());
+    EXPECT_EQ(reopened.assets()->thumbnailState("ast_folder_0"), "failed");
+    EXPECT_TRUE(reopened.errorText().contains("remains unreadable after repair"));
+    const auto proxy_row = reopened.assets()->indexOf("ast_folder_1");
+    const auto proxy_url =
+        reopened.assets()
+            ->data(reopened.assets()->index(proxy_row, 0), AssetListModel::ThumbnailUrlRole)
+            .toUrl();
+    reopened.assets()->setThumbnail("ast_folder_1", proxy_url, QStringLiteral("proxy"));
+    const auto work_total = reopened.previewWorkTotal();
+    for (int demand = 0; demand < 8; ++demand)
+        reopened.ensureThumbnail("ast_folder_1");
+    EXPECT_EQ(reopened.previewWorkTotal(), work_total);
+    EXPECT_FALSE(reopened.previewWorkActive());
+    EXPECT_EQ(reopened.assets()->thumbnailState("ast_folder_1"), "proxy");
 }
 
 TEST(StudioDisplayPresentationPerformanceProbe, MeasuresPrivateCatalogFolderSwitch)

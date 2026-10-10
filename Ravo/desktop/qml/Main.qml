@@ -665,8 +665,8 @@ ApplicationWindow {
                             if (!inViewport)
                                 return;
                             if (assetId.length === 0)
-                                studio.ensureLibraryRow(index);
-                            else if (thumbnailState === "pending")
+                                studio.ensureLibraryRow(tile.index);
+                            else if (thumbnailState !== "ready")
                                 studio.ensureThumbnail(assetId);
                         }
 
@@ -674,14 +674,10 @@ ApplicationWindow {
                         onThumbnailStateChanged: requestVisibleThumbnail()
 
                         Component.onCompleted: {
-                            if (tile.assetId.length === 0)
-                                studio.ensureLibraryRow(tile.index);
-                            else if (tile.thumbnailState !== "ready")
-                                studio.ensureThumbnail(tile.assetId);
+                            requestVisibleThumbnail();
                         }
                         onAssetIdChanged: {
-                            if (tile.assetId.length > 0 && tile.thumbnailState !== "ready")
-                                studio.ensureThumbnail(tile.assetId);
+                            requestVisibleThumbnail();
                         }
 
                         ThumbnailCell {
@@ -708,6 +704,9 @@ ApplicationWindow {
                             captureSummary: tile.captureSummary
                             showInformationOverlay: studioCommands.photoInfoVisible
                             swatchColor: window.swatchColor
+                            onLoadFailed: function (url) {
+                                studio.thumbnailLoadFailed(tile.assetId, url);
+                            }
                             onClicked: function (button, modifiers) {
                                 studioActions.handlePhotoClick(tile.assetId, button, modifiers);
                             }
