@@ -7,11 +7,13 @@
 #include <vector>
 #include <utility>
 #include <map>
+#include <functional>
 
 #include "ravo/domain/types.h"
 #include "ravo/domain/foreign_catalog.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/error.h"
+#include "ravo/foundation/json.h"
 #include "ravo/recipe/crs_types.h"
 
 namespace ravo
@@ -75,10 +77,25 @@ struct ForeignCatalogItemReport
     std::string foreign_id;
     std::optional<std::string> original_path;
     std::optional<std::string> asset_id;
+    std::optional<ForeignCatalogFileFingerprint> source_fingerprint;
     ForeignCatalogItemStatus status = ForeignCatalogItemStatus::kFailed;
     std::vector<std::string> mapped_fields;
     std::vector<CrsOmission> unsupported_fields;
     std::vector<std::string> reasons;
+    std::string phase;
+    bool resumed = false;
+};
+
+[[nodiscard]] JsonValue foreign_catalog_item_to_json(const ForeignCatalogItemReport &item);
+[[nodiscard]] Result<ForeignCatalogItemReport>
+foreign_catalog_item_from_json(std::string_view text);
+
+struct ForeignCatalogSourceAudit
+{
+    ForeignCatalogFileFingerprint before;
+    std::optional<ForeignCatalogFileFingerprint> after;
+    std::string status = "not_verified";
+    std::optional<TaskError> error;
 };
 
 struct ForeignCatalogCollectionReport
@@ -89,6 +106,10 @@ struct ForeignCatalogCollectionReport
     std::vector<std::string> reasons;
     std::size_t imported_members = 0;
 };
+[[nodiscard]] JsonValue
+foreign_catalog_collection_to_json(const ForeignCatalogCollectionReport &item);
+[[nodiscard]] Result<ForeignCatalogCollectionReport>
+foreign_catalog_collection_from_json(std::string_view text);
 
 struct ForeignCatalogConversionReport
 {
@@ -98,14 +119,19 @@ struct ForeignCatalogConversionReport
     std::optional<std::string> source_product_version;
     std::string source_path;
     std::string destination_catalog;
+    std::string conversion_id;
     std::size_t imported = 0;
     std::size_t skipped = 0;
     std::size_t unsupported = 0;
     std::size_t failed = 0;
     std::size_t unsupported_fields = 0;
-    bool originals_unchanged = true;
+    // True only when every recorded source was actually reverified.
+    bool originals_unchanged = false;
+    bool source_audit_complete = false;
     bool cancelled = false;
     std::vector<ForeignCatalogFileFingerprint> source_originals;
+    std::vector<ForeignCatalogSourceAudit> source_audits;
+    std::vector<TaskError> issues;
     std::vector<ForeignCatalogItemReport> items;
     std::vector<ForeignCatalogCollectionReport> collections;
     std::optional<ForeignCatalogArchive> source_archive;
@@ -130,6 +156,10 @@ struct ForeignCatalogConversionRequest
     std::vector<std::string> foreign_ids;
     // Required with explicit IDs; binds them to the observed immutable source.
     std::string expected_source_sha256;
+    bool resume = false;
+    // Synchronous owner-thread observations; arguments are borrowed for the call.
+    // May request cancellation. Never advances a committed item count for hashing.
+    std::function<void(std::string_view, std::size_t, std::size_t)> progress;
 };
 
 [[nodiscard]] constexpr std::string_view

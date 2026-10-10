@@ -1,11 +1,17 @@
 #include "ravo/desktop/studio_import_workspace.h"
 #include <future>
 #include <memory>
+#include <atomic>
+#include <cstdlib>
 
 #include <QColorSpace>
 #include <QDir>
 #include <QImage>
 #include <QTemporaryDir>
+#include <QCoreApplication>
+#include <QEvent>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <gtest/gtest.h>
 
 #include "ravo/desktop/studio_presenter.h"
@@ -14,6 +20,9 @@
 #include "ravo/recipe/develop.h"
 #include "studio_import_worker.h"
 #include "studio_test_support.h"
+#include "interactive_perf_report.h"
+#include "ravo/desktop/studio_display_presentation.h"
+#include "ravo/services/display_presentation.h"
 
 namespace ravo
 {
@@ -22,6 +31,63 @@ namespace testing
 class StudioPipelineTestControl
 {
 public:
+    static void load(StudioPresenter &presenter)
+    {
+        presenter.develop()->load_develop_for_selection();
+    }
+    static void drain(StudioPresenter &presenter)
+    {
+        presenter.executor_.wait_idle();
+    }
+    static bool loaded(StudioPresenter &presenter)
+    {
+        return presenter.develop()->state_.develop_loaded_;
+    }
+    static void clearError(StudioPresenter &presenter)
+    {
+        presenter.setError({});
+    }
+    static bool queueFailure(StudioPresenter &presenter)
+    {
+        SerialExecutor stopped;
+        stopped.request_stop();
+        stopped.wait();
+        StudioDevelopPresenter::Host host;
+        host.selected_media_type = [] { return QStringLiteral("image/png"); };
+        host.preview_loading = [&](bool loading) { presenter.inspect_.setPreviewLoading(loading); };
+        const bool importing = presenter.import_workspace_->importWorkActive();
+        StudioDevelopPresenter isolated({presenter.selected_asset_id_, presenter.catalog_path_,
+                                         presenter.browse_mode_, presenter.busy_,
+                                         presenter.catalog_operation_active_, importing,
+                                         presenter.observed_catalog_revision_, presenter.assets_,
+                                         presenter.inspect_, presenter.engine_, stopped},
+                                        std::move(host), nullptr);
+        isolated.load_develop_for_selection();
+        return !isolated.state_.develop_loaded_ && !isolated.state_.develop_load_error_.isEmpty();
+    }
+    static bool probeImports(StudioPresenter &presenter, const std::vector<std::string> &paths,
+                             std::shared_ptr<std::atomic<bool>> stop,
+                             std::shared_ptr<std::atomic<std::size_t>> count)
+    {
+        return presenter.imports()->importWorker().executor().post(
+            [&presenter, paths, stop, count]
+            {
+                for (const auto &path : paths)
+                {
+                    if (stop->load())
+                        break;
+                    auto imported =
+                        presenter.imports()->importWorker().service()->import().import_one(path,
+                                                                                           {});
+                    if (imported && imported.value().status == ImportItemStatus::kImported)
+                        ++*count;
+                }
+            });
+    }
+    static void drainImports(StudioPresenter &presenter)
+    {
+        presenter.imports()->importWorker().executor().wait_idle();
+    }
     static bool blockImport(StudioPresenter &presenter, std::shared_ptr<std::promise<void>> entered,
                             std::shared_future<void> release)
     {
@@ -98,6 +164,215 @@ bool ready(StudioPresenter &presenter)
     return !presenter.inspect()->previewLoading() && !presenter.inspect()->previewImage().isNull();
 }
 } // namespace
+
+TEST(StudioPipelinePriority, RecipeLoadRejectsOldAAfterABAAndSessionReplacement)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    const auto first = directory.filePath("first.png"), second = directory.filePath("second.png");
+    ASSERT_TRUE(write_photo(first, 0));
+    ASSERT_TRUE(write_photo(second, 80));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({first, second});
+    ASSERT_TRUE(wait_until(
+        [&] { return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 2; }));
+    const auto a = presenter.assets()->assetIdAt(0), b = presenter.assets()->assetIdAt(1);
+    presenter.selectAsset(a);
+    ASSERT_TRUE(wait_until([&] { return testing::StudioPipelineTestControl::loaded(presenter); }));
+    for (const bool replace_session : {false, true})
+    {
+        // Complete the old read on the worker without delivering its GUI event.
+        testing::StudioPipelineTestControl::load(presenter);
+        testing::StudioPipelineTestControl::drain(presenter);
+        ImportGate gate;
+        ASSERT_TRUE(testing::StudioPipelineTestControl::blockPreview(presenter, gate.entered,
+                                                                     gate.released));
+        ASSERT_EQ(gate.started.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+        if (replace_session)
+        {
+            presenter.openCatalogFromPath(directory.filePath("library.sqlite"));
+        }
+        else
+        {
+            presenter.selectAsset(b);
+            presenter.selectAsset(a);
+        }
+        EXPECT_FALSE(testing::StudioPipelineTestControl::loaded(presenter));
+        QCoreApplication::sendPostedEvents(presenter.develop(), QEvent::MetaCall);
+        EXPECT_FALSE(testing::StudioPipelineTestControl::loaded(presenter));
+        gate.open();
+        ASSERT_TRUE(
+            wait_until([&] { return testing::StudioPipelineTestControl::loaded(presenter); }));
+        EXPECT_EQ(presenter.selectedAssetId(), a);
+    }
+}
+
+TEST(StudioPipelinePriority, WhiteBalancePickPreflightStaysOnGuiThread)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    const auto photo = directory.filePath("photo.png");
+    ASSERT_TRUE(write_photo(photo, 0));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importWorkActive() &&
+                   testing::StudioPipelineTestControl::loaded(presenter);
+        }));
+    const auto before = testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString());
+    ASSERT_TRUE(before);
+    presenter.develop()->pickWhiteBalance(0.5, 0.5);
+    EXPECT_EQ(presenter.errorText(),
+              QCoreApplication::translate("DevelopPanel",
+                                          "White-balance pick requires a Bayer RAW original"));
+    const auto after = testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString());
+    ASSERT_TRUE(after);
+    EXPECT_EQ(serialize_recipe(before.value()).value(), serialize_recipe(after.value()).value());
+}
+
+TEST(StudioPipelinePriority, RecipeHistoryReadAndQueueFailuresRemainUnloaded)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    const auto photo = directory.filePath("photo.png"),
+               catalog = directory.filePath("library.sqlite");
+    ASSERT_TRUE(write_photo(photo, 0));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(catalog);
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importWorkActive() && presenter.visibleCount() == 1 &&
+                   testing::StudioPipelineTestControl::loaded(presenter);
+        }));
+    testing::StudioPipelineTestControl::drain(presenter);
+    // Private fixture fault: recipe still reads successfully; only history fails.
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", "recipe-history-fault");
+        db.setDatabaseName(catalog);
+        ASSERT_TRUE(db.open());
+        QSqlQuery query(db);
+        ASSERT_TRUE(query.exec("ALTER TABLE asset_recipe_history RENAME TO unavailable_history"));
+    }
+    QSqlDatabase::removeDatabase("recipe-history-fault");
+    ASSERT_TRUE(testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString()));
+    testing::StudioPipelineTestControl::clearError(presenter);
+    testing::StudioPipelineTestControl::load(presenter);
+    ASSERT_TRUE(wait_until([&] { return !presenter.errorText().isEmpty(); }));
+    EXPECT_FALSE(testing::StudioPipelineTestControl::loaded(presenter));
+    EXPECT_FALSE(presenter.develop()->canAdjustExposure());
+    const auto before = testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString());
+    ASSERT_TRUE(before);
+    presenter.develop()->setDevelopNumber("exposure", 2);
+    testing::StudioPipelineTestControl::drain(presenter);
+    const auto after = testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString());
+    ASSERT_TRUE(after);
+    EXPECT_EQ(serialize_recipe(before.value()).value(), serialize_recipe(after.value()).value());
+    EXPECT_TRUE(testing::StudioPipelineTestControl::queueFailure(presenter));
+    EXPECT_FALSE(presenter.inspect()->previewLoading());
+}
+
+TEST(StudioDisplayResourceProbe, MeasuresIntentToDisplayWithConcurrentImport)
+{
+    if (!std::getenv("RAVO_DISPLAY_RESOURCE_PROBE"))
+        GTEST_SKIP()
+            << "set RAVO_DISPLAY_RESOURCE_PROBE=1 for the synthetic import/edit measurement";
+    ensure_qt_core();
+    init_logging("ravo-display-resource-probe");
+    QTemporaryDir directory;
+    const auto first = directory.filePath("selected.png");
+    QImage image(1024, 768, QImage::Format_RGB888);
+    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x)
+            image.setPixelColor(x, y, QColor(x % 256, y % 256, (x + y) % 256));
+    ASSERT_TRUE(image.save(first, "PNG"));
+    std::vector<std::string> paths;
+    for (int index = 0; index < 96; ++index)
+    {
+        const auto path = directory.filePath(QStringLiteral("import-%1.png").arg(index));
+        image.setPixelColor(0, 0, QColor(index, index, index));
+        ASSERT_TRUE(image.save(path, "PNG"));
+        paths.push_back(path.toStdString());
+    }
+    StudioDisplayPresentation display;
+    ASSERT_TRUE(display.valid());
+    auto srgb = make_srgb_color_profile();
+    ASSERT_TRUE(srgb);
+    if (color_profile_fingerprint(srgb.value()) == display.presentationState().profile_fingerprint)
+        GTEST_SKIP() << "System monitor is sRGB; this probe requires an actual ICC conversion";
+    StudioPresenter presenter;
+    presenter.bindDisplayPresentation(&display);
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({first});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return !presenter.imports()->importWorkActive() &&
+                   testing::StudioPipelineTestControl::loaded(presenter);
+        }));
+    presenter.setBrowseMode("develop");
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }));
+    for (const bool concurrent_import : {false, true})
+    {
+        auto stop = std::make_shared<std::atomic<bool>>(false);
+        auto count = std::make_shared<std::atomic<std::size_t>>(0);
+        struct Drain
+        {
+            StudioPresenter &presenter;
+            std::shared_ptr<std::atomic<bool>> stop;
+            ~Drain()
+            {
+                stop->store(true);
+                testing::StudioPipelineTestControl::drainImports(presenter);
+            }
+        } drain{presenter, stop};
+        if (concurrent_import)
+            ASSERT_TRUE(
+                testing::StudioPipelineTestControl::probeImports(presenter, paths, stop, count));
+        std::vector<std::int64_t> samples;
+        std::optional<std::int64_t> elapsed;
+        const auto connection = QObject::connect(
+            presenter.develop(), &StudioDevelopPresenter::interactivePreviewPublished, &presenter,
+            [&](qulonglong, qlonglong us) { elapsed = us; });
+        for (int run = 0; run < 66; ++run)
+        {
+            elapsed.reset();
+            presenter.develop()->previewDevelopNumber("exposure", (run % 7 - 3) * 0.01);
+            ASSERT_TRUE(wait_until([&] { return elapsed.has_value(); }, 10000))
+                << presenter.errorText().toStdString();
+            if (run >= 2)
+                samples.push_back(*elapsed);
+        }
+        QObject::disconnect(connection);
+        if (concurrent_import)
+            EXPECT_GT(count->load(), 0U);
+        interactive_perf_report::CaseMeta meta;
+        meta.case_id = concurrent_import ? "display_intent_with_import" : "display_intent_idle";
+        meta.path = "studio_display_icc";
+        meta.source_kind = "generated_srgb_png_system_monitor_icc";
+        meta.recorded_samples = samples.size();
+        meta.file_count = count->load();
+        interactive_perf_report::emit_case(meta, samples);
+    }
+}
 
 TEST(StudioPipelinePriority, DestinationFoldersProceedWhileImportWorkerIsBlocked)
 {

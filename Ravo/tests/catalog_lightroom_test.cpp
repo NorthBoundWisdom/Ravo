@@ -236,6 +236,282 @@ TEST(LightroomDevelop, ParsesDataWithoutExecutionAndReportsIndependentUnsupporte
     EXPECT_EQ(active.value().omitted.front().reason, "unsupported_lightroom_nested_field");
 }
 
+TEST(LightroomDevelop, NumericFieldsUseBoundedPortableAsciiParsing)
+{
+    const AssetDescriptor asset{"numbers", "file:///numbers.png", {}};
+    auto valid = import_lightroom_develop(
+        "s={Texture=4.5e1,CropLeft=1e-1,CropRight=9e-1,CropAngle=-2.5}", asset);
+    ASSERT_TRUE(valid);
+    EXPECT_DOUBLE_EQ(valid.value().look.texture.strength, 0.45);
+    EXPECT_DOUBLE_EQ(valid.value().look.crop_x, 0.1);
+    EXPECT_DOUBLE_EQ(valid.value().look.straighten_degrees, -2.5);
+    for (const auto &token : {"45junk", "nan", "inf", "1e999", "0x10", "+45"})
+    {
+        auto result = import_lightroom_develop("s={Texture=" + std::string(token) + "}", asset);
+        ASSERT_TRUE(result);
+        EXPECT_FALSE(result.value().texture) << token;
+    }
+    auto overlong = import_lightroom_develop("s={Texture=" + std::string(65, '0') + "}", asset);
+    ASSERT_TRUE(overlong);
+    EXPECT_FALSE(overlong.value().texture);
+    EXPECT_FALSE(parse_lightroom_develop_fields("s={Texture=1,5}"));
+}
+
+TEST_F(CatalogServiceTest, LightroomAuditCancellationAndFailureRetainCommittedReceipts)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = (root / "owned.png").string();
+    std::filesystem::copy_file(png_fixture_path(), original);
+    const auto source = (root / "audit.lrcat").string();
+    make_lightroom(source, original);
+    CancellationSource cancellation;
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    request.cancellation = cancellation.token();
+    request.progress = [&](std::string_view stage, std::size_t, std::size_t)
+    {
+        if (stage == "source_audit")
+            ASSERT_TRUE(cancellation.cancel());
+    };
+    auto result = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.value().imported, 1U);
+    EXPECT_TRUE(result.value().items.front().asset_id);
+    EXPECT_TRUE(result.value().cancelled);
+    EXPECT_FALSE(result.value().originals_unchanged);
+    EXPECT_FALSE(result.value().source_audit_complete);
+    ASSERT_EQ(result.value().source_audits.size(), 1U);
+    EXPECT_EQ(result.value().source_audits.front().status, "cancelled");
+    EXPECT_FALSE(result.value().source_audits.front().after);
+    EXPECT_EQ(sha256_file_hex(original).value(), result.value().source_originals.front().sha256);
+    const auto id = result.value().conversion_id;
+    const auto asset = *result.value().items.front().asset_id;
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    auto journal = service->conversion().foreign_conversion_status(id);
+    ASSERT_TRUE(journal);
+    ASSERT_TRUE(journal.value());
+    ASSERT_EQ(journal.value()->records.size(), 1U);
+    EXPECT_TRUE(journal.value()->records.front().complete);
+    EXPECT_EQ(journal.value()->records.front().asset_id, asset);
+    const auto history = service->develop().list_recipe_history(asset).value();
+    request.resume = true;
+    request.expected_source_sha256 = sha256_file_hex(source).value();
+    request.cancellation = {};
+    request.progress = [&](std::string_view stage, std::size_t, std::size_t)
+    {
+        if (stage == "source_audit")
+            std::filesystem::remove(original);
+    };
+    auto resumed = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(resumed);
+    EXPECT_EQ(resumed.value().imported, 1U);
+    EXPECT_TRUE(resumed.value().items.front().resumed);
+    EXPECT_EQ(resumed.value().items.front().asset_id, asset);
+    EXPECT_EQ(resumed.value().source_audits.front().status, "failed");
+    EXPECT_FALSE(resumed.value().originals_unchanged);
+    EXPECT_EQ(service->develop().list_recipe_history(asset).value().size(), history.size());
+    EXPECT_EQ(service->library().list_assets().value().size(), 1U);
+}
+
+TEST_F(CatalogServiceTest, LightroomPartialItemIsJournaledAndNeverReplayedOnResume)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = (root / "partial.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    CancellationSource cancellation;
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    request.cancellation = cancellation.token();
+    request.progress = [&](std::string_view stage, std::size_t, std::size_t)
+    {
+        if (stage == "rating")
+            ASSERT_TRUE(cancellation.cancel());
+    };
+    auto converted = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(converted);
+    ASSERT_TRUE(converted.value().items.front().asset_id);
+    const auto asset = *converted.value().items.front().asset_id;
+    EXPECT_EQ(converted.value().items.front().phase, "rating");
+    auto journal =
+        service->conversion().foreign_conversion_status(converted.value().conversion_id).value();
+    ASSERT_TRUE(journal);
+    ASSERT_EQ(journal->records.size(), 1U);
+    EXPECT_FALSE(journal->records.front().complete);
+    EXPECT_EQ(journal->records.front().asset_id, asset);
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    request.progress = {};
+    request.cancellation = {};
+    request.resume = true;
+    request.expected_source_sha256 = sha256_file_hex(source).value();
+    auto resumed = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(resumed);
+    EXPECT_EQ(resumed.value().failed, 1U);
+    EXPECT_EQ(resumed.value().items.front().reasons.back(),
+              "incomplete_conversion_requires_resolution");
+    EXPECT_EQ(service->library().list_assets().value().size(), 1U);
+    ASSERT_TRUE(service->library().set_rating(asset, 5));
+    auto conflict = service->conversion().convert_foreign_catalog(request);
+    ASSERT_FALSE(conflict);
+    EXPECT_EQ(conflict.error().context.at("reason"), "foreign_conversion_revision_conflict");
+}
+
+TEST_F(CatalogServiceTest, LightroomResumesUntouchedCopyAndCollectionsWithoutReplayingMaster)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = (root / "resume-copy.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    const QString connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(source));
+        ASSERT_TRUE(db.open());
+        QSqlQuery query(db);
+        for (
+            const auto *sql :
+            {"INSERT INTO Adobe_images VALUES(0,1,2,0,'Blue',1)",
+             "INSERT INTO Adobe_imageDevelopSettings VALUES(1,'s={Exposure2012=1}')",
+             "INSERT INTO Adobe_imageDevelopSettings VALUES(0,'s={Exposure2012=-1}')",
+             "CREATE TABLE AgLibraryCollection(id_local INTEGER,name TEXT,parent INTEGER,creationId TEXT)",
+             "INSERT INTO AgLibraryCollection VALUES(10,'Copies',NULL,'collection')",
+             "CREATE TABLE AgLibraryCollectionImage(collection INTEGER,image INTEGER,positionInCollection TEXT)",
+             "INSERT INTO AgLibraryCollectionImage VALUES(10,1,'a'),(10,0,'b')"})
+            ASSERT_TRUE(query.exec(sql));
+    }
+    QSqlDatabase::removeDatabase(connection);
+    CancellationSource cancellation;
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    request.cancellation = cancellation.token();
+    request.progress = [&](std::string_view stage, std::size_t completed, std::size_t)
+    {
+        if (stage == "conversion" && completed == 1)
+            static_cast<void>(cancellation.cancel());
+    };
+    auto first = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(first);
+    ASSERT_EQ(first.value().imported, 1U);
+    EXPECT_EQ(first.value().source_originals.size(), 1U);
+    const auto master = *first.value().items.front().asset_id;
+    const auto history_count = service->develop().list_recipe_history(master).value().size();
+    service.reset();
+    ASSERT_TRUE(open_service(false));
+    request.cancellation = {};
+    request.progress = {};
+    request.resume = true;
+    request.expected_source_sha256 = sha256_file_hex(source).value();
+    auto second = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(second) << second.error().message;
+    EXPECT_EQ(second.value().imported, 2U);
+    EXPECT_EQ(service->library().list_assets().value().size(), 2U);
+    EXPECT_EQ(service->develop().list_recipe_history(master).value().size(), history_count);
+    ASSERT_EQ(second.value().collections.size(), 1U);
+    EXPECT_EQ(second.value().collections.front().imported_members, 2U);
+    auto third = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(third);
+    EXPECT_EQ(service->library().list_assets().value().size(), 2U);
+    EXPECT_EQ(service->library().list_library_sets().value().size(), 1U);
+    EXPECT_EQ(third.value().collections.front().set_id, second.value().collections.front().set_id);
+    const auto assets = service->library().list_assets().value();
+    for (const auto &asset : assets)
+    {
+        auto params = develop_from_recipe(service->develop().load_recipe(asset.id).value());
+        ASSERT_TRUE(params);
+        EXPECT_DOUBLE_EQ(params.value().exposure_ev, asset.source_asset_id ? -1 : 1);
+    }
+}
+
+TEST_F(CatalogServiceTest, LightroomObservedSourceChangeRetainsBeforeAfterAndTarget)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto original = (root / "owned.png").string();
+    std::filesystem::copy_file(png_fixture_path(), original);
+    const auto source = (root / "changed.lrcat").string();
+    make_lightroom(source, original);
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    request.progress = [&](std::string_view stage, std::size_t, std::size_t)
+    {
+        if (stage == "source_audit")
+        {
+            std::ofstream changed(original, std::ios::app);
+            changed << 'x';
+        }
+    };
+    auto result = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(result.value().imported, 1U);
+    ASSERT_TRUE(result.value().items.front().asset_id);
+    EXPECT_TRUE(result.value().source_audit_complete);
+    EXPECT_FALSE(result.value().originals_unchanged);
+    const auto &audit = result.value().source_audits.front();
+    EXPECT_EQ(audit.status, "changed");
+    ASSERT_TRUE(audit.after);
+    EXPECT_NE(audit.before.sha256, audit.after->sha256);
+    EXPECT_EQ(audit.error->context.at("reason"), "source_changed_during_conversion");
+    request.resume = true;
+    request.progress = {};
+    request.expected_source_sha256 = sha256_file_hex(source).value();
+    auto resumed = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(resumed);
+    ASSERT_FALSE(resumed.value().issues.empty());
+    EXPECT_EQ(resumed.value().issues.front().context.at("reason"),
+              "foreign_conversion_source_conflict");
+    EXPECT_EQ(resumed.value().imported, 1U);
+    EXPECT_EQ(service->library().list_assets().value().size(), 1U);
+}
+
+TEST_F(CatalogServiceTest, LightroomCheckpointFailureRetainsAssetAndStopsNewMutations)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto source = (root / "checkpoint-fault.lrcat").string();
+    make_lightroom(source, png_fixture_path());
+    const QString source_connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", source_connection);
+        db.setDatabaseName(QString::fromStdString(source));
+        ASSERT_TRUE(db.open());
+        QSqlQuery query(db);
+        ASSERT_TRUE(query.exec(
+            "CREATE TABLE AgLibraryCollection(id_local INTEGER,name TEXT,parent INTEGER,creationId TEXT)"));
+        ASSERT_TRUE(
+            query.exec("INSERT INTO AgLibraryCollection VALUES(10,'Pending',NULL,'collection')"));
+    }
+    QSqlDatabase::removeDatabase(source_connection);
+    service.reset();
+    const QString connection = QString::fromStdString(generate_catalog_id());
+    {
+        auto db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(QString::fromStdString(database_path));
+        ASSERT_TRUE(db.open());
+        QSqlQuery query(db);
+        ASSERT_TRUE(query.exec(
+            "CREATE TRIGGER fail_conversion_complete BEFORE INSERT ON foreign_conversion_record "
+            "WHEN NEW.phase='complete' BEGIN SELECT RAISE(ABORT,'injected checkpoint failure'); END"));
+    }
+    QSqlDatabase::removeDatabase(connection);
+    ASSERT_TRUE(open_service(false));
+    ForeignCatalogConversionRequest request;
+    request.source_path = source;
+    auto result = service->conversion().convert_foreign_catalog(request);
+    ASSERT_TRUE(result);
+    ASSERT_TRUE(result.value().items.front().asset_id);
+    ASSERT_FALSE(result.value().issues.empty());
+    EXPECT_FALSE(result.value().cancelled);
+    ASSERT_EQ(result.value().collections.size(), 1U);
+    EXPECT_EQ(result.value().collections.front().reasons.front(),
+              "conversion_checkpoint_unavailable");
+    EXPECT_FALSE(result.value().collections.front().set_id);
+    EXPECT_EQ(result.value().items.front().reasons.back(), "checkpoint_write_failed");
+    auto journal =
+        service->conversion().foreign_conversion_status(result.value().conversion_id).value();
+    ASSERT_TRUE(journal);
+    ASSERT_EQ(journal->records.size(), 1U);
+    EXPECT_FALSE(journal->records.front().complete);
+    EXPECT_EQ(journal->records.front().asset_id, result.value().items.front().asset_id);
+}
+
 TEST_F(CatalogServiceTest, LightroomImportsDatabaseEditsHistoryMetadataCopiesAndCollections)
 {
     ASSERT_TRUE(open_service(true));
@@ -496,22 +772,46 @@ TEST_F(CatalogServiceTest, LightroomSchema18UpgradesAndPreservesArchiveThroughBa
         db.setDatabaseName(QString::fromStdString(database_path));
         ASSERT_TRUE(db.open());
         QSqlQuery q(db);
+        ASSERT_TRUE(q.exec("DROP TABLE foreign_conversion_record"));
+        ASSERT_TRUE(q.exec("DROP TABLE foreign_conversion"));
         ASSERT_TRUE(q.exec("DROP TABLE foreign_catalog_chunk"));
         ASSERT_TRUE(q.exec("DROP TABLE foreign_catalog_source"));
         ASSERT_TRUE(q.exec("UPDATE schema_info SET schema_version=18"));
     }
     QSqlDatabase::removeDatabase(connection);
     ASSERT_TRUE(open_service(false));
-    EXPECT_EQ(service->library().snapshot().value().schema_version, 19);
+    EXPECT_EQ(service->library().snapshot().value().schema_version, kCatalogSchemaVersion);
     const auto source = (root / "backup-source.lrcat").string();
     make_lightroom(source, png_fixture_path());
     const auto hash = sha256_file_hex(source).value();
     ASSERT_TRUE(sqlite_repository->archive_foreign_catalog(source, hash, {}));
     const auto backup = (root / "archive-backup.sqlite").string();
+    const auto revision = sqlite_repository->snapshot().value().revision;
+    ASSERT_TRUE(sqlite_repository->begin_foreign_conversion(hash, hash, revision));
+    ForeignCatalogItemReport receipt;
+    receipt.foreign_id = "1";
+    receipt.phase = "complete";
+    receipt.status = ForeignCatalogItemStatus::kImported;
+    ForeignConversionCheckpoint record{
+        "1", "complete", {}, true, serialize_json(foreign_catalog_item_to_json(receipt))};
+    const auto begun_revision = sqlite_repository->snapshot().value().revision;
+    auto stale =
+        sqlite_repository->save_foreign_conversion_checkpoint(hash, record, begun_revision - 1);
+    ASSERT_FALSE(stale);
+    EXPECT_EQ(stale.error().code, ErrorCode::kConflict);
+    EXPECT_EQ(sqlite_repository->snapshot().value().revision, begun_revision);
+    EXPECT_TRUE(sqlite_repository->load_foreign_conversion(hash).value()->records.empty());
+    ASSERT_TRUE(
+        sqlite_repository->save_foreign_conversion_checkpoint(hash, record, begun_revision));
     auto snapshot = sqlite_repository->create_backup_database(backup, {});
     ASSERT_TRUE(snapshot) << snapshot.error().message;
     auto reopened = SqliteCatalogRepository::open(backup);
     ASSERT_TRUE(reopened) << reopened.error().message;
+    auto journal = reopened.value()->load_foreign_conversion(hash);
+    ASSERT_TRUE(journal);
+    ASSERT_TRUE(journal.value());
+    ASSERT_EQ(journal.value()->records.size(), 1U);
+    EXPECT_EQ(journal.value()->records.front().receipt_json, record.receipt_json);
     const auto output = (root / "backup-export.lrcat").string();
     ASSERT_TRUE(reopened.value()->export_foreign_catalog_archive(hash, output, {}));
     EXPECT_EQ(sha256_file_hex(output).value(), hash);

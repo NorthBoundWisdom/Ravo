@@ -117,6 +117,11 @@ bool StudioDevelopPresenter::mutate_scoped_develop(DevelopParams next, const Dev
                                                    const bool refresh_preview,
                                                    std::optional<std::string> history_coalesce_key)
 {
+    if (!state_.develop_load_error_.isEmpty())
+    {
+        emit errorOccurred(state_.develop_load_error_);
+        return false;
+    }
     if (!localEditing())
         return mutate_develop(std::move(next), edit, refresh_preview,
                               std::move(history_coalesce_key));

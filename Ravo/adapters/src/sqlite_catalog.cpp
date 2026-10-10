@@ -35,6 +35,16 @@ using namespace sqlite_internal;
 namespace
 {
 
+constexpr const char *kSchemaV20Foreign[] = {
+    "CREATE TABLE foreign_conversion(id TEXT PRIMARY KEY CHECK(length(id)=64), "
+    "source_sha256 TEXT NOT NULL REFERENCES foreign_catalog_source(sha256), "
+    "catalog_revision INTEGER NOT NULL CHECK(catalog_revision>=0))",
+    "CREATE TABLE foreign_conversion_record(conversion_id TEXT NOT NULL REFERENCES foreign_conversion(id), "
+    "foreign_id TEXT NOT NULL CHECK(length(foreign_id)>0), phase TEXT NOT NULL, asset_id TEXT, "
+    "complete INTEGER NOT NULL CHECK(complete IN(0,1)), receipt_json TEXT NOT NULL "
+    "CHECK(length(receipt_json)<=16000000), PRIMARY KEY(conversion_id,foreign_id))",
+};
+
 constexpr const char *kSchemaV19Foreign[] = {
     "CREATE TABLE foreign_catalog_source (id TEXT PRIMARY KEY, source_path TEXT NOT NULL, "
     "sha256 TEXT NOT NULL UNIQUE CHECK(length(sha256)=64 AND sha256 NOT GLOB '*[^0-9a-f]*'), "
@@ -570,6 +580,12 @@ SqliteCatalogRepository::create(const std::string_view database_path)
     for (const char *statement : kSchemaV19Foreign)
     {
         auto created = impl->exec(QString::fromUtf8(statement), "create_foreign_catalog_archive");
+        if (!created)
+            return impl->abort_transaction(created.error());
+    }
+    for (const char *statement : kSchemaV20Foreign)
+    {
+        auto created = impl->exec(QString::fromUtf8(statement), "create_foreign_conversion");
         if (!created)
             return impl->abort_transaction(created.error());
     }
@@ -1158,6 +1174,17 @@ SqliteCatalogRepository::open(const std::string_view database_path)
                     return impl->abort_transaction(created.error());
             }
             version = 19;
+        }
+        if (version == 19)
+        {
+            for (const char *statement : kSchemaV20Foreign)
+            {
+                auto created =
+                    impl->exec(QString::fromUtf8(statement), "migrate_v20_foreign_conversion");
+                if (!created)
+                    return impl->abort_transaction(created.error());
+            }
+            version = 20;
         }
         if (version != kCatalogSchemaVersion)
         {

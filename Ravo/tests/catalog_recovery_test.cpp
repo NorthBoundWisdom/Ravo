@@ -1497,8 +1497,8 @@ TEST_F(CatalogServiceTest, Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBacku
                                "WHERE id = 1")
                     .arg(static_cast<qlonglong>(kCatalogSchemaVersion - 1))))
                 << query.lastError().text().toStdString();
-            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_catalog_chunk")));
-            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_catalog_source")))
+            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_conversion_record")));
+            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_conversion")))
                 << query.lastError().text().toStdString();
             if (test_case.kind == FailureKind::kSchemaInfo)
             {
@@ -1606,8 +1606,8 @@ TEST_F(CatalogServiceTest, Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBacku
                 query.exec(QStringLiteral("UPDATE schema_info SET schema_version = %1 WHERE id = 1")
                                .arg(static_cast<qlonglong>(kCatalogSchemaVersion - 1))))
                 << query.lastError().text().toStdString();
-            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_catalog_chunk")));
-            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_catalog_source")))
+            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_conversion_record")));
+            ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_conversion")))
                 << query.lastError().text().toStdString();
             ASSERT_TRUE(query.exec(QStringLiteral(
                 "CREATE TRIGGER reject_live_upgrade BEFORE UPDATE OF schema_version ON schema_info "

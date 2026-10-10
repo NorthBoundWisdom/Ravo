@@ -44,6 +44,9 @@ public:
     [[nodiscard]] Result<ForeignCatalogConversionReport>
     convert_foreign_catalog(const ForeignCatalogConversionRequest &request);
     [[nodiscard]] Result<std::vector<ForeignCatalogArchive>> foreign_catalog_archives() const;
+    [[nodiscard]] Result<std::optional<ForeignConversionJournal>>
+    foreign_conversion_status(std::string_view conversion_id) const;
+    [[nodiscard]] Result<std::vector<std::string>> foreign_conversion_ids() const;
     [[nodiscard]] Result<void>
     export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
                                    const CancellationToken &cancellation = {}) const;

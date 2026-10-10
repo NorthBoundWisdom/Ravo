@@ -107,11 +107,19 @@ refresh_monitor_presentation(const DisplayPresentationState &previous,
 
 // Convert output-profiled (or soft-proofed) RGB8 to monitor presentation RGB8.
 // Does not read or write Recipe / DevelopParams.
-[[nodiscard]] Result<DisplayPresentationRgb8>
-apply_display_presentation_rgb8(const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width,
-                                std::uint32_t height, const ColorProfileState &source_profile,
-                                const DisplayPresentationState &presentation,
-                                const CancellationToken &cancellation);
+// Optional scoped measurement sink. Borrowed until synchronous return (including
+// worker joins). Methods run concurrently and must be thread-safe and noexcept.
+class DisplayConversionObserver
+{
+public:
+    virtual ~DisplayConversionObserver() = default;
+    virtual void worker_started(bool created_thread) noexcept = 0;
+    virtual void worker_stopped() noexcept = 0;
+};
+[[nodiscard]] Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
+    const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width, std::uint32_t height,
+    const ColorProfileState &source_profile, const DisplayPresentationState &presentation,
+    const CancellationToken &cancellation, DisplayConversionObserver *observer = nullptr);
 
 [[nodiscard]] JsonValue display_presentation_state_to_json(const DisplayPresentationState &state);
 

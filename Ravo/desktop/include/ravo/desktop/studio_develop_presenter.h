@@ -326,6 +326,7 @@ public:
     [[nodiscard]] const State &state() const noexcept;
     void shutdown();
     void selectionInvalidated();
+    void catalogSessionInvalidated();
     void acceptLoadedHistory(const Result<std::vector<RecipeHistoryEntry>> &history);
     void acceptExternalRecipe(const Recipe &recipe, DevelopParams params);
     void setCropGuideReady(bool ready);
@@ -633,9 +634,11 @@ private:
     friend class testing::StudioPipelineTestControl;
     struct Host
     {
-        std::function<DevelopService *()> develop_service;
-        std::function<PreviewService *()> preview_service;
-        std::function<RecoveryService *()> recovery_service;
+        // Worker-only: resolve services on the catalog executor, never on GUI.
+        std::function<DevelopService *()> worker_develop_service;
+        std::function<PreviewService *()> worker_preview_service;
+        std::function<RecoveryService *()> worker_recovery_service;
+        // GUI-only: publish owned results after request/session validation.
         std::function<void(bool)> preview_loading;
         std::function<void(std::int64_t)> observed_revision;
         std::function<void()> begin_catalog_operation;
@@ -677,6 +680,8 @@ private:
     bool local_overlay_suppressed_ = false;
     Host host_;
     bool stopped_ = false;
+    std::uint64_t catalog_session_generation_ = 0;
+    std::uint64_t recipe_load_generation_ = 0;
     const QString &selected_asset_id_;
     const QString &catalog_path_;
     const QString &browse_mode_;

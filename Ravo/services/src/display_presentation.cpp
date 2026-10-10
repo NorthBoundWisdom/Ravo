@@ -298,7 +298,8 @@ copy_display_icc_bytes(const CGDirectDisplayID display)
 [[nodiscard]] Result<DisplayPresentationRgb8>
 transform_icc_rgb8(const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width,
                    std::uint32_t height, const ColorProfileState &source_profile,
-                   const ColorProfileState &monitor_profile, const CancellationToken &cancellation)
+                   const ColorProfileState &monitor_profile, const CancellationToken &cancellation,
+                   DisplayConversionObserver *observer)
 try
 {
     const std::size_t expected =
@@ -350,6 +351,17 @@ try
             std::min({8U, std::max(1U, std::thread::hardware_concurrency()), height});
     const auto rows = [&](const unsigned worker) noexcept
     {
+        struct Observation
+        {
+            DisplayConversionObserver *sink;
+            ~Observation()
+            {
+                if (sink)
+                    sink->worker_stopped();
+            }
+        } observation{observer};
+        if (observer)
+            observer->worker_started(worker != 0);
         for (std::uint32_t y = worker; y < height; y += workers)
         {
             if (cancellation.is_cancellation_requested())
@@ -696,7 +708,8 @@ refresh_monitor_presentation(const DisplayPresentationState &previous,
 Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
     const std::vector<std::uint8_t> &source_rgb8, const std::uint32_t width,
     const std::uint32_t height, const ColorProfileState &source_profile,
-    const DisplayPresentationState &presentation, const CancellationToken &cancellation)
+    const DisplayPresentationState &presentation, const CancellationToken &cancellation,
+    DisplayConversionObserver *observer)
 {
     if (!presentation.valid)
     {
@@ -731,7 +744,7 @@ Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
             return srgb.error();
         }
         return transform_icc_rgb8(source_rgb8, width, height, srgb.value(),
-                                  presentation.monitor_profile, cancellation);
+                                  presentation.monitor_profile, cancellation, observer);
     }
     if (color_profile_fingerprint(source_profile) == presentation.profile_fingerprint)
     {
@@ -743,7 +756,7 @@ Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
         return output;
     }
     return transform_icc_rgb8(source_rgb8, width, height, source_profile,
-                              presentation.monitor_profile, cancellation);
+                              presentation.monitor_profile, cancellation, observer);
 }
 
 JsonValue display_presentation_state_to_json(const DisplayPresentationState &state)

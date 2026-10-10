@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-10-10
 - Extends: [ADR-0164](0164-lightroom-catalog-reader.md)
+- Receipts, audit and conservative resume are extended by
+  [ADR-0167](0167-foreign-conversion-checkpoints.md).
 
 ## Decision
 
@@ -69,8 +71,8 @@ applied a second time.
 
 Studio retains its catalog executor and destruction cancellation; there are no
 new threads or UI/SQL handles. Completed destination work survives cancellation
-or later item failure. An interrupted source-only destination is not a resume
-checkpoint; retry uses a new empty destination. The archive is never a live
+or later item failure. ADR-0167 adds explicit journal-based resume; an archive
+alone is not a checkpoint. The archive is never a live
 vendor database owner.
 
 ## Validation

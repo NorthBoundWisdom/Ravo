@@ -17,7 +17,6 @@
 #include <filesystem>
 #include <optional>
 #include <set>
-#include <charconv>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -32,6 +31,7 @@
 #include "ravo/adapters/lightroom_develop.h"
 #include "ravo/domain/uri.h"
 #include "ravo/foundation/json.h"
+#include "ravo/foundation/parse_number.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 #include "ravo/services/foreign_catalog.h"
@@ -245,14 +245,22 @@ optional_json_string_array(const JsonValue &object, const std::string_view key)
 }
 
 [[nodiscard]] Result<ForeignCatalogFileFingerprint>
-fingerprint_original(const std::string_view path, const CancellationToken &cancellation = {})
+fingerprint_original(const std::string_view path, const CancellationToken &cancellation)
 {
+    auto before = read_file_identity(path);
+    if (!before)
+        return before.error();
     auto digest = sha256_file_hex(path, cancellation);
     if (!digest)
         return digest.error();
     auto identity = read_file_identity(path);
     if (!identity)
         return identity.error();
+    if (before.value().size_bytes != identity.value().size_bytes ||
+        before.value().mtime_unix_ms != identity.value().mtime_unix_ms)
+        return make_error(
+            ErrorCode::kConflict, "Source changed during fingerprint",
+            {{"reason", "source_changed_during_fingerprint"}, {"path", std::string(path)}});
     ForeignCatalogFileFingerprint fingerprint;
     fingerprint.path = std::string(path);
     fingerprint.sha256 = std::move(digest).value();
@@ -669,7 +677,11 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
     auto existing = library_service_.list_assets();
     if (!existing)
         return existing.error();
-    if (!existing.value().empty())
+    if (request.resume &&
+        (!fixture.value().native_lightroom || request.expected_source_sha256.empty()))
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Resume requires native Lightroom and the observed source hash");
+    if (!existing.value().empty() && !request.resume)
     {
         return make_error(ErrorCode::kConflict,
                           "Foreign catalog conversion requires an empty destination catalog",
@@ -699,16 +711,105 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
     report.source_photo_count = source_photo_count;
     report.selected_photo_count = fixture.value().items.size();
     report.archived_only_tables = fixture.value().archived_only_tables;
+    JsonValue::Array selection, mapping;
+    for (const auto &item : fixture.value().items)
+        selection.emplace_back(item.foreign_id);
+    for (const auto &[foreign, local] : mappings)
+        mapping.emplace_back(JsonValue::Array{foreign, local});
     if (fixture.value().native_lightroom)
+        report.conversion_id = sha256_utf8_hex(serialize_json(JsonValue::Object{
+            {"schema", "ravo.foreign-conversion/v1"},
+            {"source", fixture.value().source_sha256},
+            {"selection", std::move(selection)},
+            {"mappings", std::move(mapping)},
+            {"preview", JsonValue::number(std::to_string(static_cast<int>(request.preview)))},
+            {"defer_previews", request.defer_previews}}));
+    std::map<std::string, ForeignConversionCheckpoint> checkpoints;
+    bool journal_failed = false;
+    if (request.resume)
     {
-        auto archived = repository_->archive_foreign_catalog(
-            fixture.value().source_path, fixture.value().source_sha256, request.cancellation);
-        if (!archived)
-            return archived.error();
-        report.source_archive = std::move(archived).value();
+        auto journal = repository_->load_foreign_conversion(report.conversion_id);
+        if (!journal)
+            return journal.error();
+        if (!journal.value())
+            return make_error(ErrorCode::kNotFound, "No matching conversion checkpoint",
+                              {{"reason", "foreign_conversion_not_found"}});
+        if (journal.value()->source_sha256 != fixture.value().source_sha256 ||
+            journal.value()->catalog_revision != snapshot.value().revision)
+            return make_error(ErrorCode::kConflict, "Catalog changed since conversion checkpoint",
+                              {{"reason", "foreign_conversion_revision_conflict"}});
+        for (auto &record : journal.value()->records)
+        {
+            if (record.foreign_id.starts_with("collection/"))
+            {
+                auto receipt = foreign_catalog_collection_from_json(record.receipt_json);
+                if (!receipt || "collection/" + receipt.value().foreign_id != record.foreign_id ||
+                    receipt.value().set_id != record.asset_id)
+                    return make_error(ErrorCode::kValidation, "Corrupt collection checkpoint");
+                checkpoints.emplace(record.foreign_id, std::move(record));
+                continue;
+            }
+            auto receipt = foreign_catalog_item_from_json(record.receipt_json);
+            if (!receipt || receipt.value().foreign_id != record.foreign_id ||
+                receipt.value().asset_id != record.asset_id)
+                return make_error(ErrorCode::kValidation, "Corrupt conversion checkpoint");
+            checkpoints.emplace(record.foreign_id, std::move(record));
+        }
     }
-
+    const auto checkpoint = [&](const ForeignCatalogItemReport &row,
+                                const bool complete) -> Result<void>
+    {
+        if (report.conversion_id.empty())
+            return {};
+        auto current = repository_->snapshot();
+        if (!current)
+        {
+            journal_failed = true;
+            report.issues.push_back(current.error());
+            return current.error();
+        }
+        ForeignConversionCheckpoint record{row.foreign_id, row.phase, row.asset_id, complete,
+                                           serialize_json(foreign_catalog_item_to_json(row))};
+        auto saved = repository_->save_foreign_conversion_checkpoint(report.conversion_id, record,
+                                                                     current.value().revision);
+        if (!saved)
+        {
+            journal_failed = true;
+            report.issues.push_back(saved.error());
+        }
+        return saved;
+    };
+    const auto publish_item = [&](ForeignCatalogItemReport row)
+    {
+        if (!row.phase.empty() && !row.resumed && !journal_failed)
+        {
+            if (row.status == ForeignCatalogItemStatus::kImported)
+                row.phase = "complete";
+            auto saved = checkpoint(row, row.status == ForeignCatalogItemStatus::kImported);
+            if (!saved)
+                row.reasons.push_back("checkpoint_write_failed");
+        }
+        count_item(report, row);
+        report.items.push_back(std::move(row));
+    };
     std::map<std::string, std::string> foreign_assets;
+    std::set<std::string> fingerprinted_paths;
+    std::map<std::string, std::size_t> fingerprint_index;
+    for (const auto &[id, record] : checkpoints)
+    {
+        if (id.starts_with("collection/"))
+            continue;
+        auto previous = foreign_catalog_item_from_json(record.receipt_json).value();
+        if (previous.source_fingerprint &&
+            fingerprinted_paths.insert(previous.source_fingerprint->path).second)
+        {
+            fingerprint_index.emplace(previous.source_fingerprint->path,
+                                      report.source_originals.size());
+            report.source_originals.push_back(*previous.source_fingerprint);
+        }
+    }
+    fingerprinted_paths.clear();
+    bool preflight_failed = false;
     for (const auto &item : fixture.value().items)
     {
         auto checked = request.cancellation.check();
@@ -726,24 +827,116 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         if (!std::filesystem::is_regular_file(utf8_path(path.value()), exists_error) ||
             exists_error)
             continue;
+        if (!fingerprinted_paths.insert(path.value()).second)
+            continue;
         auto fingerprint = fingerprint_original(path.value(), request.cancellation);
         if (!fingerprint)
-            return fingerprint.error();
-        report.source_originals.push_back(std::move(fingerprint).value());
+        {
+            if (!request.resume)
+                return fingerprint.error();
+            report.issues.push_back(fingerprint.error());
+            report.cancelled |= fingerprint.error().code == ErrorCode::kCancelled;
+            preflight_failed = true;
+            break;
+        }
+        const auto previous = fingerprint_index.find(path.value());
+        if (previous == fingerprint_index.end())
+        {
+            fingerprint_index.emplace(path.value(), report.source_originals.size());
+            report.source_originals.push_back(std::move(fingerprint).value());
+        }
+        else if (!fingerprints_equal(report.source_originals[previous->second],
+                                     fingerprint.value()))
+        {
+            report.issues.push_back(make_error(
+                ErrorCode::kConflict, "Source changed since conversion checkpoint",
+                {{"reason", "foreign_conversion_source_conflict"}, {"path", path.value()}}));
+            preflight_failed = true;
+        }
+    }
+
+    if (request.progress)
+        request.progress("preflight", report.source_originals.size(),
+                         report.source_originals.size());
+    if (auto active = request.cancellation.check(); !active)
+    {
+        if (!request.resume)
+            return active.error();
+        report.cancelled = true;
+        preflight_failed = true;
+    }
+    if (fixture.value().native_lightroom && !request.resume)
+    {
+        auto archived = repository_->archive_foreign_catalog(
+            fixture.value().source_path, fixture.value().source_sha256, request.cancellation);
+        if (!archived)
+            return archived.error();
+        report.source_archive = std::move(archived).value();
+        auto current = repository_->snapshot();
+        if (!current)
+        {
+            report.issues.push_back(current.error());
+            return report;
+        }
+        auto begun = repository_->begin_foreign_conversion(
+            report.conversion_id, fixture.value().source_sha256, current.value().revision);
+        if (!begun)
+        {
+            report.issues.push_back(begun.error());
+            return report;
+        }
     }
 
     for (const auto &item : fixture.value().items)
     {
+        if (request.progress)
+            request.progress("conversion", report.items.size(), fixture.value().items.size());
         auto still = request.cancellation.check();
         ForeignCatalogItemReport row;
         row.foreign_id = item.foreign_id;
+        if (const auto previous = checkpoints.find(item.foreign_id); previous != checkpoints.end())
+        {
+            row = foreign_catalog_item_from_json(previous->second.receipt_json).value();
+            row.resumed = true;
+            if (!previous->second.complete)
+            {
+                row.status = ForeignCatalogItemStatus::kFailed;
+                row.reasons.push_back("incomplete_conversion_requires_resolution");
+            }
+            if (row.asset_id)
+                foreign_assets.emplace(item.foreign_id, *row.asset_id);
+            publish_item(std::move(row));
+            continue;
+        }
+        if (journal_failed || preflight_failed)
+        {
+            row.reasons.push_back(preflight_failed ? "source_preflight_failed" :
+                                                     "conversion_checkpoint_unavailable");
+            publish_item(std::move(row));
+            continue;
+        }
+        const auto mutate = [&](const std::string &phase, auto &&action) -> decltype(action())
+        {
+            auto active = request.cancellation.check();
+            if (!active)
+                return active.error();
+            row.phase = phase;
+            auto saved = checkpoint(row, false);
+            if (!saved)
+                return saved.error();
+            if (request.progress)
+                request.progress(phase, report.items.size(), fixture.value().items.size());
+            active = request.cancellation.check();
+            if (!active)
+                return active.error();
+            return action();
+        };
         if (!still)
         {
             row.status = ForeignCatalogItemStatus::kSkipped;
             row.reasons.emplace_back("cancelled");
             report.cancelled = true;
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
 
@@ -752,8 +945,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             row.status = ForeignCatalogItemStatus::kUnsupported;
             row.original_path = item.original_path;
             row.reasons.push_back(*item.skip_reason);
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
         auto original = resolve_fixture_path(fixture.value().source_root, item.original_path);
@@ -763,11 +955,13 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             row.reasons.emplace_back(original.error().context.count("reason") != 0U ?
                                          original.error().context.at("reason") :
                                          "foreign_catalog_item_path_invalid");
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
         row.original_path = original.value();
+        const auto fingerprint = fingerprint_index.find(original.value());
+        if (fingerprint != fingerprint_index.end())
+            row.source_fingerprint = report.source_originals[fingerprint->second];
 
         std::error_code exists_error;
         if (!std::filesystem::is_regular_file(utf8_path(original.value()), exists_error) ||
@@ -775,45 +969,51 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         {
             row.status = ForeignCatalogItemStatus::kSkipped;
             row.reasons.emplace_back("missing_original");
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
 
-        auto imported = [&]() -> Result<ImportItemResult>
-        {
-            if (!item.master_id)
-                return import_service_.import_one(original.value(), request.cancellation,
-                                                  request.preview, request.defer_previews);
-            const auto master = foreign_assets.find(*item.master_id);
-            if (master == foreign_assets.end())
-                return make_error(ErrorCode::kNotFound, "Virtual copy master was not imported",
-                                  {{"reason", "lightroom_master_not_imported"}});
-            auto version = library_service_.create_asset_version(master->second);
-            if (!version)
-                return version.error();
-            const auto &copy_id = version.value().version.id;
-            const auto committed_error = [&](TaskError error)
+        auto imported = mutate(
+            "import",
+            [&]() -> Result<ImportItemResult>
             {
-                error.context.emplace("committed_asset_id", copy_id);
-                return error;
-            };
-            // The ordinary version command clones user state. Foreign copies
-            // have independent source records, including explicitly empty state.
-            auto reset = develop_service_.reset_recipe(copy_id);
-            if (!reset)
-                return committed_error(reset.error());
-            auto tags = metadata_service_.set_tags(copy_id, {});
-            if (!tags)
-                return committed_error(tags.error());
-            auto metadata = metadata_service_.set_writable_metadata(copy_id, {});
-            if (!metadata)
-                return committed_error(metadata.error());
-            ImportItemResult result;
-            result.status = ImportItemStatus::kImported;
-            result.asset = std::move(metadata).value();
-            return result;
-        }();
+                if (!item.master_id)
+                    return import_service_.import_one(original.value(), request.cancellation,
+                                                      request.preview, request.defer_previews);
+                const auto master = foreign_assets.find(*item.master_id);
+                if (master == foreign_assets.end())
+                    return make_error(ErrorCode::kNotFound, "Virtual copy master was not imported",
+                                      {{"reason", "lightroom_master_not_imported"}});
+                auto version = library_service_.create_asset_version(master->second);
+                if (!version)
+                    return version.error();
+                const auto &copy_id = version.value().version.id;
+                row.asset_id = copy_id;
+                const auto committed_error = [&](TaskError error)
+                {
+                    error.context.emplace("committed_asset_id", copy_id);
+                    return error;
+                };
+                // The ordinary version command clones user state. Foreign copies
+                // have independent source records, including explicitly empty state.
+                auto reset =
+                    mutate("copy_reset", [&] { return develop_service_.reset_recipe(copy_id); });
+                if (!reset)
+                    return committed_error(reset.error());
+                auto tags = mutate("copy_keywords_clear",
+                                   [&] { return metadata_service_.set_tags(copy_id, {}); });
+                if (!tags)
+                    return committed_error(tags.error());
+                auto metadata =
+                    mutate("copy_metadata_clear",
+                           [&] { return metadata_service_.set_writable_metadata(copy_id, {}); });
+                if (!metadata)
+                    return committed_error(metadata.error());
+                ImportItemResult result;
+                result.status = ImportItemStatus::kImported;
+                result.asset = std::move(metadata).value();
+                return result;
+            });
         if (!imported)
         {
             const auto committed = imported.error().context.find("committed_asset_id");
@@ -829,12 +1029,13 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             row.reasons.emplace_back(imported.error().context.count("reason") != 0U ?
                                          imported.error().context.at("reason") :
                                          "import_failed");
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
         if (imported.value().status != ImportItemStatus::kImported || !imported.value().asset)
         {
+            if (imported.value().asset && imported.value().status == ImportItemStatus::kFailed)
+                row.asset_id = imported.value().asset->id;
             row.status = imported.value().status == ImportItemStatus::kUnsupported ?
                              ForeignCatalogItemStatus::kUnsupported :
                              (imported.value().status == ImportItemStatus::kDuplicate ?
@@ -843,8 +1044,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             row.reasons.emplace_back(imported.value().status == ImportItemStatus::kDuplicate ?
                                          "duplicate_original" :
                                          "import_not_published");
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
 
@@ -857,65 +1057,68 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
 
         if (item.rating)
         {
-            auto rated = library_service_.set_rating(asset_id, *item.rating);
+            auto rated = mutate("rating", [&]
+                                { return library_service_.set_rating(asset_id, *item.rating); });
             if (!rated)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
                 row.reasons.emplace_back("rating_failed");
-                count_item(report, row);
-                report.items.push_back(std::move(row));
+                publish_item(std::move(row));
                 continue;
             }
             add_mapped(row, "rating");
         }
         if (item.color_label)
         {
-            auto labeled = library_service_.set_color_label(asset_id, *item.color_label);
+            auto labeled =
+                mutate("color_label", [&]
+                       { return library_service_.set_color_label(asset_id, *item.color_label); });
             if (!labeled)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
                 row.reasons.emplace_back("color_label_failed");
-                count_item(report, row);
-                report.items.push_back(std::move(row));
+                publish_item(std::move(row));
                 continue;
             }
             add_mapped(row, "color_label");
         }
         if (item.rejected)
         {
-            auto flagged = library_service_.set_rejected(asset_id, *item.rejected);
+            auto flagged =
+                mutate("rejected",
+                       [&] { return library_service_.set_rejected(asset_id, *item.rejected); });
             if (!flagged)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
                 row.reasons.emplace_back("rejected_failed");
-                count_item(report, row);
-                report.items.push_back(std::move(row));
+                publish_item(std::move(row));
                 continue;
             }
             add_mapped(row, "rejected");
         }
         if (item.picked)
         {
-            auto picked = library_service_.set_picked(asset_id, *item.picked);
+            auto picked = mutate("picked", [&]
+                                 { return library_service_.set_picked(asset_id, *item.picked); });
             if (!picked)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
                 row.reasons.emplace_back("picked_failed");
-                count_item(report, row);
-                report.items.push_back(std::move(row));
+                publish_item(std::move(row));
                 continue;
             }
             add_mapped(row, "picked");
         }
         if (has_writable_metadata(item.metadata))
         {
-            auto written = metadata_service_.set_writable_metadata(asset_id, item.metadata);
+            auto written = mutate(
+                "metadata",
+                [&] { return metadata_service_.set_writable_metadata(asset_id, item.metadata); });
             if (!written)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
                 row.reasons.emplace_back("metadata_failed");
-                count_item(report, row);
-                report.items.push_back(std::move(row));
+                publish_item(std::move(row));
                 continue;
             }
             if (item.metadata.title)
@@ -949,13 +1152,13 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         }
         if (!item.keywords.empty())
         {
-            auto tagged = metadata_service_.set_tags(asset_id, item.keywords);
+            auto tagged = mutate("keywords", [&]
+                                 { return metadata_service_.set_tags(asset_id, item.keywords); });
             if (!tagged)
             {
                 row.status = ForeignCatalogItemStatus::kFailed;
                 row.reasons.emplace_back("keywords_failed");
-                count_item(report, row);
-                report.items.push_back(std::move(row));
+                publish_item(std::move(row));
                 continue;
             }
             add_mapped(row, "keywords");
@@ -1017,7 +1220,12 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 const auto label =
                     "Lightroom: " + (state.name.empty() ? "Imported state" : state.name);
                 auto recorded =
-                    develop_service_.create_recipe_snapshot(asset_id, recipe.value(), label);
+                    mutate("history:" + std::to_string(&state - item.develop_states.data()),
+                           [&]
+                           {
+                               return develop_service_.create_recipe_snapshot(
+                                   asset_id, recipe.value(), label);
+                           });
                 if (!recorded)
                     return recorded.error();
                 add_mapped(row, state.snapshot ? "snapshot" : "history");
@@ -1035,7 +1243,9 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                                                           "invalid_lightroom_develop"});
                 else
                 {
-                    auto saved = develop_service_.save_recipe(asset_id, recipe.value());
+                    auto saved =
+                        mutate("develop", [&]
+                               { return develop_service_.save_recipe(asset_id, recipe.value()); });
                     if (!saved)
                         return saved.error();
                     add_mapped(row, "develop");
@@ -1051,8 +1261,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             row.status = was_cancelled ? ForeignCatalogItemStatus::kSkipped :
                                          ForeignCatalogItemStatus::kFailed;
             row.reasons.emplace_back(was_cancelled ? "cancelled" : "develop_import_failed");
-            count_item(report, row);
-            report.items.push_back(std::move(row));
+            publish_item(std::move(row));
             continue;
         }
 
@@ -1090,8 +1299,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                     {
                         row.status = ForeignCatalogItemStatus::kFailed;
                         row.reasons.emplace_back("recipe_load_failed");
-                        count_item(report, row);
-                        report.items.push_back(std::move(row));
+                        publish_item(std::move(row));
                         continue;
                     }
                     auto params = develop_from_recipe(loaded.value());
@@ -1099,8 +1307,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                     {
                         row.status = ForeignCatalogItemStatus::kFailed;
                         row.reasons.emplace_back("recipe_develop_failed");
-                        count_item(report, row);
-                        report.items.push_back(std::move(row));
+                        publish_item(std::move(row));
                         continue;
                     }
                     const auto asset = imported.value().asset;
@@ -1119,13 +1326,14 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                     else
                     {
                         apply_crs_look(params.value(), crs.value().look, crs.value().mask);
-                        auto saved = develop_service_.save_develop(asset_id, params.value());
+                        auto saved = mutate(
+                            "crs", [&]
+                            { return develop_service_.save_develop(asset_id, params.value()); });
                         if (!saved)
                         {
                             row.status = ForeignCatalogItemStatus::kFailed;
                             row.reasons.emplace_back("crs_apply_failed");
-                            count_item(report, row);
-                            report.items.push_back(std::move(row));
+                            publish_item(std::move(row));
                             continue;
                         }
                         add_mapped(row, "crs");
@@ -1137,8 +1345,7 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         }
 
         row.status = ForeignCatalogItemStatus::kImported;
-        count_item(report, row);
-        report.items.push_back(std::move(row));
+        publish_item(std::move(row));
     }
 
     std::map<std::string, const ForeignCatalogCollection *> collection_index;
@@ -1149,6 +1356,15 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
         ForeignCatalogCollectionReport row;
         row.foreign_id = collection.foreign_id;
         row.name = collection.name;
+        const auto record_id = "collection/" + collection.foreign_id;
+        if (const auto previous = checkpoints.find(record_id); previous != checkpoints.end())
+        {
+            row = foreign_catalog_collection_from_json(previous->second.receipt_json).value();
+            if (!previous->second.complete)
+                row.reasons.push_back("incomplete_conversion_requires_resolution");
+            report.collections.push_back(std::move(row));
+            continue;
+        }
         auto parent = collection.parent_id;
         if (parent && *parent != "0")
             row.reasons.push_back("collection_hierarchy_flattened");
@@ -1159,10 +1375,12 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
             parent = ancestor->parent_id;
         }
         auto still = request.cancellation.check();
-        if (!still)
+        if (!still || journal_failed || preflight_failed)
         {
-            row.reasons.push_back("cancelled");
-            report.cancelled = true;
+            row.reasons.push_back(!still ? "cancelled" :
+                                           (journal_failed ? "conversion_checkpoint_unavailable" :
+                                                             "source_preflight_failed"));
+            report.cancelled |= !still;
         }
         else
         {
@@ -1189,6 +1407,28 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 row.reasons.push_back("smart_rules_not_evaluated");
                 row.name += " [Lightroom smart snapshot]";
             }
+            const auto save_collection = [&](const bool complete) -> Result<void>
+            {
+                if (report.conversion_id.empty())
+                    return {};
+                auto current = repository_->snapshot();
+                if (!current)
+                    return current.error();
+                return repository_->save_foreign_conversion_checkpoint(
+                    report.conversion_id,
+                    {record_id, complete ? "complete" : "collection", row.set_id, complete,
+                     serialize_json(foreign_catalog_collection_to_json(row))},
+                    current.value().revision);
+            };
+            auto started = save_collection(false);
+            if (!started)
+            {
+                journal_failed = true;
+                report.issues.push_back(started.error());
+                row.reasons.push_back("checkpoint_write_failed");
+                report.collections.push_back(std::move(row));
+                continue;
+            }
             auto created = library_service_.create_library_set(LibrarySetKind::kManual, row.name,
                                                                std::nullopt, members);
             if (!created)
@@ -1198,23 +1438,50 @@ ConversionService::convert_foreign_catalog(const ForeignCatalogConversionRequest
                 row.set_id = created.value().set.id;
                 row.imported_members = members.size();
             }
+            auto saved = save_collection(static_cast<bool>(created));
+            if (!saved)
+            {
+                journal_failed = true;
+                report.issues.push_back(saved.error());
+                row.reasons.push_back("checkpoint_write_failed");
+            }
         }
         report.collections.push_back(std::move(row));
     }
 
     for (auto &fingerprint : report.source_originals)
     {
-        auto after = fingerprint_original(fingerprint.path);
+        if (request.progress)
+            request.progress("source_audit", report.source_audits.size(),
+                             report.source_originals.size());
+        ForeignCatalogSourceAudit audit;
+        audit.before = fingerprint;
+        auto after = fingerprint_original(fingerprint.path, request.cancellation);
         if (!after)
-            return after.error();
-        if (!fingerprints_equal(fingerprint, after.value()))
         {
-            report.originals_unchanged = false;
-            return make_error(
-                ErrorCode::kConflict, "Foreign catalog conversion mutated a source original",
-                {{"path", fingerprint.path}, {"reason", "foreign_catalog_original_mutated"}});
+            audit.error = after.error();
+            audit.status = after.error().code == ErrorCode::kCancelled ? "cancelled" : "failed";
+            report.cancelled |= after.error().code == ErrorCode::kCancelled;
         }
+        else
+        {
+            audit.after = std::move(after).value();
+            audit.status = fingerprints_equal(fingerprint, *audit.after) ? "verified" : "changed";
+            if (audit.status == "changed")
+                audit.error = make_error(
+                    ErrorCode::kConflict, "Source changed during conversion",
+                    {{"path", fingerprint.path}, {"reason", "source_changed_during_conversion"}});
+        }
+        report.source_audits.push_back(std::move(audit));
     }
+    report.source_audit_complete =
+        !request.cancellation.is_cancellation_requested() &&
+        std::all_of(report.source_audits.begin(), report.source_audits.end(), [](const auto &audit)
+                    { return audit.status == "verified" || audit.status == "changed"; });
+    report.originals_unchanged =
+        report.source_audit_complete &&
+        std::all_of(report.source_audits.begin(), report.source_audits.end(),
+                    [](const auto &audit) { return audit.status == "verified"; });
     return report;
 }
 
@@ -1223,6 +1490,21 @@ Result<std::vector<ForeignCatalogArchive>> ConversionService::foreign_catalog_ar
     if (!repository_)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     return repository_->list_foreign_catalog_archives();
+}
+
+Result<std::optional<ForeignConversionJournal>>
+ConversionService::foreign_conversion_status(const std::string_view id) const
+{
+    if (!repository_)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->load_foreign_conversion(id);
+}
+
+Result<std::vector<std::string>> ConversionService::foreign_conversion_ids() const
+{
+    if (!repository_)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    return repository_->list_foreign_conversion_ids();
 }
 
 Result<ForeignCatalogInspection>
@@ -1286,11 +1568,7 @@ ConversionService::inspect_lightroom_catalog(const std::string_view source_path,
             if (found == fields.value().end())
                 return absent;
             double value = absent;
-            const auto parsed = std::from_chars(found->second.data(),
-                                                found->second.data() + found->second.size(), value);
-            return parsed.ec == std::errc{} &&
-                           parsed.ptr == found->second.data() + found->second.size() &&
-                           std::isfinite(value) ?
+            return !found->second.starts_with('+') && parse_ascii_double(found->second, value) ?
                        value :
                        absent;
         };

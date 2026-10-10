@@ -6,6 +6,10 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <atomic>
+#include <future>
+#include <chrono>
+#include <cstdlib>
 
 #include <QColor>
 #include <QColorSpace>
@@ -20,11 +24,94 @@
 #include "ravo/services/display_presentation.h"
 
 #include "catalog_test_support.h"
+#include "interactive_perf_report.h"
 
 namespace ravo
 {
 namespace
 {
+
+TEST(DisplayPresentationResourceProbe, MeasuresConcurrentIccWorkersAndTailLatency)
+{
+    if (!std::getenv("RAVO_DISPLAY_RESOURCE_PROBE"))
+        GTEST_SKIP() << "set RAVO_DISPLAY_RESOURCE_PROBE=1 for the measure-only ICC workload";
+    struct Observer final : DisplayConversionObserver
+    {
+        std::atomic<std::int64_t> active{0}, peak{0}, created{0};
+        void worker_started(bool spawned) noexcept override
+        {
+            if (spawned)
+                ++created;
+            const auto count = ++active;
+            auto previous = peak.load();
+            while (previous < count && !peak.compare_exchange_weak(previous, count))
+            {
+            }
+        }
+        void worker_stopped() noexcept override
+        {
+            --active;
+        }
+    };
+    auto source = make_srgb_color_profile();
+    ASSERT_TRUE(source);
+    DisplayPresentationState monitor;
+    monitor.valid = true;
+    monitor.source = DisplayProfileSource::kInjectedPath;
+    monitor.monitor_profile.kind = ColorProfileKind::kIcc;
+    const auto bytes = QColorSpace(QColorSpace::AdobeRgb).iccProfile();
+    monitor.monitor_profile.icc_bytes.assign(bytes.cbegin(), bytes.cend());
+    monitor.profile_fingerprint = color_profile_fingerprint(monitor.monitor_profile);
+    std::vector<std::uint8_t> pixels(1024U * 768U * 3U, 128);
+    for (const int concurrency : {1, 2, 4})
+    {
+        Observer observer;
+        std::promise<void> start;
+        auto gate = start.get_future().share();
+        std::vector<std::future<Result<std::vector<std::int64_t>>>> tasks;
+        for (int worker = 0; worker < concurrency; ++worker)
+            tasks.push_back(std::async(
+                std::launch::async,
+                [&]() -> Result<std::vector<std::int64_t>>
+                {
+                    gate.wait();
+                    std::vector<std::int64_t> samples;
+                    for (int run = 0; run < 32; ++run)
+                    {
+                        const auto begun = std::chrono::steady_clock::now();
+                        auto output = apply_display_presentation_rgb8(
+                            pixels, 1024, 768, source.value(), monitor, {}, &observer);
+                        if (!output)
+                            return output.error();
+                        samples.push_back(std::chrono::duration_cast<std::chrono::microseconds>(
+                                              std::chrono::steady_clock::now() - begun)
+                                              .count());
+                    }
+                    return samples;
+                }));
+        start.set_value();
+        std::vector<std::int64_t> samples;
+        for (auto &task : tasks)
+        {
+            auto result = task.get();
+            ASSERT_TRUE(result) << result.error().message;
+            samples.insert(samples.end(), result.value().begin(), result.value().end());
+        }
+        EXPECT_EQ(observer.active.load(), 0);
+        EXPECT_GT(observer.created.load(), 0);
+        EXPECT_LE(observer.peak.load(), concurrency * 8);
+        interactive_perf_report::CaseMeta meta;
+        meta.case_id = "icc_concurrent_" + std::to_string(concurrency);
+        meta.path = "display_icc_resources";
+        meta.source_kind = "synthetic_rgb8_srgb_to_adobe_rgb";
+        meta.warmups = 0;
+        meta.recorded_samples = samples.size();
+        meta.worker_threads_created = observer.created.load();
+        meta.peak_active_participants = observer.peak.load();
+        meta.workers = concurrency;
+        interactive_perf_report::emit_case(meta, samples);
+    }
+}
 
 TEST(DisplayPresentationTest, DiscoverEmitsMachineVisibleState)
 {

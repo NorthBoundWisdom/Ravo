@@ -1013,6 +1013,8 @@ TEST_F(CatalogServiceTest, V6RecoveryMigrationFailureRollsBackTheV5Catalog)
             << query.lastError().text().toStdString();
         ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE asset_video")))
             << query.lastError().text().toStdString();
+        ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_conversion_record")));
+        ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_conversion")));
         ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_catalog_chunk")));
         ASSERT_TRUE(query.exec(QStringLiteral("DROP TABLE foreign_catalog_source")));
         ASSERT_TRUE(query.exec(QStringLiteral(

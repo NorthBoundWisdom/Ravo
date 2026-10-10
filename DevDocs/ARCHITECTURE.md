@@ -116,7 +116,8 @@ command. Seek/selection generations still reject old frames and commands.
 
 Lightroom catalog conversion (ADR-0164/0166) uses a bounded, read-only private SQLite
 snapshot in adapters. Owned domain photo values feed ConversionService's existing
-Add/review/keyword path into an empty destination. Studio dispatches the same
+Add/review/keyword path into an empty destination or a verified matching
+conversion journal (ADR-0167). Studio dispatches the same
 service on the catalog executor and CLI returns a versioned per-item report.
 Source catalogs are never live Ravo stores. Schema 19 preserves source bytes as
 hashed ordered 1 MiB chunks in the ordinary SQLite backup lifecycle. Adapters
@@ -125,7 +126,20 @@ Services own copies, review/keywords, named history snapshots and static sets.
 Explicit longest-prefix import mappings do not fall back to unavailable paths.
 Unsupported groups remain explicit omissions. Cancellation retains completed
 destination items; archive cancellation rolls back metadata/chunks/revision.
+Schema 20 journals per-record phases and receipts with catalog revisions.
+Resume skips complete records and continues untouched work; ambiguous partial
+records remain blocked, never replayed. Final source audit is cancellable and
+returns explicit per-source completion/errors without discarding committed IDs.
 No new thread, runtime or renderer is introduced.
+
+Develop Recipe loads use independent session and load generations plus the
+captured asset/catalog identity. GUI selection, catalog replacement, external
+recipe publication and shutdown invalidate old loads. Recipe/history failure
+and queue rejection leave editing unavailable; an unknown history head never
+becomes a valid empty history. Save facts remain owned by Develop/recovery even
+when an obsolete GUI confirmation is discarded. Presenter Host service getters
+are named `worker_*` and assert catalog-executor affinity; UI callbacks and
+request input capture remain on the GUI thread.
 
 Filmstrip delegates demand metadata for visible sparse rows before thumbnails.
 Selection of an unloaded row is owned by desktop C++: one latest pending intent

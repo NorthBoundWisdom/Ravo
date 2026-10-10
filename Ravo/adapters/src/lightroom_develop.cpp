@@ -4,10 +4,10 @@
 
 #include <cctype>
 #include <cmath>
-#include <charconv>
 #include <set>
 
 #include "ravo/foundation/json.h"
+#include "ravo/foundation/parse_number.h"
 
 // Serialized-table parsing informed by RAWmakase lr_develop.rs.
 // Copyright (c) 2026 RAWmakase contributors, MIT; see THIRD_PARTY_NOTICES.md.
@@ -246,11 +246,7 @@ Result<LightroomDevelopResult> import_lightroom_develop(const std::string_view t
         auto value = scalar(version->second);
         if (value)
         {
-            const auto parsed_process = std::from_chars(
-                value.value().data(), value.value().data() + value.value().size(), process);
-            if (parsed_process.ec != std::errc{} ||
-                parsed_process.ptr != value.value().data() + value.value().size() ||
-                !std::isfinite(process))
+            if ((value.value().starts_with('+') || !parse_ascii_double(value.value(), process)))
                 process = 0;
         }
     }
@@ -261,10 +257,8 @@ Result<LightroomDevelopResult> import_lightroom_develop(const std::string_view t
         if (found == fields.end())
             return false;
         double number = 1;
-        const auto parsed_number = std::from_chars(
-            found->second.data(), found->second.data() + found->second.size(), number);
-        return parsed_number.ec == std::errc{} &&
-               parsed_number.ptr == found->second.data() + found->second.size() && number == 0;
+        return !found->second.starts_with('+') && parse_ascii_double(found->second, number) &&
+               number == 0;
     };
     const std::set<std::string> local_tables{"Look",
                                              "RetouchAreas",
@@ -308,11 +302,8 @@ Result<LightroomDevelopResult> import_lightroom_develop(const std::string_view t
                 else
                 {
                     double number = 0;
-                    const auto parsed_number =
-                        std::from_chars(value.data(), value.data() + value.size(), number);
-                    if (parsed_number.ec != std::errc{} ||
-                        parsed_number.ptr != value.data() + value.size() ||
-                        !std::isfinite(number) || number != old->second)
+                    if ((value.starts_with('+') || !parse_ascii_double(value, number)) ||
+                        number != old->second)
                         result.omitted.push_back(
                             {key, value, "unsupported_legacy_process_control"});
                 }
@@ -328,10 +319,7 @@ Result<LightroomDevelopResult> import_lightroom_develop(const std::string_view t
         {
             const auto &value = values.at("Texture");
             double strength = 0;
-            const auto parsed_strength =
-                std::from_chars(value.data(), value.data() + value.size(), strength);
-            if (parsed_strength.ec != std::errc{} ||
-                parsed_strength.ptr != value.data() + value.size() || !std::isfinite(strength) ||
+            if ((value.starts_with('+') || !parse_ascii_double(value, strength)) ||
                 strength < -100 || strength > 100)
                 result.omitted.push_back({"Texture", value, "invalid_lightroom_texture"});
             else
@@ -349,10 +337,7 @@ Result<LightroomDevelopResult> import_lightroom_develop(const std::string_view t
             for (const auto &[key, value] : values)
             {
                 double number = 0;
-                const auto parsed_number =
-                    std::from_chars(value.data(), value.data() + value.size(), number);
-                if (parsed_number.ec != std::errc{} ||
-                    parsed_number.ptr != value.data() + value.size() || !std::isfinite(number) ||
+                if ((value.starts_with('+') || !parse_ascii_double(value, number)) ||
                     (key == "CropAngle" ? std::abs(number) > 45 : number < 0 || number > 1))
                     valid = false;
                 numbers.emplace(key, number);

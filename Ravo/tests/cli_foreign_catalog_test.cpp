@@ -127,6 +127,27 @@ TEST_F(CliTest, NativeLightroomConvertListsAndExportsVerifiedArchive)
     ASSERT_TRUE(converted);
     EXPECT_EQ(number_at(converted.value(), {"data", "imported"}), "1");
     EXPECT_EQ(string_at(converted.value(), {"data", "source_archive", "sha256"}), source_hash);
+    const auto conversion_id = string_at(converted.value(), {"data", "conversion_id"});
+    ASSERT_FALSE(conversion_id.empty());
+    auto identities = parse_json(run({"catalog", "foreign-conversions", "--catalog",
+                                      QString::fromStdString(catalog), "--json"}));
+    ASSERT_TRUE(identities);
+    EXPECT_EQ(string_at(identities.value(), {"data", "schema"}), "ravo.foreign-conversions/v1");
+    auto status = parse_json(
+        run({"catalog", "foreign-conversion-status", "--catalog", QString::fromStdString(catalog),
+             "--conversion-id", QString::fromStdString(conversion_id), "--json"}));
+    ASSERT_TRUE(status);
+    EXPECT_EQ(string_at(status.value(), {"data", "schema"}), "ravo.foreign-conversion-status/v1");
+    auto resumed = parse_json(
+        run({"catalog", "convert-foreign", "--catalog", QString::fromStdString(catalog),
+             "--foreign-source", QString::fromStdString(source), "--foreign-id", "1", "--resume",
+             "--expect-source-sha256", QString::fromStdString(source_hash), "--json"}));
+    ASSERT_TRUE(resumed);
+    EXPECT_EQ(number_at(resumed.value(), {"data", "imported"}), "1");
+    EXPECT_EQ(string_at(resumed.value(), {"data", "conversion_id"}), conversion_id);
+    run({"catalog", "foreign-sources", "--catalog", QString::fromStdString(catalog), "--resume",
+         "--json"},
+        false);
     auto listed = parse_json(run(
         {"catalog", "foreign-sources", "--catalog", QString::fromStdString(catalog), "--json"}));
     ASSERT_TRUE(listed);

@@ -359,7 +359,7 @@ void StudioDevelopPresenter::setWhiteBalancePickActive(const bool active)
 
 void StudioDevelopPresenter::pickWhiteBalance(const double preview_x, const double preview_y)
 {
-    if (selected_asset_id_.isEmpty() || host_.develop_service() == nullptr)
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
         return;
     }
@@ -396,10 +396,10 @@ void StudioDevelopPresenter::pickWhiteBalance(const double preview_x, const doub
         {
             Result<std::array<double, 4>> sampled =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (host_.develop_service() != nullptr)
+            if (host_.worker_develop_service() != nullptr)
             {
-                sampled = host_.develop_service()->sample_white_balance(asset_id, request,
-                                                                        CancellationToken{});
+                sampled = host_.worker_develop_service()->sample_white_balance(asset_id, request,
+                                                                               CancellationToken{});
             }
             QMetaObject::invokeMethod(
                 this,
@@ -457,7 +457,7 @@ void StudioDevelopPresenter::autoPerspective(const QString &mode_name)
         {
             Result<PerspectiveAnalysis> analysis =
                 make_error(ErrorCode::kIo, "Engine session is closed");
-            if (host_.develop_service() != nullptr && engine_)
+            if (host_.worker_develop_service() != nullptr && engine_)
             {
                 PreviewRequest request;
                 request.asset_id = asset_id;
@@ -467,7 +467,8 @@ void StudioDevelopPresenter::autoPerspective(const QString &mode_name)
                 request.ignore_straighten = true;
                 request.persist_preview_record = false;
                 request.cancellation = cancellation;
-                auto preview = host_.preview_service()->request_preview(request, analysis_develop);
+                auto preview =
+                    host_.worker_preview_service()->request_preview(request, analysis_develop);
                 if (!preview)
                 {
                     analysis = preview.error();

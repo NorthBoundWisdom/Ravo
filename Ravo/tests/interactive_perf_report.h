@@ -27,6 +27,8 @@ struct PercentileSummary
     std::int64_t min = 0;
     std::int64_t p50 = 0;
     std::int64_t p90 = 0;
+    std::int64_t p95 = 0;
+    std::int64_t p99 = 0;
     std::int64_t max = 0;
 };
 
@@ -40,6 +42,8 @@ struct PercentileSummary
     out.max = values.back();
     out.p50 = values[values.size() / 2U];
     out.p90 = values[(values.size() * 9U - 1U) / 10U];
+    out.p95 = values[(values.size() * 95U - 1U) / 100U];
+    out.p99 = values[(values.size() * 99U - 1U) / 100U];
     return out;
 }
 
@@ -60,6 +64,8 @@ struct CaseMeta
     std::string power_state;
     std::string gpu_backend;
     std::optional<std::int64_t> workers;
+    std::optional<std::int64_t> worker_threads_created;
+    std::optional<std::int64_t> peak_active_participants;
     std::optional<std::int64_t> peak_owned_bytes;
     std::optional<double> display_refresh_hz;
     std::optional<std::uint32_t> max_edge;
@@ -117,6 +123,8 @@ struct CaseMeta
         {"min", JsonValue::number(std::to_string(summary.min))},
         {"p50", JsonValue::number(std::to_string(summary.p50))},
         {"p90", JsonValue::number(std::to_string(summary.p90))},
+        {"p95", JsonValue::number(std::to_string(summary.p95))},
+        {"p99", JsonValue::number(std::to_string(summary.p99))},
         {"max", JsonValue::number(std::to_string(summary.max))},
         {"cache_state", meta.cache_state},
         {"source_kind", meta.source_kind},
@@ -132,6 +140,12 @@ struct CaseMeta
         object.emplace("workers", JsonValue::number(std::to_string(*meta.workers)));
     else
         object.emplace("workers", nullptr);
+    if (meta.worker_threads_created)
+        object.emplace("worker_threads_created",
+                       JsonValue::number(std::to_string(*meta.worker_threads_created)));
+    if (meta.peak_active_participants)
+        object.emplace("peak_active_participants",
+                       JsonValue::number(std::to_string(*meta.peak_active_participants)));
     if (meta.peak_owned_bytes)
         object.emplace("peak_owned_bytes",
                        JsonValue::number(std::to_string(*meta.peak_owned_bytes)));

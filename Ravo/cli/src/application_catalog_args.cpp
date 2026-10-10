@@ -144,6 +144,13 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.baseline = true;
             continue;
         }
+        if (option == "--resume")
+        {
+            if (result.foreign_resume)
+                return make_error(ErrorCode::kInvalidArgument, "--resume was specified twice");
+            result.foreign_resume = true;
+            continue;
+        }
         if (option == "--tiff-grayscale-if-neutral")
         {
             if (result.tiff_grayscale_if_neutral)
@@ -545,6 +552,13 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument,
                                   "--editor-version was specified twice");
             result.editor_version = value;
+        }
+        else if (option == "--conversion-id")
+        {
+            if (!result.conversion_id.empty())
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "--conversion-id was specified twice");
+            result.conversion_id = value;
         }
         else if (option == "--expect-source-sha256")
         {

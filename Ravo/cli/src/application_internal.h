@@ -94,6 +94,8 @@ struct CatalogCliArguments
     std::string_view foreign_source;
     std::string_view foreign_source_kind;
     std::string_view source_id;
+    std::string_view conversion_id;
+    bool foreign_resume = false;
     std::vector<std::pair<std::string, std::string>> foreign_path_mappings;
     std::vector<std::string> foreign_ids;
     std::string_view expected_foreign_source_sha256;

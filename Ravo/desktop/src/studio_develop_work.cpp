@@ -13,6 +13,7 @@
 #include <utility>
 
 #include <QCoreApplication>
+#include <QThread>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
@@ -43,6 +44,10 @@ namespace ravo
 
 void StudioDevelopPresenter::load_develop_for_selection()
 {
+    Q_ASSERT(QThread::currentThread() == thread());
+    const auto load_generation = ++recipe_load_generation_;
+    const auto session_generation = catalog_session_generation_;
+    const auto catalog = catalog_path_;
     break_history_coalescing();
     state_.develop_ = {};
     clear_local_edit_scope();
@@ -68,22 +73,28 @@ void StudioDevelopPresenter::load_develop_for_selection()
         return;
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
-    executor_.post(
-        [this, asset_id]()
+    const bool queued = executor_.post(
+        [this, asset_id, catalog, load_generation, session_generation]()
         {
+            Q_ASSERT(executor_.is_worker_thread());
             Result<Recipe> loaded = make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<std::vector<RecipeHistoryEntry>> history =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (host_.develop_service() != nullptr)
+            if (host_.worker_develop_service() != nullptr)
             {
-                loaded = host_.develop_service()->load_recipe(asset_id);
-                history = host_.develop_service()->list_recipe_history(asset_id);
+                loaded = host_.worker_develop_service()->load_recipe(asset_id);
+                history = host_.worker_develop_service()->list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, loaded = std::move(loaded), history = std::move(history)]() mutable
+                [this, asset_id, catalog, load_generation, session_generation,
+                 loaded = std::move(loaded), history = std::move(history)]() mutable
                 {
-                    if (utf8_from_qstring(selected_asset_id_) != asset_id)
+                    Q_ASSERT(QThread::currentThread() == thread());
+                    if (stopped_ || catalog != catalog_path_ ||
+                        session_generation != catalog_session_generation_ ||
+                        load_generation != recipe_load_generation_ ||
+                        utf8_from_qstring(selected_asset_id_) != asset_id)
                     {
                         return;
                     }
@@ -98,11 +109,12 @@ void StudioDevelopPresenter::load_develop_for_selection()
                         state_.recipe_history_.clear();
                         state_.recipe_history_entries_.clear();
                     }
-                    if (!loaded)
+                    if (!loaded || !history)
                     {
                         state_.develop_ = {};
                         state_.saved_develop_ = {};
-                        state_.develop_load_error_ = qstring_from_utf8(loaded.error().message);
+                        const auto &error = !loaded ? loaded.error() : history.error();
+                        state_.develop_load_error_ = qstring_from_utf8(error.message);
                         sync_active_history();
                         state_.develop_preview_deferred_ = false;
                         if (browse_mode_ == QLatin1String("develop"))
@@ -111,7 +123,7 @@ void StudioDevelopPresenter::load_develop_for_selection()
                             emit previewChanged();
                         }
                         emit editChanged();
-                        emit errorOccurred(qstring_from_utf8(loaded.error().message));
+                        emit errorOccurred(state_.develop_load_error_);
                         return;
                     }
                     auto params = develop_from_recipe(loaded.value());
@@ -158,6 +170,15 @@ void StudioDevelopPresenter::load_develop_for_selection()
                 Qt::QueuedConnection);
         },
         TaskPriority::kForeground);
+    if (!queued)
+    {
+        state_.develop_load_error_ = QStringLiteral("Recipe load executor is stopped");
+        state_.develop_preview_deferred_ = false;
+        host_.preview_loading(false);
+        emit errorOccurred(state_.develop_load_error_);
+        emit previewChanged();
+        emit editChanged();
+    }
 }
 
 void StudioDevelopPresenter::break_history_coalescing()
@@ -171,6 +192,11 @@ void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool pus
                                             const RecipeHistoryWrite history_write,
                                             std::optional<std::string> history_coalesce_key)
 {
+    if (!state_.develop_load_error_.isEmpty())
+    {
+        emit errorOccurred(state_.develop_load_error_);
+        return;
+    }
     if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty())
     {
         return;
@@ -358,6 +384,11 @@ bool StudioDevelopPresenter::mutate_develop(DevelopParams next, const DevelopEdi
                                             const bool refresh_preview,
                                             std::optional<std::string> history_coalesce_key)
 {
+    if (!state_.develop_load_error_.isEmpty())
+    {
+        emit errorOccurred(state_.develop_load_error_);
+        return false;
+    }
     if (!state_.mask_gesture_updating_ &&
         (state_.mask_gesture_before_ ||
          (state_.local_creation_before_ && edit == DevelopEdit::Commit)))
@@ -537,18 +568,20 @@ void StudioDevelopPresenter::kick_develop_work()
                               state_.develop_preview_owner_.supersede("queued_preview_started");
     const auto cancellation = state_.develop_preview_owner_.begin();
     const auto catalog = catalog_path_;
+    const auto session_generation = catalog_session_generation_;
+    const auto load_generation = recipe_load_generation_;
     executor_.post(
-        [this, job, revision, cancellation, catalog]()
+        [this, job, revision, cancellation, catalog, session_generation, load_generation]()
         {
             Result<RecipeSaveResult> saved =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
             Result<PreviewResult> preview = make_error(ErrorCode::kIo, "Catalog session is closed");
             bool save_ok = !job.save;
-            if (host_.develop_service() != nullptr)
+            if (host_.worker_develop_service() != nullptr)
             {
                 if (job.save)
                 {
-                    saved = host_.develop_service()->save_develop_with_history(
+                    saved = host_.worker_develop_service()->save_develop_with_history(
                         job.asset_id, job.params,
                         RecipeSaveOptions{
                             .history_write = job.history_write,
@@ -588,7 +621,7 @@ void StudioDevelopPresenter::kick_develop_work()
                         request.overlay_mask_id = job.overlay_mask_id;
                         request.persist_preview_record = false;
                     }
-                    preview = host_.preview_service()->request_preview(
+                    preview = host_.worker_preview_service()->request_preview(
                         request, job.interactive && !job.comparison_before ?
                                      std::optional<DevelopParams>{job.params} :
                                      std::optional<DevelopParams>{});
@@ -603,18 +636,21 @@ void StudioDevelopPresenter::kick_develop_work()
             const bool recovery_due = job.save && save_ok;
             QMetaObject::invokeMethod(
                 this,
-                [this, job, revision, catalog, saved = std::move(saved),
-                 preview = std::move(preview)]() mutable
+                [this, job, revision, catalog, session_generation, load_generation,
+                 saved = std::move(saved), preview = std::move(preview)]() mutable
                 {
                     state_.develop_job_in_flight_ = false;
                     state_.develop_interactive_job_in_flight_ = false;
                     const bool selected_matches =
+                        session_generation == catalog_session_generation_ &&
+                        load_generation == recipe_load_generation_ &&
                         utf8_from_qstring(selected_asset_id_) == job.asset_id;
                     if (job.save)
                     {
                         if (!saved)
                         {
-                            state_.local_done_pending_ = false;
+                            if (selected_matches)
+                                state_.local_done_pending_ = false;
                             if (selected_matches && !state_.pending_save_.has_value() &&
                                 state_.develop_ == job.params)
                             {
@@ -647,7 +683,8 @@ void StudioDevelopPresenter::kick_develop_work()
                             kick_develop_work();
                             return;
                         }
-                        if (catalog_path_ == catalog)
+                        if (catalog_path_ == catalog &&
+                            session_generation == catalog_session_generation_)
                             host_.publish_saved_asset(saved.value().asset);
                         if (selected_matches)
                         {
@@ -699,7 +736,8 @@ void StudioDevelopPresenter::kick_develop_work()
                             }
                         }
                     }
-                    if (!state_.develop_preview_owner_.accepts(
+                    if (session_generation != catalog_session_generation_ ||
+                        !state_.develop_preview_owner_.accepts(
                             revision, job.asset_id, utf8_from_qstring(selected_asset_id_)))
                     {
                         if (job.comparison_before && state_.comparison_active_ &&
@@ -831,10 +869,10 @@ void StudioDevelopPresenter::kick_develop_work()
                     kick_develop_work();
                 },
                 Qt::QueuedConnection);
-            if (recovery_due && host_.develop_service() != nullptr)
+            if (recovery_due && host_.worker_develop_service() != nullptr)
             {
                 auto synchronized =
-                    host_.recovery_service()->sync_recovery(std::string_view{job.asset_id});
+                    host_.worker_recovery_service()->sync_recovery(std::string_view{job.asset_id});
                 if (!synchronized)
                 {
                     const auto failure = qstring_from_utf8(synchronized.error().message);

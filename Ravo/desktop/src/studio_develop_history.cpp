@@ -437,20 +437,25 @@ void StudioDevelopPresenter::reload_recipe_history()
     }
     const auto asset_id = utf8_from_qstring(selected_asset_id_);
     const auto observed_head = state_.loaded_recipe_history_head_;
-    executor_.post(
-        [this, asset_id, observed_head]()
+    const auto session_generation = catalog_session_generation_;
+    const auto load_generation = recipe_load_generation_;
+    const bool queued = executor_.post(
+        [this, asset_id, observed_head, session_generation, load_generation]()
         {
             Result<std::vector<RecipeHistoryEntry>> history =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (host_.develop_service() != nullptr)
+            if (host_.worker_develop_service() != nullptr)
             {
-                history = host_.develop_service()->list_recipe_history(asset_id);
+                history = host_.worker_develop_service()->list_recipe_history(asset_id);
             }
             QMetaObject::invokeMethod(
                 this,
-                [this, asset_id, observed_head, history = std::move(history)]() mutable
+                [this, asset_id, observed_head, session_generation, load_generation,
+                 history = std::move(history)]() mutable
                 {
-                    if (utf8_from_qstring(selected_asset_id_) != asset_id ||
+                    if (stopped_ || session_generation != catalog_session_generation_ ||
+                        load_generation != recipe_load_generation_ ||
+                        utf8_from_qstring(selected_asset_id_) != asset_id ||
                         state_.loaded_recipe_history_head_ != observed_head)
                     {
                         return;
@@ -463,8 +468,7 @@ void StudioDevelopPresenter::reload_recipe_history()
                     }
                     else
                     {
-                        state_.recipe_history_.clear();
-                        state_.recipe_history_entries_.clear();
+                        acceptLoadedHistory(history);
                     }
                     sync_active_history();
                     emit editChanged();
@@ -472,6 +476,11 @@ void StudioDevelopPresenter::reload_recipe_history()
                 Qt::QueuedConnection);
         },
         TaskPriority::kForeground);
+    if (!queued)
+    {
+        acceptLoadedHistory(make_error(ErrorCode::kIo, "Recipe history executor is stopped"));
+        emit editChanged();
+    }
 }
 
 bool StudioDevelopPresenter::cropToolActive() const noexcept

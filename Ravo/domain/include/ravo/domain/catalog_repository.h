@@ -48,6 +48,16 @@ public:
                             const CancellationToken &cancellation) = 0;
     [[nodiscard]] virtual Result<std::vector<ForeignCatalogArchive>>
     list_foreign_catalog_archives() const = 0;
+    [[nodiscard]] virtual Result<std::optional<ForeignConversionJournal>>
+    load_foreign_conversion(std::string_view conversion_id) const = 0;
+    [[nodiscard]] virtual Result<std::vector<std::string>> list_foreign_conversion_ids() const = 0;
+    [[nodiscard]] virtual Result<void> begin_foreign_conversion(std::string_view conversion_id,
+                                                                std::string_view source_sha256,
+                                                                std::int64_t expected_revision) = 0;
+    [[nodiscard]] virtual Result<void>
+    save_foreign_conversion_checkpoint(std::string_view conversion_id,
+                                       const ForeignConversionCheckpoint &record,
+                                       std::int64_t expected_revision) = 0;
     [[nodiscard]] virtual Result<void>
     export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
                                    const CancellationToken &cancellation) const = 0;

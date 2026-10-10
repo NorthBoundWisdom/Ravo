@@ -61,4 +61,23 @@ struct ForeignCatalogArchive
     std::string sha256;
     std::uint64_t size_bytes = 0;
 };
+
+// Catalog-owned migration journal, included in ordinary backup. A running
+// record is ambiguous after interruption and must never be replayed implicitly.
+struct ForeignConversionCheckpoint
+{
+    std::string foreign_id;
+    std::string phase;
+    std::optional<std::string> asset_id;
+    bool complete = false;
+    std::string receipt_json;
+};
+
+struct ForeignConversionJournal
+{
+    std::string conversion_id;
+    std::string source_sha256;
+    std::int64_t catalog_revision = 0;
+    std::vector<ForeignConversionCheckpoint> records;
+};
 } // namespace ravo

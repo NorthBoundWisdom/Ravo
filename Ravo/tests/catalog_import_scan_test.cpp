@@ -446,6 +446,8 @@ TEST_F(CatalogServiceTest, ImportContentIndexMigratesV16AndBackfillsWithoutRevis
         QSqlQuery sql(db);
         ASSERT_TRUE(sql.exec("DROP TABLE asset_content_hash"));
         ASSERT_TRUE(sql.exec("DROP TABLE asset_video"));
+        ASSERT_TRUE(sql.exec("DROP TABLE foreign_conversion_record"));
+        ASSERT_TRUE(sql.exec("DROP TABLE foreign_conversion"));
         ASSERT_TRUE(sql.exec("DROP TABLE foreign_catalog_chunk"));
         ASSERT_TRUE(sql.exec("DROP TABLE foreign_catalog_source"));
         ASSERT_TRUE(sql.exec("UPDATE schema_info SET schema_version = 16"));

@@ -104,7 +104,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
             "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
             "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-burst-compare|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|offline-proxy-delete|offline-proxy-pin|offline-proxy-evict|"
-            "inspect-foreign|foreign-sources|foreign-source-export|"
+            "inspect-foreign|foreign-sources|foreign-source-export|foreign-conversions|foreign-conversion-status|"
             "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
             "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
     }
@@ -229,6 +229,7 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool convert_command =
         subcommand == "convert-foreign" || subcommand == "foreign-sources" ||
         subcommand == "foreign-source-export" || subcommand == "dng-convert" ||
+        subcommand == "foreign-conversion-status" || subcommand == "foreign-conversions" ||
         subcommand == "smart-preview" || subcommand == "offline-proxy-create" ||
         subcommand == "offline-proxy-list" || subcommand == "offline-proxy-verify" ||
         subcommand == "offline-proxy-status" || subcommand == "offline-proxy-reconnect" ||
@@ -243,6 +244,12 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (!flags.value().source_id.empty() && subcommand != "foreign-source-export")
         return make_error(ErrorCode::kInvalidArgument,
                           "--source-id is only valid for catalog foreign-source-export");
+    if (!flags.value().conversion_id.empty() && subcommand != "foreign-conversion-status")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--conversion-id is only valid for foreign-conversion-status");
+    if (flags.value().foreign_resume && subcommand != "convert-foreign")
+        return make_error(ErrorCode::kInvalidArgument,
+                          "--resume is only valid for convert-foreign");
     if (!flags.value().foreign_ids.empty() && subcommand != "convert-foreign")
         return make_error(ErrorCode::kInvalidArgument,
                           "--foreign-id is only valid for catalog convert-foreign");

@@ -1,6 +1,7 @@
 #include "application_internal.h"
 
 #include <string>
+#include <algorithm>
 #include <utility>
 
 #include "ravo/services/dng_smart_preview.h"
@@ -25,26 +26,7 @@ namespace
 
 [[nodiscard]] JsonValue item_json(const ForeignCatalogItemReport &item)
 {
-    JsonValue::Object object{
-        {"foreign_id", item.foreign_id},
-        {"status", std::string(foreign_catalog_item_status_name(item.status))},
-    };
-    if (item.original_path)
-        object.emplace("original_path", *item.original_path);
-    if (item.asset_id)
-        object.emplace("asset_id", *item.asset_id);
-    JsonValue::Array mapped;
-    mapped.reserve(item.mapped_fields.size());
-    for (const auto &field : item.mapped_fields)
-        mapped.emplace_back(field);
-    object.emplace("mapped_fields", std::move(mapped));
-    object.emplace("unsupported_fields", crs_omissions_json(item.unsupported_fields));
-    JsonValue::Array reasons;
-    reasons.reserve(item.reasons.size());
-    for (const auto &reason : item.reasons)
-        reasons.emplace_back(reason);
-    object.emplace("reasons", std::move(reasons));
-    return JsonValue{std::move(object)};
+    return foreign_catalog_item_to_json(item);
 }
 
 [[nodiscard]] JsonValue report_json(const ForeignCatalogConversionReport &report)
@@ -55,12 +37,14 @@ namespace
         {"source_kind", std::string(foreign_catalog_source_kind_name(report.source_kind))},
         {"source_path", report.source_path},
         {"destination_catalog", report.destination_catalog},
+        {"conversion_id", report.conversion_id},
         {"imported", JsonValue::number(std::to_string(report.imported))},
         {"skipped", JsonValue::number(std::to_string(report.skipped))},
         {"unsupported", JsonValue::number(std::to_string(report.unsupported))},
         {"failed", JsonValue::number(std::to_string(report.failed))},
         {"unsupported_field_count", JsonValue::number(std::to_string(report.unsupported_fields))},
         {"originals_unchanged", report.originals_unchanged},
+        {"source_audit_complete", report.source_audit_complete},
         {"cancelled", report.cancelled},
         {"source_photo_count", JsonValue::number(std::to_string(report.source_photo_count))},
         {"selected_photo_count", JsonValue::number(std::to_string(report.selected_photo_count))},
@@ -78,6 +62,34 @@ namespace
     for (const auto &fingerprint : report.source_originals)
         originals.push_back(fingerprint_json(fingerprint));
     object.emplace("source_originals", std::move(originals));
+    const auto error_json = [](const TaskError &error)
+    {
+        JsonValue::Object context;
+        for (const auto &[key, value] : error.context)
+            context.emplace(key, value);
+        return JsonValue{JsonValue::Object{{"code", std::string(error_code_name(error.code))},
+                                           {"message", error.message},
+                                           {"context", std::move(context)}}};
+    };
+    JsonValue::Array audits, issues;
+    for (const auto &audit : report.source_audits)
+    {
+        JsonValue::Object entry{{"before", fingerprint_json(audit.before)},
+                                {"status", audit.status}};
+        if (audit.after)
+            entry.emplace("after", fingerprint_json(*audit.after));
+        if (audit.error)
+            entry.emplace("error", error_json(*audit.error));
+        audits.emplace_back(std::move(entry));
+    }
+    for (const auto &issue : report.issues)
+        issues.emplace_back(error_json(issue));
+    object.emplace("source_audits", std::move(audits));
+    object.emplace("issues", std::move(issues));
+    object.emplace("committed_item_count",
+                   JsonValue::number(std::to_string(
+                       std::count_if(report.items.begin(), report.items.end(),
+                                     [](const auto &item) { return item.asset_id.has_value(); }))));
     JsonValue::Array items;
     items.reserve(report.items.size());
     for (const auto &item : report.items)
@@ -171,6 +183,49 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
                                               const std::string_view subcommand,
                                               const CatalogCliArguments &flags)
 {
+    if (subcommand == "foreign-conversions")
+    {
+        auto ids = service.conversion().foreign_conversion_ids();
+        if (!ids)
+            return ids.error();
+        JsonValue::Array conversions;
+        for (const auto &id : ids.value())
+            conversions.emplace_back(id);
+        return JsonValue{JsonValue::Object{{"schema", "ravo.foreign-conversions/v1"},
+                                           {"conversion_ids", std::move(conversions)}}};
+    }
+    if (subcommand == "foreign-conversion-status")
+    {
+        if (flags.conversion_id.empty())
+            return make_error(ErrorCode::kInvalidArgument,
+                              "foreign-conversion-status requires --conversion-id");
+        auto journal = service.conversion().foreign_conversion_status(flags.conversion_id);
+        if (!journal)
+            return journal.error();
+        if (!journal.value())
+            return make_error(ErrorCode::kNotFound, "Conversion journal not found");
+        JsonValue::Array records;
+        for (const auto &record : journal.value()->records)
+        {
+            auto receipt = parse_json(record.receipt_json);
+            if (!receipt)
+                return receipt.error();
+            JsonValue::Object item{{"foreign_id", record.foreign_id},
+                                   {"phase", record.phase},
+                                   {"complete", record.complete},
+                                   {"receipt", std::move(receipt).value()}};
+            if (record.asset_id)
+                item.emplace("target_id", *record.asset_id);
+            records.emplace_back(std::move(item));
+        }
+        return JsonValue{JsonValue::Object{
+            {"schema", "ravo.foreign-conversion-status/v1"},
+            {"conversion_id", journal.value()->conversion_id},
+            {"source_sha256", journal.value()->source_sha256},
+            {"catalog_revision",
+             JsonValue::number(std::to_string(journal.value()->catalog_revision))},
+            {"records", std::move(records)}}};
+    }
     if (subcommand == "foreign-sources")
     {
         auto sources = service.conversion().foreign_catalog_archives();
@@ -438,6 +493,7 @@ Result<JsonValue> run_catalog_convert_command(CatalogService &service,
     }
     ForeignCatalogConversionRequest request;
     request.source_path = std::string(flags.foreign_source);
+    request.resume = flags.foreign_resume;
     request.path_mappings = flags.foreign_path_mappings;
     request.foreign_ids = flags.foreign_ids;
     request.expected_source_sha256 = std::string(flags.expected_foreign_source_sha256);

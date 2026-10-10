@@ -1019,9 +1019,9 @@ void StudioDevelopPresenter::pasteParametersToSelection()
         {
             Result<DevelopApplyResult> applied =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
-            if (host_.develop_service() != nullptr)
+            if (host_.worker_develop_service() != nullptr)
             {
-                applied = host_.develop_service()->apply_develop_selection(
+                applied = host_.worker_develop_service()->apply_develop_selection(
                     request,
                     [this](const std::size_t completed, const std::size_t total,
                            const DevelopApplyItemResult *)

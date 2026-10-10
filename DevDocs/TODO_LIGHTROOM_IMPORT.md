@@ -19,8 +19,9 @@ preservation does not complete the following operational capabilities.
 - Add per-computer root/folder locations, descendant precedence, clearing and
   ambiguity handling through shared services/CLI. Preserve source identity
   checks rather than relinking by filename alone.
-- Define resumable checkpoints and per-photo atomicity. A source archive and
-  partially converted assets are not an implicit resume protocol.
+- Qualify finer atomic mutation-plus-checkpoint primitives for safe automatic
+  retry of partial photos. ADR-0167 resumes complete/untouched records but blocks
+  ambiguous partial stages; it does not establish per-photo atomicity.
 
 ## Develop and dependencies
 

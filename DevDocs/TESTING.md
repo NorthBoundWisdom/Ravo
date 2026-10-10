@@ -82,6 +82,34 @@ Virtual-copy contracts must cover empty edits, tags, labels and writable text
 independently of a modified master. History-only conversion must publish a
 verified recovery artifact and restore through the ordinary snapshot owner;
 prepared snapshots reject a mismatched asset/source before writes.
+ADR-0167 contracts cover per-record checkpoint rollback and backup, reopen
+resume without duplicate history/versions/sets, ambiguous partial records,
+destination revision conflicts and real CLI journal inspection. Final source
+audit cancellation, disappearance and observed changes must retain committed
+receipts, with no false `originals_unchanged` success.
+
+`StudioPipelinePriority.RecipeLoadRejectsOldAAfterABAAndSessionReplacement`
+drains an old worker read while delaying GUI publication, then uses a second
+worker barrier to prove old A results cannot complete a replacement load.
+History-only read failure and a stopped executor must leave Develop unavailable.
+The test's private SQLite fault is confined to its temporary catalog.
+
+ICC resource measurement uses scoped caller-owned `DisplayConversionObserver`
+sinks; concurrent callbacks are noexcept and all workers join before return.
+No process-global collector, worker pool or rendering policy is introduced.
+Run the measure-only `DisplayPresentationResourceProbe` and
+`StudioDisplayResourceProbe` in `mac_clang_release` with
+`RAVO_DISPLAY_RESOURCE_PROBE=1` and optionally
+`RAVO_INTERACTIVE_PERF_REPORT_PATH=<new.jsonl>`. Reports include P95/P99,
+created ICC threads, aggregate active participants for concurrent transforms,
+and intent-to-publication samples with/without real import work. The Studio
+case requires a system monitor ICC different from sRGB. Offscreen publication
+is an owned-pixel handoff measurement, not physical display scanout latency.
+Resource measurements alone do not admit a global scheduler replacement.
+Observer peaks count ICC participants in the measured workload. Sampled native
+process thread counts also include idle Qt/Engine workers and must be reported
+separately. Repeat tail-latency measurements under comparable load and power
+conditions before attributing a change to thread creation.
 
 Release artifacts also run on fresh CI runners without the build bootstrap or
 Qt SDK. `ravo_studio --startup-smoke -platform cocoa|windows|xcb` loads the

@@ -390,7 +390,22 @@ are static snapshots. Catalog XMP supplies supported descriptive metadata.
 Missing originals are skipped; unavailable foreign-volume paths are unsupported
 unless explicitly mapped. Photos stay at their original locations. The reader is bounded to 2 GB and one million
 photos and validates structure rather than claiming every Lightroom version.
-Cancellation retains imported photos; retrying requires a new empty library.
+Cancellation retains imported photos and their durable per-record receipts.
+Native conversions return a `conversion_id`. Repeat the same request with
+`--resume --expect-source-sha256 <observed-hash>` to skip completed records and
+continue untouched work. Changed configuration/source or destination revisions
+reject resume. Partial photos retain their target IDs and last phases but report
+`incomplete_conversion_requires_resolution`; ambiguous work is never replayed.
+`catalog foreign-conversion-status --catalog <db> --conversion-id <id> --json`
+reads durable `ravo.foreign-conversion-status/v1` receipts after restart.
+`catalog foreign-conversions --catalog <db> --json` discovers the recorded IDs
+even when the process exited before returning a conversion report.
+Schema 20 includes journals in ordinary backup/restore
+([ADR-0167](../DevDocs/adr/0167-foreign-conversion-checkpoints.md)).
+Source audit reports before/after fingerprints and `verified`, `changed`,
+`failed` or `cancelled` states. `source_audit_complete` and `originals_unchanged`
+do not claim successful verification after cancellation. Audit errors retain
+the conversion receipt and committed target IDs.
 
 Use repeated `--foreign-map <foreign-directory>=<local-directory>` on
 `catalog convert-foreign` for explicit volume or descendant-folder mapping;

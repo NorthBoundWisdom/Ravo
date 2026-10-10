@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_develop_presenter.h"
 #include <utility>
 #include <QCoreApplication>
+#include <QThread>
 #include <QGuiApplication>
 #include "studio_qt.h"
 namespace ravo
@@ -52,6 +53,7 @@ void StudioDevelopPresenter::shutdown()
     if (stopped_)
         return;
     stopped_ = true;
+    catalogSessionInvalidated();
     local_overlay_resume_timer_.stop();
     state_.develop_preview_owner_.cancel("window_closed");
     state_.perspective_analysis_owner_.cancel("window_closed");
@@ -59,6 +61,7 @@ void StudioDevelopPresenter::shutdown()
 
 void StudioDevelopPresenter::selectionInvalidated()
 {
+    ++recipe_load_generation_;
     local_overlay_resume_timer_.stop();
     local_overlay_suppressed_ = false;
     state_.before_after_ = false;
@@ -68,9 +71,19 @@ void StudioDevelopPresenter::selectionInvalidated()
     state_.pending_preview_.reset();
 }
 
+void StudioDevelopPresenter::catalogSessionInvalidated()
+{
+    Q_ASSERT(QThread::currentThread() == thread());
+    ++catalog_session_generation_;
+    ++recipe_load_generation_;
+    state_.develop_loaded_ = false;
+    state_.loaded_recipe_asset_.reset();
+}
+
 void StudioDevelopPresenter::acceptLoadedHistory(
     const Result<std::vector<RecipeHistoryEntry>> &history)
 {
+    ++recipe_load_generation_;
     if (history)
     {
         apply_recipe_history(history.value());
@@ -81,11 +94,16 @@ void StudioDevelopPresenter::acceptLoadedHistory(
     {
         state_.recipe_history_.clear();
         state_.recipe_history_entries_.clear();
+        state_.develop_loaded_ = false;
+        state_.develop_load_error_ = qstring_from_utf8(history.error().message);
+        state_.loaded_recipe_asset_.reset();
+        emit errorOccurred(state_.develop_load_error_);
     }
 }
 
 void StudioDevelopPresenter::acceptExternalRecipe(const Recipe &recipe, DevelopParams params)
 {
+    ++recipe_load_generation_;
     const bool same_recipe =
         params == state_.develop_ && params == state_.saved_develop_ && !state_.crop_tool_active_;
     state_.loaded_recipe_asset_ = recipe.asset;

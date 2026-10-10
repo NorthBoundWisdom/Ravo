@@ -480,7 +480,7 @@ add_executable(ravo_desktop_command_tests
   filesystem_browser_model_test.cpp)
 target_link_libraries(ravo_desktop_command_tests
   PRIVATE GTest::gtest_main ravo_desktop GeoControlsControls GeoControlsAppShell
-    Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+    Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Sql)
 target_include_directories(ravo_desktop_command_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/Ravo/desktop/src)

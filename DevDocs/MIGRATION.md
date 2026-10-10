@@ -1,5 +1,9 @@
 # Ravo Migration Policy
 
+2026-10-10: [ADR-0167](adr/0167-foreign-conversion-checkpoints.md) admits native
+Lightroom per-record journals, conservative resume and cancellable source audits.
+Completed work is not replayed; ambiguous partial records remain explicit.
+
 2026-10-10: requested RAWmakase Lightroom integration extends ADR-0164 through
 [ADR-0166](adr/0166-lightroom-data-preservation-and-develop.md): immutable source
 archives, compatible database Develop, virtual copies, catalog XMP, named
@@ -17,7 +21,7 @@ remain outside this boundary. No leftover application or OpenCL owner is restore
 2026-10-08: ADR-0164 admits closed Lightroom Classic SQLite catalog import via
 the native adapter/shared conversion service. This supersedes the real-Lightroom
 reader deferral only. ADR-0166 extends Develop and virtual-copy support;
-Capture One and resumable conversion remain outside this tranche.
+Capture One remains outside this tranche. ADR-0167 admits conservative resume.
 
 2026-10-08 product decision: synthesized RAW baselines use Sigmoid; Studio Light
 removes the RapidRAW selector and dedicated controls while retaining common EV

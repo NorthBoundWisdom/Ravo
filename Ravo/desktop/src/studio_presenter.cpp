@@ -1132,8 +1132,10 @@ void StudioPresenter::pollCatalogRevision()
     const auto selected = utf8_from_qstring(selected_asset_id_);
     const auto observed = observed_catalog_revision_;
     const auto collapse = collapse_stacks_;
+    const auto session_generation = develop_presenter_->catalog_session_generation_;
+    const auto load_generation = develop_presenter_->recipe_load_generation_;
     executor_.post(
-        [this, query, selected, observed, collapse]()
+        [this, query, selected, observed, collapse, session_generation, load_generation]()
         {
             Result<CatalogSnapshot> snapshot =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -1159,10 +1161,13 @@ void StudioPresenter::pollCatalogRevision()
             QMetaObject::invokeMethod(
                 this,
                 [this, snapshot = std::move(snapshot), listing = std::move(listing),
-                 recipe = std::move(recipe), history = std::move(history), selected,
-                 changed]() mutable
+                 recipe = std::move(recipe), history = std::move(history), selected, changed,
+                 session_generation, load_generation]() mutable
                 {
                     catalog_poll_in_flight_ = false;
+                    if (session_generation != develop_presenter_->catalog_session_generation_ ||
+                        load_generation != develop_presenter_->recipe_load_generation_)
+                        return;
                     if (catalog_path_.isEmpty() || busy_ || import_workspace_->importWorkActive() ||
                         develop_presenter_->state().develop_job_in_flight_ ||
                         develop_presenter_->state().pending_save_ ||
@@ -1207,6 +1212,12 @@ void StudioPresenter::pollCatalogRevision()
                     }
                     develop_presenter_->break_history_coalescing();
                     develop_presenter_->acceptLoadedHistory(history);
+                    if (!history)
+                    {
+                        setError(catalog_error_text(history.error()));
+                        develop_presenter_->refreshContextProjection();
+                        return;
+                    }
                     if (!recipe)
                     {
                         setError(catalog_error_text(recipe.error()));
@@ -1249,6 +1260,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
     setError({});
     import_workspace_->closeImportPage();
     setStatus(QCoreApplication::translate("StudioPresenter", "Creating library…"));
+    develop_presenter_->catalogSessionInvalidated();
     import_workspace_->cancelImportPreviews();
     const auto path = utf8_from_qstring(local);
     const LibraryQuery initial_query;
@@ -1294,6 +1306,7 @@ void StudioPresenter::createCatalog(const QUrl &file_url)
                     {
                         setError(failure);
                         setStatus(QCoreApplication::translate("StudioPresenter", "Create failed."));
+                        develop_presenter_->load_develop_for_selection();
                         return;
                     }
                     library_.replaceQuery(initial_query);
@@ -1341,6 +1354,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
     setError({});
     import_workspace_->closeImportPage();
     setStatus(QCoreApplication::translate("StudioPresenter", "Opening library…"));
+    develop_presenter_->catalogSessionInvalidated();
     import_workspace_->cancelImportPreviews();
     const auto path = utf8_from_qstring(local);
     LibraryQuery initial_query = current_query();
@@ -1354,6 +1368,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
     {
         setBusy(false);
         setError(qstring_from_utf8(restored_query.error().message));
+        develop_presenter_->load_develop_for_selection();
         return;
     }
     initial_query = std::move(restored_query).value();
@@ -1417,6 +1432,7 @@ void StudioPresenter::openCatalog(const QUrl &file_url)
                         finishLibraryResume(false);
                         setError(failure);
                         setStatus(QCoreApplication::translate("StudioPresenter", "Open failed."));
+                        develop_presenter_->load_develop_for_selection();
                         return;
                     }
                     library_.replaceQuery(initial_query);

@@ -50,6 +50,16 @@ public:
                             const CancellationToken &cancellation) override;
     [[nodiscard]] Result<std::vector<ForeignCatalogArchive>>
     list_foreign_catalog_archives() const override;
+    [[nodiscard]] Result<std::optional<ForeignConversionJournal>>
+    load_foreign_conversion(std::string_view conversion_id) const override;
+    [[nodiscard]] Result<std::vector<std::string>> list_foreign_conversion_ids() const override;
+    [[nodiscard]] Result<void> begin_foreign_conversion(std::string_view conversion_id,
+                                                        std::string_view source_sha256,
+                                                        std::int64_t expected_revision) override;
+    [[nodiscard]] Result<void>
+    save_foreign_conversion_checkpoint(std::string_view conversion_id,
+                                       const ForeignConversionCheckpoint &record,
+                                       std::int64_t expected_revision) override;
     [[nodiscard]] Result<void>
     export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
                                    const CancellationToken &cancellation) const override;

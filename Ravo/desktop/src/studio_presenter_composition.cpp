@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <QCoreApplication>
+#include <QThread>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -80,9 +81,21 @@ StudioPresenter::StudioPresenter(QObject *parent)
     connect(import_workspace_.get(), &StudioImportWorkspace::statusOccurred, this,
             &StudioPresenter::setStatus);
     StudioDevelopPresenter::Host develop_host;
-    develop_host.develop_service = [this] { return service_ ? &service_->develop() : nullptr; };
-    develop_host.preview_service = [this] { return service_ ? &service_->preview() : nullptr; };
-    develop_host.recovery_service = [this] { return service_ ? &service_->recovery() : nullptr; };
+    develop_host.worker_develop_service = [this]
+    {
+        Q_ASSERT(executor_.is_worker_thread());
+        return service_ ? &service_->develop() : nullptr;
+    };
+    develop_host.worker_preview_service = [this]
+    {
+        Q_ASSERT(executor_.is_worker_thread());
+        return service_ ? &service_->preview() : nullptr;
+    };
+    develop_host.worker_recovery_service = [this]
+    {
+        Q_ASSERT(executor_.is_worker_thread());
+        return service_ ? &service_->recovery() : nullptr;
+    };
     develop_host.preview_loading = [this](bool loading) { inspect_.setPreviewLoading(loading); };
     develop_host.observed_revision = [this](std::int64_t revision)
     { observed_catalog_revision_ = revision; };

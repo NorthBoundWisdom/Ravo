@@ -71,6 +71,15 @@ void StudioPresenter::importLightroomCatalog(const QString &path)
                             setError(QCoreApplication::translate(
                                 "StudioPresenter",
                                 "Lightroom import cancelled. Already imported photos remain in this library."));
+                        if (!report.issues.empty())
+                            setError(qstring_from_utf8(report.issues.front().message));
+                        else
+                            for (const auto &audit : report.source_audits)
+                                if (audit.error && audit.error->code != ErrorCode::kCancelled)
+                                {
+                                    setError(qstring_from_utf8(audit.error->message));
+                                    break;
+                                }
                         reloadVisibleAssets();
                     },
                     Qt::QueuedConnection);
