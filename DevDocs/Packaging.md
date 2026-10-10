@@ -148,16 +148,16 @@ existing unpack tools.
 
 ## GitHub Actions
 
-Every branch push and pull request runs the configure/build/test matrix:
-macOS ARM64/Linux x86_64 Debug full, Windows x86_64 Release full, plus
-macOS ARM64/Linux x86_64 Release smoke
-(`-L ravo-desktop-smoke|ravo-contract|ravo-catalog`). macOS Intel and Linux
-ARM64 run the full Release suite on native runners. Packaging runs for tags or
-manual rehearsals; publication remains tag-gated. A tag push runs that gate first, then starts
-Release package jobs for macOS, Windows, and Linux; each package job runs
-`check_packaged_runtime.py` on the real artifact before upload. Each package entry prepares the same pinned source roots and host
-dependencies, configures the release preset, calls `RavoPackage`, and uploads
-only the expected platform artifact. Five package jobs produce seven assets:
+Ordinary branch pushes and pull requests run three full-suite jobs: macOS ARM64
+and Linux x86_64 Debug, and Windows x86_64 Release. Static checks gate compilation.
+Tags and manual package rehearsals skip this development matrix. Instead, five
+native Release package jobs each prepare their pinned source roots/host tools,
+configure with `BUILD_TESTING=ON`, compile once, save the compiler cache, run the
+full CTest suite, then call `RavoPackage` in the same build tree. There is no
+Debug prerequisite or second Release bootstrap/build stage. A failed test blocks
+packaging and publication; `--no-tests=error` rejects empty discovery.
+Each package runs `check_packaged_runtime.py` on the real artifact before upload.
+Publication remains tag-gated. Five package jobs produce seven assets:
 
 | Runner | Package architecture | Formats |
 | --- | --- | --- |
@@ -173,8 +173,8 @@ setup example, not the CI architecture authority. Qt, ccache, seed caches,
 workflow artifacts and evidence names are separated by architecture. Linux
 ARM64 installs the native `linux_arm64` / `linux_gcc_arm64` Qt kit and pinned
 aarch64 AppImage tools with SHA256 validation.
-Package jobs compile `ravo` and `ravo_studio`, explicitly save the compiler cache,
-then invoke `RavoPackage`. A later package generation or validation failure does
+Package jobs compile the product and tests, explicitly save the compiler cache,
+then run CTest and invoke `RavoPackage`. A later test, package generation or validation failure does
 not discard that uploaded build cache. The restore/save path and key ownership
 are specified in [TESTING.md](TESTING.md).
 
@@ -262,14 +262,15 @@ same SHA static/build/test
 → release
 ```
 
-Every push to `main` still receives the normal CI matrix (Static checks plus
-macOS ARM64/Linux x86_64 Debug full, Windows/macOS Intel/Linux ARM64 Release
-full, and macOS ARM64/Linux x86_64 Release smoke).
-That matrix is post-push verification, not a ruleset-required merge gate.
-
-Do not create a release from a failed, cancelled, incomplete, or superseded
-`main` tip. Package and Publish GitHub Release remain tag- or rehearsal-gated
-and already require `static` + `build` on the same workflow run / SHA.
+Ordinary `main` pushes receive static checks plus the three-job development
+matrix as post-push verification, not a ruleset-required merge gate. For release
+preparation, push `main` and its annotated tag atomically. Static checkout fetches
+all tags and reports tags pointing at its exact SHA; a tagged `main` push skips
+the duplicate development matrix. PRs and other branch pushes still run it.
+The tag workflow owns release qualification at that same SHA: static checks,
+all five full Release suites, packaged runtime verification and clean startup
+must succeed before publication. An independently completed Debug run is not a
+release prerequisite. Failed, cancelled or incomplete release jobs cannot publish.
 
 ### Development loop on red CI
 

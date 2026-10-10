@@ -30,6 +30,8 @@ jobs:
     name: Static checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      tagged: ${{ steps.revision.outputs.tagged }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -37,6 +39,18 @@ jobs:
           fetch-depth: 0
           submodules: true
           persist-credentials: false
+
+      - name: Identify tagged revision
+        id: revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags="$(git tag --points-at HEAD)"
+          if [[ -n "${tags}" ]]; then
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -83,6 +97,13 @@ jobs:
 
   build:
     name: ${{ matrix.preset }} (${{ matrix.os }})
+    # Tags/rehearsals validate inside the Release package jobs. Atomic main+tag
+    # pushes also avoid launching a second Debug matrix for the same revision.
+    if: >-
+      !startsWith(github.ref, 'refs/tags/') &&
+      !(github.event_name == 'workflow_dispatch' && inputs.package_rehearsal) &&
+      !(github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.static.outputs.tagged == 'true')
+    needs: static
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -99,39 +120,14 @@ jobs:
             platform: linux
             host_packages: cmake
             build_type: Debug
-          # MSVC Debug emits /Zi shared PDBs, which ccache reports as 100%
-          # uncacheable. Release objects are cacheable and share the tag-package
-          # ccache key. macOS/Linux CI stay Debug for CRT/assert coverage.
+          # Keep Debug assertions on ordinary macOS/Linux changes. Windows
+          # Release avoids uncacheable /Zi PDBs and shares the package cache.
           - os: windows-2022
             preset: win_msvc_release
             platform: win
             host_packages: cmake-png
             build_type: Release
             runtime_dll: zlib.dll
-          # Release smoke: non-empty subset; Debug full + win Release full stay required.
-          - os: macos-15
-            preset: mac_clang_release
-            platform: mac
-            host_packages: brew
-            build_type: Release
-            smoke_labels: "ravo-desktop-smoke|ravo-contract|ravo-catalog"
-          - os: ubuntu-24.04
-            preset: linux_clang_release
-            platform: linux
-            host_packages: cmake
-            build_type: Release
-            smoke_labels: "ravo-desktop-smoke|ravo-contract|ravo-catalog"
-          # Additional release architectures run the full Release suite natively.
-          - os: macos-15-intel
-            preset: mac_clang_release
-            platform: mac
-            host_packages: brew
-            build_type: Release
-          - os: ubuntu-24.04-arm
-            preset: linux_clang_release
-            platform: linux
-            host_packages: cmake
-            build_type: Release
     defaults:
       run:
         shell: bash
@@ -169,52 +165,9 @@ jobs:
           key: ccache-${{ matrix.preset }}-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Test Ravo
-        if: runner.os != 'Windows'
-        run: |
-          set -euo pipefail
-          echo "preset=${{ matrix.preset }} build_type=${{ matrix.build_type }} sha=${GITHUB_SHA}"
-          labels="${{ matrix.smoke_labels }}"
-          if [[ -n "${labels}" ]]; then
-            ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4 -L "${labels}"
-            count="$(ctest --test-dir "build/${{ matrix.preset }}" -N -L "${labels}" | awk '/Total Tests:/ {print $3}')"
-            test "${count}" -gt 0
-          else
-            ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
-          fi
-
-      - name: Test Ravo
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $qtBin = Join-Path $env:QT_ROOT_DIR "bin"
-          $hostBin = Join-Path $env:RUNNER_TEMP "ci-prefix\bin"
-          if (-not (Test-Path $qtBin)) {
-            throw "Qt bin directory is missing: $qtBin"
-          }
-          $env:Path = "$qtBin;$hostBin;$env:Path"
-          ctest --test-dir "build/${{ matrix.preset }}" --output-on-failure --parallel 4
-
-      - name: Diagnose Windows test executables
-        if: runner.os == 'Windows' && failure()
-        shell: pwsh
-        run: |
-          $dumpbin = Get-Command dumpbin -ErrorAction SilentlyContinue
-          $exes = @(
-            "build/${{ matrix.preset }}/Ravo/tests/ravo_unit_tests.exe",
-            "build/${{ matrix.preset }}/Ravo/tests/ravo_contract_tests.exe",
-            "build/${{ matrix.preset }}/Ravo/tests/ravo_catalog_tests.exe"
-          )
-          foreach ($exe in $exes) {
-            if (-not (Test-Path $exe)) {
-              Write-Host "missing $exe"
-              continue
-            }
-            Write-Host "=== $exe ==="
-            if ($dumpbin) {
-              & dumpbin.exe /dependents $exe
-            }
-            & $exe --gtest_list_tests
-          }
+        uses: ./.github/actions/ci-test
+        with:
+          preset: ${{ matrix.preset }}
 
       - name: Upload failure logs
         if: failure()
@@ -234,7 +187,6 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.package_rehearsal)
     needs:
       - static
-      - build
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -305,10 +257,6 @@ jobs:
           build_type: Release
           runtime_dll: ${{ matrix.runtime_dll }}
 
-      - name: Configure Ravo package
-        if: runner.os != 'Linux'
-        run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=OFF
-
       - name: Install pinned AppImage tools
         if: runner.os == 'Linux'
         env:
@@ -344,18 +292,22 @@ jobs:
           echo "${tool_dir}/bin" >> "$GITHUB_PATH"
           echo "ARCH=${APPIMAGE_ARCH}" >> "$GITHUB_ENV"
 
-      - name: Configure Ravo Linux package
-        if: runner.os == 'Linux'
-        run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=OFF
+      - name: Configure Release tests and package
+        run: cmake --preset "${{ matrix.preset }}" -DBUILD_TESTING=ON
 
-      - name: Build Ravo package binaries
-        run: cmake --build "build/${{ matrix.preset }}" --target ravo ravo_studio --parallel
+      - name: Build Ravo Release
+        run: cmake --build "build/${{ matrix.preset }}" --parallel
 
       - name: Save compiler cache after build
         uses: actions/cache/save@v5
         with:
           path: ${{ steps.bootstrap.outputs.ccache-directory }}
           key: ccache-${{ matrix.preset }}-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Test Release before packaging
+        uses: ./.github/actions/ci-test
+        with:
+          preset: ${{ matrix.preset }}
 
       - name: Package Ravo with FreeCM
         run: cmake --build "build/${{ matrix.preset }}" --target RavoPackage --parallel
@@ -468,6 +420,7 @@ jobs:
             build/${{ matrix.preset }}/CMakeCache.txt
             build/${{ matrix.preset }}/CMakeFiles/CMakeConfigureLog.yaml
             build/${{ matrix.preset }}/package/*.json
+            build/${{ matrix.preset }}/Testing/Temporary/
           if-no-files-found: ignore
 
   package-smoke:

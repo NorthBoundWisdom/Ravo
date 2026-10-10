@@ -686,9 +686,13 @@ delete and revision are exercised as one transaction. These tests do not
 complete I11/I12/I13 shared-consumer retirement, PNG pHYs, or TIFF multipage
 masks. FreeCM Test and
 `ctest --test-dir build/<preset>` run the same suite
-from the repository root. GitHub Actions runs the same CTest set on
-`mac_clang_debug`, `linux_clang_debug`, and `win_msvc_release`, plus static
-fixture-manifest and dependency-boundary checks. Windows CI uses Release because
+from the repository root. Ordinary GitHub Actions branch/PR runs use
+`mac_clang_debug`, `linux_clang_debug`, and `win_msvc_release`, after static
+fixture-manifest and dependency-boundary checks. Tags and package rehearsals run
+the full Release suite inside each of the five native package jobs, before
+packaging the same binaries; no separate Debug or Release smoke matrix runs.
+Both flows use `.github/actions/ci-test`, reject empty test discovery and retain
+Windows runtime-path setup/failure diagnostics. Windows development CI uses Release because
 MSVC Debug `/Zi` shared PDBs are uncacheable; Release objects are cacheable and
 share the tag-package ccache key. Debug CRT/assert coverage remains on macOS
 and Linux. CI runs `--init`, updates Qt/PATH in the
@@ -832,14 +836,17 @@ Rules:
 - no force push to `main`
 - no amend of published `main`
 - no claiming green until the exact pushed SHA passes
-- a red or incomplete `main` blocks further planned product work and release
-  qualification; repair forward with a new commit
+- a red or incomplete ordinary `main` verification blocks further planned
+  product work; repair forward with a new commit. Tag release qualification
+  requires the same-SHA Release/package gates described in `Packaging.md`
 
 `main` history safety is ruleset `22562825` (`Ravo main history safety`):
 deletion and non-fast-forward protection only. CI contexts
-(`Static checks`, `mac_clang_debug`, `mac_clang_release`, `linux_clang_debug`,
-`linux_clang_release`, `win_msvc_release`) still run on every push as post-push
-verification. Same-SHA release qualification remains tag-gated; see
+(`Static checks`, `mac_clang_debug`, `linux_clang_debug`, `win_msvc_release`)
+run on ordinary pushes as post-push verification. An atomic tagged `main` push
+keeps static checks but skips duplicate development builds; the tag workflow
+performs all five full Release suites and package checks. PRs retain development
+coverage even if their source SHA has a tag. Same-SHA release qualification remains tag-gated; see
 `DevDocs/Packaging.md` for the ruleset payload and read-back command.
 
 Local Static parity before push:

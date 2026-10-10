@@ -39,6 +39,8 @@ The architecture and testing authorities cover:
   automatic-backup drafts and the existing recovery task owner.
 - Shared menus, shortcuts and controls; complete localisation; local Studio
   sessions and CLI acceptance without UI automation.
+- Three-job development CI and five-architecture Release build/test/package
+  jobs, with independent clean-package startup gates and no release Debug stage.
 
 For video scope, begin with
 [ADR-0165](adr/0165-video-library-and-playback.md). Explicit Qt-kit runtime

@@ -1,0 +1,46 @@
+name: Ravo CI tests
+description: Full CTest suite with shared Windows runtime setup and failure diagnostics
+
+inputs:
+  preset:
+    description: Configured and built Ravo preset
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Run full Ravo suite
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        ctest --test-dir "build/${{ inputs.preset }}" --no-tests=error --output-on-failure --parallel 4
+
+    - name: Run full Ravo suite on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $qtBin = Join-Path $env:QT_ROOT_DIR "bin"
+        $hostBin = Join-Path $env:RUNNER_TEMP "ci-prefix\bin"
+        if (-not (Test-Path $qtBin)) {
+          throw "Qt bin directory is missing: $qtBin"
+        }
+        $env:Path = "$qtBin;$hostBin;$env:Path"
+        ctest --test-dir "build/${{ inputs.preset }}" --no-tests=error --output-on-failure --parallel 4
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Diagnose Windows test executables
+      if: runner.os == 'Windows' && failure()
+      shell: pwsh
+      run: |
+        $dumpbin = Get-Command dumpbin -ErrorAction SilentlyContinue
+        foreach ($target in @("ravo_unit_tests", "ravo_contract_tests", "ravo_catalog_tests")) {
+          $exe = "build/${{ inputs.preset }}/Ravo/tests/${target}.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Host "missing $exe"
+            continue
+          }
+          Write-Host "=== $exe ==="
+          if ($dumpbin) { & dumpbin.exe /dependents $exe }
+          & $exe --gtest_list_tests
+        }
