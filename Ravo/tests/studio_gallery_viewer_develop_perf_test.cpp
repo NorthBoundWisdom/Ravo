@@ -4,12 +4,14 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <QElapsedTimer>
@@ -769,6 +771,262 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresNumericControlMatrixWithM
             {"includes_monitor_presentation", true},
             {"includes_native_frame_swap", false}};
         emit_case(meta, samples);
+    }
+}
+
+TEST(StudioInteractivePreviewPerformanceProbe, MeasuresRepeatedNumericBurstsWithMonitor)
+{
+    const char *catalog = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (!catalog || !asset)
+        GTEST_SKIP() << "set an explicit private performance catalog and asset";
+    const auto runs = recorded_samples_from_env(30U);
+    ASSERT_GE(runs, 30U);
+    ASSERT_LE(runs, 1000U);
+    const auto count = std::getenv("RAVO_INTERACTIVE_BURST_INTENTS") ?
+                           std::stoul(std::getenv("RAVO_INTERACTIVE_BURST_INTENTS")) :
+                           16U;
+    const auto interval = std::getenv("RAVO_INTERACTIVE_BURST_INTERVAL_MS") ?
+                              std::stoul(std::getenv("RAVO_INTERACTIVE_BURST_INTERVAL_MS")) :
+                              1U;
+    ASSERT_GE(count, 2U);
+    ASSERT_LE(count, 128U);
+    ASSERT_GE(interval, 1U);
+    ASSERT_LE(interval, 16U);
+    ensure_qt_core();
+    ravo::init_logging("ravo-repeated-numeric-bursts");
+    struct Control
+    {
+        const char *field;
+        std::function<double(const StudioDevelopPresenter &)> read;
+        std::function<std::optional<double>(const DevelopParams &)> shown;
+        double low, high, span;
+    };
+    const std::array<Control, 4> controls{{
+        {"exposure", [](const auto &d) { return d.editExposure(); },
+         [](const auto &d) { return d.exposure_ev; }, -2.0, 2.0, .2},
+        {"denoise", [](const auto &d) { return d.editDenoise(); },
+         [](const auto &d) { return d.denoise; }, .25, .65, .15},
+        {"clarity", [](const auto &d) { return d.editClarity(); },
+         [](const auto &d) { return d.clarity; }, .2, .7, .15},
+        {"whiteBalanceRed",
+         [](const auto &d) { return d.editWhiteBalance().value("red").toDouble(); },
+         [](const auto &d)
+         {
+             return d.temperature.coefficients ?
+                        std::optional<double>{(*d.temperature.coefficients)[0]} :
+                        std::nullopt;
+         },
+         .7, 3.7, .15},
+    }};
+    const auto number = [](const auto value)
+    {
+        if constexpr (std::is_floating_point_v<decltype(value)>)
+            return json_real(value).value();
+        else
+            return JsonValue::number(std::to_string(value));
+    };
+    for (const auto &control : controls)
+    {
+        SCOPED_TRACE(control.field);
+        StudioDisplayPresentation display;
+        ASSERT_TRUE(display.valid());
+        StudioPresenter presenter;
+        presenter.bindDisplayPresentation(&display);
+        presenter.openCatalogFromPath(QString::fromUtf8(catalog));
+        ASSERT_TRUE(
+            wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000));
+        presenter.selectAsset(QString::fromUtf8(asset));
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return presenter.selectedAssetId() == QString::fromUtf8(asset) && !presenter.busy();
+            },
+            30000));
+        presenter.setBrowseMode(QStringLiteral("develop"));
+        ASSERT_TRUE(wait_until(
+            [&] { return preview_settled(presenter) && presenter.develop()->canAdjustExposure(); },
+            30000));
+        const auto center =
+            std::clamp(control.read(*presenter.develop()), control.low, control.high);
+        ASSERT_TRUE(std::isfinite(center));
+        std::vector<std::int64_t> first_samples, latest_samples;
+        JsonValue::Array values, sizes, backends, intent_values, intent_offsets, accepted_frames,
+            frame_counts, unpublished_counts, start_revisions, pixel_changes;
+        std::size_t changed = 0U;
+        QImage previous_image = presenter.inspect()->previewImage();
+        // Warm the actual burst/cancellation/prefix path, not just a settled frame.
+        for (std::size_t run = 0U; run < runs + 2U; ++run)
+        {
+            const double direction = run % 2U == 0U ? -1.0 : 1.0;
+            std::vector<double> requested;
+            requested.reserve(count);
+            for (std::size_t index = 0U; index < count; ++index)
+                requested.push_back(center + direction * control.span *
+                                                 static_cast<double>(index + 1U) /
+                                                 static_cast<double>(count));
+            const auto start_revision = presenter.inspect()->frameRevision();
+            struct Frame
+            {
+                std::uint64_t revision;
+                std::size_t intent_index, sent;
+                std::int64_t elapsed_us;
+                QSize size;
+                QString backend, profile;
+            };
+            std::vector<Frame> frames;
+            frames.reserve(count);
+            std::vector<std::int64_t> offsets;
+            offsets.reserve(count);
+            std::optional<std::int64_t> latest;
+            QImage latest_image;
+            std::string failure;
+            QElapsedTimer timer;
+            QEventLoop loop;
+            QTimer updates, timeout;
+            updates.setTimerType(Qt::PreciseTimer);
+            updates.setInterval(static_cast<int>(interval));
+            timeout.setSingleShot(true);
+            std::size_t sent = 0U;
+            QObject::connect(&updates, &QTimer::timeout, &loop,
+                             [&]
+                             {
+                                 offsets.push_back(timer.nsecsElapsed() / 1000);
+                                 const auto index = sent++;
+                                 presenter.develop()->previewDevelopNumber(
+                                     QString::fromUtf8(control.field), requested[index]);
+                                 if (sent == count)
+                                     updates.stop();
+                             });
+            QObject::connect(
+                presenter.develop(), &StudioDevelopPresenter::interactivePreviewPublished, &loop,
+                [&](const qulonglong revision, qlonglong)
+                {
+                    const auto elapsed = timer.nsecsElapsed() / 1000;
+                    const auto &shown = presenter.inspect()->displayedDevelop();
+                    const auto observed = shown ? control.shown(*shown) : std::nullopt;
+                    const auto sent_end = requested.begin() + static_cast<std::ptrdiff_t>(sent);
+                    const auto found =
+                        observed ? std::find(requested.begin(), sent_end, *observed) : sent_end;
+                    const auto index = static_cast<std::size_t>(found - requested.begin());
+                    if (sent == 0U || index >= sent || revision <= start_revision ||
+                        (!frames.empty() && (revision <= frames.back().revision ||
+                                             index <= frames.back().intent_index)))
+                    {
+                        failure = "Accepted a stale, duplicate or unbound burst frame: revision=" +
+                                  std::to_string(revision) + " sent=" + std::to_string(sent) +
+                                  " index=" + std::to_string(index);
+                        updates.stop();
+                        loop.quit();
+                        return;
+                    }
+                    const auto image = presenter.inspect()->previewImage();
+                    frames.push_back({revision, index, sent, elapsed, image.size(),
+                                      presenter.inspect()->lastPreviewGpuBackend(),
+                                      presenter.inspect()->frameColorProfile()});
+                    if (sent == count && index == count - 1U)
+                    {
+                        latest = elapsed;
+                        latest_image = image;
+                        loop.quit();
+                    }
+                });
+            QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+            timer.start();
+            updates.start();
+            timeout.start(5000);
+            loop.exec();
+            updates.stop();
+            timeout.stop();
+            ASSERT_TRUE(failure.empty()) << failure;
+            ASSERT_EQ(sent, count);
+            ASSERT_TRUE(latest.has_value()) << "Latest accepted image did not catch up: "
+                                            << presenter.errorText().toStdString();
+            ASSERT_FALSE(frames.empty());
+            ASSERT_FALSE(latest_image.isNull());
+            ASSERT_GE(frames.front().elapsed_us, offsets.front());
+            ASSERT_GE(*latest, offsets.back());
+            ASSERT_NEAR(control.read(*presenter.develop()), requested.back(), 1e-12);
+            if (run >= 2U)
+            {
+                first_samples.push_back(frames.front().elapsed_us - offsets.front());
+                latest_samples.push_back(*latest - offsets.back());
+                values.emplace_back(number(requested.back()));
+                sizes.emplace_back(
+                    JsonValue::Array{number(latest_image.width()), number(latest_image.height())});
+                backends.emplace_back(
+                    frames.back().backend.isEmpty() ? "cpu" : frames.back().backend.toStdString());
+                JsonValue::Array trial_values, trial_offsets, trial_frames;
+                for (const auto value : requested)
+                    trial_values.emplace_back(number(value));
+                for (const auto offset : offsets)
+                    trial_offsets.emplace_back(number(offset));
+                for (const auto &frame : frames)
+                    trial_frames.emplace_back(JsonValue::Object{
+                        {"revision", number(frame.revision)},
+                        {"intent_index", number(frame.intent_index)},
+                        {"intents_sent", number(frame.sent)},
+                        {"elapsed_us", number(frame.elapsed_us)},
+                        {"width", number(frame.size.width())},
+                        {"height", number(frame.size.height())},
+                        {"gpu_backend",
+                         frame.backend.isEmpty() ? "cpu" : frame.backend.toStdString()},
+                        {"output_profile", frame.profile.toStdString()}});
+                intent_values.emplace_back(std::move(trial_values));
+                intent_offsets.emplace_back(std::move(trial_offsets));
+                accepted_frames.emplace_back(std::move(trial_frames));
+                frame_counts.emplace_back(number(frames.size()));
+                unpublished_counts.emplace_back(number(count - frames.size()));
+                start_revisions.emplace_back(number(start_revision));
+                const bool different = latest_image != previous_image;
+                pixel_changes.emplace_back(different);
+                if (different)
+                    ++changed;
+            }
+            previous_image = latest_image;
+        }
+        EXPECT_GT(changed, 0U) << "Burst targets need a non-no-op pixel response";
+        const JsonValue::Object workload{
+            {"schema", "ravo.perf01.burst-workload/v1"},
+            {"field", control.field},
+            {"values", values},
+            {"output_sizes", sizes},
+            {"gpu_backends", backends},
+            {"intent_count", number(count)},
+            {"requested_interval_ms", number(interval)},
+            {"intent_values", intent_values},
+            {"intent_offsets_us", intent_offsets},
+            {"accepted_frames", accepted_frames},
+            {"frame_counts", frame_counts},
+            {"intents_without_publication", unpublished_counts},
+            {"start_revisions", start_revisions},
+            {"pixel_changed_from_previous", pixel_changes},
+            {"changed_pixel_frames", number(changed)},
+            {"monitor_profile_fingerprint", display.presentationState().profile_fingerprint},
+            {"includes_monitor_presentation", true},
+            {"includes_native_frame_swap", false},
+            {"warmup_kind", "complete_bursts"},
+            {"accepted_intent_order", "strictly_increasing"},
+            {"latest_target_verified", true}};
+        for (const auto &[name, samples] :
+             {std::pair{"first", &first_samples}, std::pair{"latest", &latest_samples}})
+        {
+            CaseMeta meta;
+            meta.case_id = std::string("burst_") + name + "_" + control.field;
+            meta.path = std::string(name) == "first" ? "first_intent_to_first_owned_image" :
+                                                       "last_intent_to_latest_owned_image";
+            meta.source_kind = presenter.selectedMediaType().toStdString();
+            meta.warmups = 2U;
+            meta.recorded_samples = runs;
+            meta.max_edge = kDefaultPreviewMaxEdge;
+            meta.asset_id = asset;
+            meta.catalog_path = catalog;
+            meta.gpu_backend = presenter.inspect()->lastPreviewGpuBackend().isEmpty() ?
+                                   "cpu" :
+                                   presenter.inspect()->lastPreviewGpuBackend().toStdString();
+            meta.workload = workload;
+            emit_case(meta, *samples);
+        }
     }
 }
 

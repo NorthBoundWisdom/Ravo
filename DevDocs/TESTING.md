@@ -2171,6 +2171,39 @@ from accepted PreviewResults, never device discovery or log parsing. They report
 GPU use, not an assertion that every operation ran on GPU. No recipe is saved.
 Timing excludes the subsequent pixel-change check and physical presentation.
 
+Add `--include-bursts` to the runner for repeated Exposure, Denoise, Clarity and
+manual WB-red bursts. Each field warms through two complete bursts, then records
+at least 30 trials. `--burst-intents` accepts 2–128 updates per trial (default 16)
+and `--burst-interval-ms` accepts 1–16 ms (default 1). Requested timing and actual
+intent offsets are both retained. First-intent→first-owned-image and
+last-intent→latest-owned-image have separate rows; neither includes native frame
+swap. A single historical burst is diagnostic, not a percentile distribution.
+
+`ravo.perf01.burst-workload/v1` correlates each trial's intent values, actual
+offsets, start revision and accepted frame trace with final size/profile/backend,
+pixel response and first/latest samples. Accepted frames must have increasing
+revisions/intent indices, bind to a sent value and end at the final requested
+value. An earlier in-flight frame may precede the latest coalesced request;
+it cannot qualify final completion or follow a newer accepted intent. The C++
+owner signal is observed only after its displayed
+Develop snapshot is bound to the accepted pixels; reading the edit control alone
+cannot qualify completion. Counts of intents without an observed publication
+are not renderer cancellation counts, dropped physical frames or GPU timings.
+
+The runner rejects missing final frames, regressing/duplicate revisions and
+uncorrelated traces, and verifies the two boundary rows describe identical trials. The default
+`ravo_interactive_burst_report_contract` Python test injects bad clock origins,
+stale revisions, missing final images, invalid intent streams and mismatched
+publication metadata. No latency ceiling is imposed by default. Run the real
+burst workload with:
+
+```sh
+python3 Ravo/tools/measure_interactive_preview.py \
+  --build-dir build/mac_clang_release \
+  --input Ravo/tests/fixtures/frozen/images/hlrecovery.arw \
+  --include-bursts --burst-intents 16 --burst-interval-ms 1
+```
+
 The service probe now reports microseconds and ordered JSONL samples with
 `ravo.perf01.service-workload/v1`, including actual dimensions, output-profile
 fingerprints, reported backends, parameters and `need_cpu_pixels=true`.

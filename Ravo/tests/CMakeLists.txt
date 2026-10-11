@@ -567,6 +567,10 @@ set_tests_properties(ravo_build_tree_package_verification PROPERTIES
   REQUIRED_FILES "$<TARGET_FILE:ravo>")
 
 ravo_add_repository_check(ravo_fixture_manifest freeze_legacy_manifest.py --check)
+add_test(
+  NAME ravo_interactive_burst_report_contract
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/Ravo/tools/test_measure_interactive_preview.py" -q)
 ravo_add_repository_check(ravo_dependency_boundary check_ravo_dependency_boundary.py)
 ravo_add_repository_check(ravo_vertical_slice_plan check_vertical_slice_plan.py)
 ravo_add_repository_check(ravo_fixture_classification_ledger check_fixture_classification_ledger.py)

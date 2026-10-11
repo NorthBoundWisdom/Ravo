@@ -36,10 +36,10 @@ IQ-00，现有 RAW/profile、Lightroom、架构重构任务仍归各自 TODO。�
   无法构建参考项目或缺少同图时明确标记未验证，不给跨项目速度倍数。
 - [ ] 在现有常用数值/空间字段矩阵之外，补局部蒙版、1:1 ROI、典型复杂配方、
   多相机/高 ISO 与多 profile 的场景；不能只测 identity 或删掉默认锐化。
-- [ ] 先暖机，再采集至少 30 个真实参数变动样本及持续拖动/快速突发样本；记录
-  min/P50/P90/P95/max、掉帧/合并、峰值 owned bytes、缓存与上传命中。
-- [ ] 暖机须完成真实参数变化的 processing/GPU/prefix 路径；仅显示 cached settled
-  图片不算暖机。补齐首次拖动、GPU/shader 冷启动与真正 warm burst 的独立场景。
+- [ ] 在现有参数/重复突发测量中补峰值 owned bytes、缓存/上传命中及任务取消/
+  合并计数；未观察到发布的 intent 不直接等同物理掉帧、取消任务或 GPU dispatch。
+- [ ] 补齐首次拖动、GPU/shader 冷启动的独立场景；按既有真实参数/完整 burst
+  暖机口径采集，不能用 cached settled 图片或单次最小值代替。
 - [ ] 补 prepared 尺寸、阶段缓存/上传命中、线程和峰值资源 metadata；现有微秒
   service probe 与参数矩阵按 [TESTING.md](TESTING.md#interactive-performance-comparison)
   重跑。未填字段、旧整数毫秒日志不能用于口径匹配。
@@ -117,6 +117,8 @@ P90 和资源成本改善，不牺牲冷路径、ROI 或复杂配方正确性。
   surface lease/槽位生命周期，不能恢复借用双缓冲 token 跨异步队列的旧风险。
 - [ ] 持续交互仍采用 bounded latest intent；同时测最新参数追上时间，不能只优化
   中间帧完成时间。后台 import、export、模型推理不可饿死前景预览。
+- [ ] 调查慢 RAW 参数突发时在途任务的取消/合并时机，避免最新参数等待前一轮
+  完整准备后再重算；保留有效中间帧与最终画面的区别，不把首帧视为最新完成。
 - [ ] 只有用户可见且有合同的质量模式才评估 draft/full 两档与缓存；默认 1600px
   显示路径保持现有行为，不能通过静默改成低分辨率制造 4 ms。
 

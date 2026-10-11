@@ -47,7 +47,8 @@ The architecture and testing authorities cover:
   borrowed immutable input for retained native GPU tails
   ([ADR-0172](adr/0172-borrowed-retained-native-preview.md)).
 - Reproducible Release numeric-control and service-probe measurements through
-  the [interactive performance protocol](TESTING.md#interactive-performance-comparison).
+  the [interactive performance protocol](TESTING.md#interactive-performance-comparison),
+  including repeated burst and latest-publication traces.
 - Exact CPU spatial data reuse and existing owned row jobs for dehaze, clarity
   and perspective ([ADR-0173](adr/0173-exact-cpu-spatial-processing.md)).
 - Bounded exact denoise mixing reuse
