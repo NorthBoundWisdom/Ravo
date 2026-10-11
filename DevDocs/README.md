@@ -46,6 +46,13 @@ The architecture and testing authorities cover:
   ownership ([ADR-0171](adr/0171-exact-rgb8-display-transform-cache.md)), and
   borrowed immutable input for retained native GPU tails
   ([ADR-0172](adr/0172-borrowed-retained-native-preview.md)).
+- Reproducible Release numeric-control and service-probe measurements through
+  the [interactive performance protocol](TESTING.md#interactive-performance-comparison).
+- Exact CPU spatial data reuse and existing owned row jobs for dehaze, clarity
+  and perspective ([ADR-0173](adr/0173-exact-cpu-spatial-processing.md)).
+- Bounded exact denoise mixing reuse
+  ([ADR-0174](adr/0174-exact-denoise-preview-basis.md)) and source-order RAW
+  preparation work reduction ([ADR-0175](adr/0175-exact-raw-preparation-work.md)).
 - Three-job development CI and five-architecture Release build/test/package
   jobs, with independent clean-package startup gates and no release Debug stage.
   Compiler-cache checks share the restored directory with the whole job;

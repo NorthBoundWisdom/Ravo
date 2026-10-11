@@ -1111,6 +1111,75 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                 }
             }
         }
+        // Copy-mode planning and QML enabled/layout bindings settle asynchronously.
+        // Do not sample a transient disabled ancestor after a fixed sleep. Keep
+        // the same geometry/availability contract and fail if it never settles.
+        const auto transfer_ready = [&]
+        {
+            const bool panel_enabled = !presenter->imports()->importWorkActive() &&
+                                       !presenter->imports()->importPreflightActive() &&
+                                       !presenter->imports()->importInteractionBlocked();
+            QList<QQuickItem *> items{workspace};
+            for (qsizetype i = 0; i < items.size(); ++i)
+                items.append(items[i]->childItems());
+            int count = 0;
+            for (auto *item : items)
+            {
+                if (!item->isVisible() ||
+                    !item->objectName().startsWith(QStringLiteral("importTransferModeSegment")))
+                    continue;
+                ++count;
+                auto *segment = item->parentItem();
+                auto *row = segment ? segment->parentItem() : nullptr;
+                const bool move =
+                    item->objectName() == QStringLiteral("importTransferModeSegment2");
+                if (!row || row->objectName() != QStringLiteral("importTransferMode") ||
+                    row->width() <= 0 || qAbs(item->width() * 3 - row->width()) > 0.1 ||
+                    item->height() != row->height() ||
+                    item->isEnabled() !=
+                        (panel_enabled &&
+                         (!move || presenter->imports()->importMoveUnavailableReason().isEmpty())))
+                    return false;
+            }
+            // The responsive layout hides this panel in narrow windows; only
+            // the existing wide-window contract requires all three segments.
+            return size.width() < 1000 || count == 3;
+        };
+        QElapsedTimer transfer_deadline;
+        transfer_deadline.start();
+        while (!transfer_ready() && transfer_deadline.elapsed() < 5000)
+        {
+            window->requestUpdate();
+            QEventLoop pending;
+            QTimer::singleShot(20, &pending, &QEventLoop::quit);
+            pending.exec();
+        }
+        if (!transfer_ready())
+        {
+            LOG_ERROR(logger(), "Import transfer geometry/availability did not settle");
+            LOG_ERROR(logger(), "Transfer owners work={} preflight={} blocked={}",
+                      presenter->imports()->importWorkActive(),
+                      presenter->imports()->importPreflightActive(),
+                      presenter->imports()->importInteractionBlocked());
+            QList<QQuickItem *> pending_items{workspace};
+            for (qsizetype i = 0; i < pending_items.size(); ++i)
+                pending_items.append(pending_items[i]->childItems());
+            for (auto *item : pending_items)
+            {
+                if (!item->objectName().startsWith(QStringLiteral("importTransferModeSegment")))
+                    continue;
+                auto *segment = item->parentItem();
+                auto *row = segment ? segment->parentItem() : nullptr;
+                LOG_ERROR(
+                    logger(),
+                    "Transfer {} visible={} enabled={} width={} height={} row={} rowWidth={} rowHeight={}",
+                    item->objectName().toStdString(), item->isVisible(), item->isEnabled(),
+                    item->width(), item->height(),
+                    row ? row->objectName().toStdString() : "missing", row ? row->width() : -1,
+                    row ? row->height() : -1);
+            }
+            return false;
+        }
         QList<QQuickItem *> visual_items{workspace};
         for (qsizetype index = 0; index < visual_items.size(); ++index)
             visual_items.append(visual_items[index]->childItems());
@@ -1118,6 +1187,9 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
         int checkboxes = 0;
         int transfer_modes = 0;
         int transfer_segments = 0;
+        const bool transfer_enabled = !presenter->imports()->importWorkActive() &&
+                                      !presenter->imports()->importPreflightActive() &&
+                                      !presenter->imports()->importInteractionBlocked();
         for (auto *item : visual_items)
         {
             if (item->isVisible() &&
@@ -1152,7 +1224,8 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
                     qAbs(item->width() * 3 - row->width()) > 0.1 ||
                     item->height() != row->height() ||
                     item->isEnabled() !=
-                        (!move || presenter->imports()->importMoveUnavailableReason().isEmpty()))
+                        (transfer_enabled &&
+                         (!move || presenter->imports()->importMoveUnavailableReason().isEmpty())))
                 {
                     LOG_ERROR(
                         logger(),

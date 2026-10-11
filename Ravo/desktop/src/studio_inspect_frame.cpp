@@ -292,6 +292,10 @@ QString StudioInspectPresenter::frameColorProfile() const
 {
     return live_preview_color_profile_id_;
 }
+QString StudioInspectPresenter::lastPreviewGpuBackend() const
+{
+    return last_preview_gpu_backend_;
+}
 Result<QImage> StudioInspectPresenter::preparePreview(const PreviewResult &preview)
 {
     return preview_result_image(preview, decoded_preview_images_);
@@ -419,6 +423,7 @@ void StudioInspectPresenter::clear_displayed_preview()
     live_preview_width_ = 0;
     live_preview_height_ = 0;
     live_preview_color_profile_id_.clear();
+    last_preview_gpu_backend_.clear();
     resetIdentity();
     observeDisplayedDevelop({});
     gpu_preview_generation_ = 0;
@@ -546,6 +551,7 @@ bool StudioInspectPresenter::show_preview_result(const PreviewResult &preview,
     live_preview_width_ = static_cast<std::uint32_t>(std::max(0, presented.width()));
     live_preview_height_ = static_cast<std::uint32_t>(std::max(0, presented.height()));
     live_preview_color_profile_id_ = qstring_from_utf8(preview.color_profile.identifier);
+    last_preview_gpu_backend_ = qstring_from_utf8(preview.gpu_backend);
     if (live_preview_color_profile_id_.isEmpty() && displayed.colorSpace().isValid())
     {
         live_preview_color_profile_id_ = displayed.colorSpace().description();

@@ -25,6 +25,79 @@ namespace ravo
 using namespace capability_internal;
 using detail::for_each_row;
 
+namespace
+{
+void mix_denoise_pixel(const float *input, const float *candidate, float *output,
+                       const float luma_amount, const float chroma_amount) noexcept
+{
+    constexpr std::array<float, 3> weights{0.2126F, 0.7152F, 0.0722F};
+    const std::array<float, 3> delta{candidate[0] - input[0], candidate[1] - input[1],
+                                     candidate[2] - input[2]};
+    const float luma_delta = weights[0] * delta[0] + weights[1] * delta[1] + weights[2] * delta[2];
+    for (std::size_t c = 0U; c < 3U; ++c)
+    {
+        const float value =
+            input[c] + luma_amount * luma_delta + chroma_amount * (delta[c] - luma_delta);
+        output[c] = std::isfinite(value) ? value : std::numeric_limits<float>::quiet_NaN();
+    }
+}
+
+Result<void> publish_denoise(WorkingImage &image, std::vector<float> &pixels,
+                             const CancellationToken &cancellation)
+{
+    const auto invalid = std::find_if(pixels.cbegin(), pixels.cend(),
+                                      [](const float value) { return !std::isfinite(value); });
+    if (invalid != pixels.cend())
+    {
+        const auto sample = static_cast<std::size_t>(std::distance(pixels.cbegin(), invalid));
+        return make_error(ErrorCode::kValidation, "Profile denoise output must be finite",
+                          {{"reason", "non_finite_profile_denoise_output"},
+                           {"pixel_index", std::to_string(sample / 3U)},
+                           {"channel_index", std::to_string(sample % 3U)}});
+    }
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    image.rgb.swap(pixels);
+    return {};
+}
+} // namespace
+
+Result<void> mix_denoise_profile_candidate(WorkingImage &image,
+                                           const std::span<const float> candidate,
+                                           const OperationInstance &operation,
+                                           const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
+    const double strength = parameter(operation, "strength", 0.0);
+    const double chroma = parameter(operation, "chroma", 1.0);
+    if (!std::isfinite(strength) || strength < 0.0 || strength > 1.0 || !std::isfinite(chroma) ||
+        chroma < 0.0 || chroma > 1.0 || candidate.size() != image.rgb.size() ||
+        static_cast<std::uint64_t>(image.width) * image.height * 3U != candidate.size())
+        return make_error(ErrorCode::kValidation, "Profile denoise candidate mix is invalid",
+                          {{"reason", "invalid_profile_denoise_candidate_mix"}});
+    if (strength == 0.0)
+        return {};
+    std::vector<float> pixels(image.rgb.size());
+    const float luma_amount = static_cast<float>(strength);
+    const float chroma_amount = static_cast<float>(strength * chroma);
+    auto mixed =
+        for_each_row(image.height, cancellation,
+                     [&](const std::uint32_t row)
+                     {
+                         const auto begin = static_cast<std::size_t>(row) * image.width * 3U;
+                         const auto end = begin + static_cast<std::size_t>(image.width) * 3U;
+                         for (std::size_t i = begin; i < end; i += 3U)
+                             mix_denoise_pixel(image.rgb.data() + i, candidate.data() + i,
+                                               pixels.data() + i, luma_amount, chroma_amount);
+                     });
+    if (!mixed)
+        return mixed.error();
+    return publish_denoise(image, pixels, cancellation);
+}
+
 Result<void> apply_raw_hotpixels(DecodedRaw &raw, const OperationInstance &operation,
                                  const CancellationToken &cancellation)
 {
@@ -239,7 +312,9 @@ try
     }
     else
     {
-        process_highlights_opposed(buffer, raw, clips);
+        auto reconstructed = process_highlights_opposed(buffer, raw, clips, cancellation);
+        if (!reconstructed)
+            return reconstructed.error();
     }
     cancelled = cancellation.check();
     if (!cancelled)
@@ -255,13 +330,19 @@ catch (const std::bad_alloc &)
 }
 
 Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance &operation,
-                                   const CancellationToken &cancellation)
+                                   const CancellationToken &cancellation,
+                                   std::vector<float> *const candidate)
 {
     auto active = cancellation.check();
     if (!active)
     {
         return active.error();
     }
+    if (candidate == &image.rgb)
+        return make_error(ErrorCode::kInvalidArgument, "Denoise candidate must not alias input",
+                          {{"reason", "aliased_profile_denoise_candidate"}});
+    if (candidate != nullptr)
+        candidate->clear();
     const double strength = parameter(operation, "strength", 0.0);
     const double chroma = parameter(operation, "chroma", 1.0);
     const double radius = parameter(operation, "radius", 1.0);
@@ -516,9 +597,10 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
                                           (std::sqrt(a) * (2.0F - p[1])) / 4.0F,
                                           (std::sqrt(a) * (2.0F - p[2])) / 4.0F};
     const float applied_bias = bias;
-    constexpr std::array<float, 3> kLumaWeights{0.2126F, 0.7152F, 0.0722F};
     const float luma_amount = static_cast<float>(strength);
     const float chroma_amount = static_cast<float>(strength * chroma);
+    if (candidate != nullptr)
+        candidate->resize(image.rgb.size());
     auto restored = for_each_row(
         image.height, cancellation,
         [&](const std::uint32_t row)
@@ -544,48 +626,17 @@ Result<void> apply_denoise_profile(WorkingImage &image, const OperationInstance 
                         noise_b;
                 }
                 const std::size_t offset = pixel * 3U;
-                const std::array<float, 3> delta{denoised[0] - image.rgb[offset],
-                                                 denoised[1] - image.rgb[offset + 1U],
-                                                 denoised[2] - image.rgb[offset + 2U]};
-                const float luma_delta = kLumaWeights[0] * delta[0] + kLumaWeights[1] * delta[1] +
-                                         kLumaWeights[2] * delta[2];
-                for (std::size_t c = 0U; c < 3U; ++c)
-                {
-                    const float value = image.rgb[offset + c] + luma_amount * luma_delta +
-                                        chroma_amount * (delta[c] - luma_delta);
-                    if (!std::isfinite(value))
-                    {
-                        detail[offset + c] = std::numeric_limits<float>::quiet_NaN();
-                    }
-                    else
-                    {
-                        detail[offset + c] = value;
-                    }
-                }
+                if (candidate != nullptr)
+                    std::copy(denoised.begin(), denoised.end(), candidate->data() + offset);
+                mix_denoise_pixel(image.rgb.data() + offset, denoised.data(),
+                                  detail.data() + offset, luma_amount, chroma_amount);
             }
         });
     if (!restored)
     {
         return restored.error();
     }
-    const auto invalid_output = std::find_if(detail.cbegin(), detail.cend(), [](const float value)
-                                             { return !std::isfinite(value); });
-    if (invalid_output != detail.cend())
-    {
-        const std::size_t sample =
-            static_cast<std::size_t>(std::distance(detail.cbegin(), invalid_output));
-        return make_error(ErrorCode::kValidation, "Profile denoise output must be finite",
-                          {{"reason", "non_finite_profile_denoise_output"},
-                           {"pixel_index", std::to_string(sample / 3U)},
-                           {"channel_index", std::to_string(sample % 3U)}});
-    }
-    active = cancellation.check();
-    if (!active)
-    {
-        return active.error();
-    }
-    image.rgb.swap(detail);
-    return {};
+    return publish_denoise(image, detail, cancellation);
 }
 
 } // namespace ravo

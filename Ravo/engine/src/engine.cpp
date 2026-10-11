@@ -29,6 +29,7 @@
 #include "parallel_rows.h"
 #include "perspective_transform.h"
 #include "profile_gamma.h"
+#include "profile_denoise_preview.h"
 #include "primaries.h"
 #include "raw_ca.h"
 #include "raw_denoise.h"
@@ -50,6 +51,7 @@ struct InteractivePreviewRenderCache::Impl
     };
 
     std::optional<PrefixState> prefix;
+    detail::ProfileDenoisePreviewCache denoise;
     std::unique_ptr<detail::ParallelRowSession> parallel_rows;
     // A replaced CFA window can have the same asset, recipe and dimensions.
     // Cache moves preserve this identity; destruction/recreation never reuses it.
@@ -1320,6 +1322,43 @@ render_interactive_prefix(const LinearWorkingBuffer &working, const Recipe &reci
     return apply_recipe_ops(std::move(image), prefix_recipe, cancellation);
 }
 
+[[nodiscard]] Result<LinearWorkingBuffer>
+render_cached_denoise_prefix(const LinearWorkingBuffer &working, const Recipe &recipe,
+                             const std::size_t count, detail::ProfileDenoisePreviewCache &cache,
+                             const CancellationToken &cancellation)
+{
+    std::optional<std::size_t> last;
+    for (std::size_t index = 0U; index < count; ++index)
+        if (recipe.operations[index].enabled && !recipe.operations[index].bypass)
+            last = index;
+    if (!last || recipe.operations[*last].id != "ravo.detail.denoiseprofile" ||
+        recipe.operations[*last].mask_id || !detail::ProfileDenoisePreviewCache::admits(working))
+    {
+        cache.clear();
+        return render_interactive_prefix(working, recipe, count, cancellation);
+    }
+    const auto &operation = recipe.operations[*last];
+    Recipe basis_recipe = recipe;
+    basis_recipe.operations.resize(count);
+    basis_recipe.operations[*last].parameters["strength"] = ParameterValue{1.0};
+    basis_recipe.operations[*last].parameters["chroma"] = ParameterValue{1.0};
+    auto key = serialize_recipe(basis_recipe);
+    if (!key)
+        return key.error();
+    if (cache.matches(key.value()))
+        return cache.mix(operation, cancellation);
+
+    // Evict before allocating a replacement input/candidate. The accepted full
+    // prefix remains untouched until the complete new mixed result succeeds.
+    cache.clear();
+    basis_recipe.operations[*last] = operation;
+    basis_recipe.operations[*last].enabled = false;
+    auto input = render_interactive_prefix(working, basis_recipe, count, cancellation);
+    if (!input)
+        return input.error();
+    return cache.prepare(std::move(input).value(), operation, std::move(key).value(), cancellation);
+}
+
 [[nodiscard]] std::string gpu_retained_key(const Recipe &recipe, const std::string_view fingerprint,
                                            const std::uint32_t width, const std::uint32_t height,
                                            const std::string_view source_identity,
@@ -1515,6 +1554,7 @@ try
     };
     if (prefix_count == 0U)
     {
+        cache.impl_->denoise.clear();
         auto retained = retain_working(working, "noprefix");
         if (!retained)
         {
@@ -1534,7 +1574,8 @@ try
                             cache.impl_->prefix->fingerprint == fingerprint.value();
     if (!prefix_hit)
     {
-        auto prefix = render_interactive_prefix(working, recipe, prefix_count, cancellation);
+        auto prefix = render_cached_denoise_prefix(working, recipe, prefix_count,
+                                                   cache.impl_->denoise, cancellation);
         if (!prefix)
         {
             return prefix.error();

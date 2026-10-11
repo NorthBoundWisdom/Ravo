@@ -132,8 +132,14 @@ void process_highlights_clip(std::vector<float> &buffer, const DecodedRaw &raw,
 void process_highlights_lch(std::vector<float> &buffer, const DecodedRaw &raw, float clip);
 void process_highlights_inpaint(std::vector<float> &buffer, const DecodedRaw &raw,
                                 const std::array<float, 3> &clips);
-void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &raw,
-                                const std::array<float, 3> &clips);
+[[nodiscard]] Result<void> process_highlights_opposed(std::vector<float> &buffer,
+                                                      const DecodedRaw &raw,
+                                                      const std::array<float, 3> &clips,
+                                                      const CancellationToken &cancellation);
+// Borrows the immutable float neighbourhood for this synchronous calculation.
+[[nodiscard]] float calc_refavg(const std::vector<float> &input, const DecodedRaw &raw,
+                                std::uint32_t width, std::uint32_t height, std::uint32_t row,
+                                std::uint32_t col) noexcept;
 [[nodiscard]] Result<void> eaw_dn_decompose(std::vector<float> &coarse,
                                             const std::vector<float> &input,
                                             std::vector<float> &detail,

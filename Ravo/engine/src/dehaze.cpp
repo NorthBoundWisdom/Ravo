@@ -86,58 +86,82 @@ void kahan_add(float value, float &sum, float &compensation) noexcept
     sum = next;
 }
 
-void box_mean_line(const float *source, const std::size_t source_stride, float *destination,
-                   const std::size_t destination_stride, const std::uint32_t length,
-                   const std::uint32_t radius)
+// Independent lines share contiguous loads, but each lane retains the scalar
+// Kahan recurrence and source order. In particular, do not re-prime vertical
+// bands or replace the compensated sum with an ordinary running sum.
+template <std::size_t Lanes>
+void box_mean_lines(const float *source, const std::size_t source_stride, float *destination,
+                    const std::size_t destination_stride, const std::uint32_t length,
+                    const std::uint32_t radius)
 {
-    float sum = 0.0F;
-    float compensation = 0.0F;
+    std::array<float, Lanes> sum{};
+    std::array<float, Lanes> compensation{};
+    const auto add = [&](const std::uint32_t position)
+    {
+        const float *values = source + static_cast<std::size_t>(position) * source_stride;
+        for (std::size_t lane = 0U; lane < Lanes; ++lane)
+        {
+            kahan_add(values[lane], sum[lane], compensation[lane]);
+        }
+    };
+    const auto remove = [&](const std::uint32_t position)
+    {
+        const float *values = source + static_cast<std::size_t>(position) * source_stride;
+        for (std::size_t lane = 0U; lane < Lanes; ++lane)
+        {
+            kahan_add(-values[lane], sum[lane], compensation[lane]);
+        }
+    };
+    const auto store = [&](const std::uint32_t position, const std::uint32_t hits)
+    {
+        float *values = destination + static_cast<std::size_t>(position) * destination_stride;
+        for (std::size_t lane = 0U; lane < Lanes; ++lane)
+        {
+            values[lane] = sum[lane] / static_cast<float>(hits);
+        }
+    };
     std::uint32_t hits = 0U;
     for (std::uint32_t position = 0U; position < std::min(radius, length); ++position)
     {
         ++hits;
-        kahan_add(source[static_cast<std::size_t>(position) * source_stride], sum, compensation);
+        add(position);
     }
     std::uint32_t position = 0U;
     for (; position <= radius && position + radius < length; ++position)
     {
         const std::uint32_t added = position + radius;
         ++hits;
-        kahan_add(source[static_cast<std::size_t>(added) * source_stride], sum, compensation);
-        destination[static_cast<std::size_t>(position) * destination_stride] =
-            sum / static_cast<float>(hits);
+        add(added);
+        store(position, hits);
     }
     for (; position <= radius && position < length; ++position)
     {
-        destination[static_cast<std::size_t>(position) * destination_stride] =
-            sum / static_cast<float>(hits);
+        store(position, hits);
     }
     for (; position + radius < length; ++position)
     {
         const std::uint32_t removed = position - radius - 1U;
         const std::uint32_t added = position + radius;
-        kahan_add(-source[static_cast<std::size_t>(removed) * source_stride], sum, compensation);
-        kahan_add(source[static_cast<std::size_t>(added) * source_stride], sum, compensation);
-        destination[static_cast<std::size_t>(position) * destination_stride] =
-            sum / static_cast<float>(hits);
+        remove(removed);
+        add(added);
+        store(position, hits);
     }
     for (; position < length; ++position)
     {
         const std::uint32_t removed = position - radius - 1U;
         --hits;
-        kahan_add(-source[static_cast<std::size_t>(removed) * source_stride], sum, compensation);
-        destination[static_cast<std::size_t>(position) * destination_stride] =
-            sum / static_cast<float>(hits);
+        remove(removed);
+        store(position, hits);
     }
 }
 
-[[nodiscard]] Result<void> box_mean_interleaved(std::vector<float> &data, const std::uint32_t width,
-                                                const std::uint32_t height,
-                                                const std::uint32_t channels,
-                                                const std::uint32_t radius,
-                                                const CancellationToken &cancellation,
-                                                const detail::DehazeControl &control)
+template <std::uint32_t Channels>
+[[nodiscard]] Result<void>
+box_mean_interleaved(std::vector<float> &data, const std::uint32_t width,
+                     const std::uint32_t height, const std::uint32_t radius,
+                     const CancellationToken &cancellation, const detail::DehazeControl &control)
 {
+    static_assert(Channels == 4U || Channels == 9U);
     std::vector<float> horizontal(data.size());
     for (std::uint32_t row = 0U; row < height; ++row)
     {
@@ -147,27 +171,41 @@ void box_mean_line(const float *source, const std::size_t source_stride, float *
         {
             return active.error();
         }
-        for (std::uint32_t channel = 0U; channel < channels; ++channel)
+        const std::size_t base = static_cast<std::size_t>(row) * width * Channels;
+        if constexpr (Channels == 4U)
         {
-            const std::size_t base = static_cast<std::size_t>(row) * width * channels + channel;
-            box_mean_line(data.data() + base, channels, horizontal.data() + base, channels, width,
-                          radius);
+            box_mean_lines<4U>(data.data() + base, Channels, horizontal.data() + base, Channels,
+                               width, radius);
+        }
+        else // RGB covariance has nine independent channels.
+        {
+            box_mean_lines<8U>(data.data() + base, Channels, horizontal.data() + base, Channels,
+                               width, radius);
+            box_mean_lines<1U>(data.data() + base + 8U, Channels, horizontal.data() + base + 8U,
+                               Channels, width, radius);
         }
     }
-    for (std::uint32_t column = 0U; column < width; ++column)
+    const std::size_t stride = static_cast<std::size_t>(width) * Channels;
+    std::size_t column = 0U;
+    for (; column + 32U <= stride; column += 32U)
     {
         auto active = cancellation.check();
         if (!active)
         {
             return active.error();
         }
-        for (std::uint32_t channel = 0U; channel < channels; ++channel)
+        box_mean_lines<32U>(horizontal.data() + column, stride, data.data() + column, stride,
+                            height, radius);
+    }
+    for (; column < stride; ++column)
+    {
+        auto active = cancellation.check();
+        if (!active)
         {
-            const std::size_t base = static_cast<std::size_t>(column) * channels + channel;
-            box_mean_line(horizontal.data() + base, static_cast<std::size_t>(width) * channels,
-                          data.data() + base, static_cast<std::size_t>(width) * channels, height,
-                          radius);
+            return active.error();
         }
+        box_mean_lines<1U>(horizontal.data() + column, stride, data.data() + column, stride, height,
+                           radius);
     }
     return {};
 }
@@ -376,14 +414,14 @@ guided_filter_tile(const WorkingImage &guide, const std::vector<float> &input,
             variance[local * 9U + 8U] = blue * blue;
         }
     }
-    auto averaged = box_mean_interleaved(mean, width, height, 4U, radius, cancellation, control);
+    auto averaged = box_mean_interleaved<4U>(mean, width, height, radius, cancellation, control);
     if (!averaged)
     {
         return averaged.error();
     }
     const float sqrt_epsilon = std::sqrt(0.025F);
     const float epsilon = sqrt_epsilon * sqrt_epsilon;
-    averaged = box_mean_interleaved(variance, width, height, 9U, radius, cancellation, control);
+    averaged = box_mean_interleaved<9U>(variance, width, height, radius, cancellation, control);
     if (!averaged)
     {
         return averaged.error();
@@ -437,7 +475,7 @@ guided_filter_tile(const WorkingImage &guide, const std::vector<float> &input,
             mean[pixel * 4U + 3U] = b;
         }
     }
-    averaged = box_mean_interleaved(mean, width, height, 4U, radius, cancellation, control);
+    averaged = box_mean_interleaved<4U>(mean, width, height, radius, cancellation, control);
     if (!averaged)
     {
         return averaged.error();

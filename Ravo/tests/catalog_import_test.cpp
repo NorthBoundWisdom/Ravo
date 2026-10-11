@@ -9,6 +9,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -60,6 +61,7 @@
 #include "catalog_repository_test_control.h"
 #include "recovery_publication_internal.h"
 #include "temperature_fixture.h"
+#include "interactive_perf_report.h"
 
 namespace ravo
 {
@@ -889,6 +891,7 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
             9U;
     ASSERT_GT(max_edge, 0U);
     ASSERT_GT(runs, 0U);
+    ASSERT_LE(runs, 1000U);
 
     auto created_engine = EngineFacade::create_phase1();
     ASSERT_TRUE(created_engine) << created_engine.error().message;
@@ -926,10 +929,12 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
         ASSERT_FALSE(settled_warm.value().rgb.empty());
     }
 
-    std::vector<std::int64_t> render_elapsed_ms;
-    std::vector<std::int64_t> visible_elapsed_ms;
-    render_elapsed_ms.reserve(runs);
-    visible_elapsed_ms.reserve(runs);
+    std::vector<std::int64_t> render_elapsed_us;
+    std::vector<std::int64_t> visible_elapsed_us;
+    render_elapsed_us.reserve(runs);
+    visible_elapsed_us.reserve(runs);
+    JsonValue::Array output_sizes, backends, values, profiles;
+    std::string last_backend;
     for (std::size_t run = 0; run < runs; ++run)
     {
         auto adjusted = baseline.value();
@@ -959,28 +964,63 @@ TEST(InteractivePreviewPerformanceProbe, MeasuresWarmExposureSweepWithoutCatalog
         auto histogram = collect_rgb_histogram(raster);
         ASSERT_TRUE(histogram) << histogram.error().message;
         const auto visible = std::chrono::steady_clock::now();
-        render_elapsed_ms.push_back(
-            std::chrono::duration_cast<std::chrono::milliseconds>(rendered - started).count());
-        visible_elapsed_ms.push_back(
-            std::chrono::duration_cast<std::chrono::milliseconds>(visible - started).count());
+        output_sizes.emplace_back(
+            JsonValue::Array{JsonValue::number(std::to_string(preview.value().width)),
+                             JsonValue::number(std::to_string(preview.value().height))});
+        last_backend = preview.value().gpu_backend.empty() ? "cpu" : preview.value().gpu_backend;
+        backends.emplace_back(last_backend);
+        values.emplace_back(JsonValue::number(std::to_string(adjusted.exposure_ev)));
+        profiles.emplace_back(color_profile_fingerprint(preview.value().color_profile));
+        render_elapsed_us.push_back(
+            std::chrono::duration_cast<std::chrono::microseconds>(rendered - started).count());
+        visible_elapsed_us.push_back(
+            std::chrono::duration_cast<std::chrono::microseconds>(visible - started).count());
     }
-    std::sort(render_elapsed_ms.begin(), render_elapsed_ms.end());
-    std::sort(visible_elapsed_ms.begin(), visible_elapsed_ms.end());
-    const auto p90_index = (visible_elapsed_ms.size() * 9U - 1U) / 10U;
-    const auto render_median = render_elapsed_ms[render_elapsed_ms.size() / 2U];
-    const auto render_p90 = render_elapsed_ms[p90_index];
-    const auto visible_median = visible_elapsed_ms[visible_elapsed_ms.size() / 2U];
-    const auto visible_p90 = visible_elapsed_ms[p90_index];
+    for (const auto &[name, samples] :
+         {std::pair{"service_request", &render_elapsed_us},
+          std::pair{"service_owned_pixels_histogram", &visible_elapsed_us}})
+    {
+        interactive_perf_report::CaseMeta meta;
+        meta.case_id = std::string(name) + "_" + std::to_string(max_edge);
+        meta.path = "catalog_interactive_probe";
+        meta.source_kind = "explicit_catalog_asset";
+        meta.warmups = 1U;
+        meta.recorded_samples = runs;
+        meta.max_edge = max_edge;
+        meta.asset_id = asset_id;
+        meta.catalog_path = catalog_path;
+        meta.gpu_backend = last_backend;
+        meta.workload = {{"schema", "ravo.perf01.service-workload/v1"},
+                         {"output_sizes", output_sizes},
+                         {"gpu_backends", backends},
+                         {"field", "exposure"},
+                         {"values", values},
+                         {"output_profile_fingerprints", profiles},
+                         {"need_cpu_pixels", true},
+                         {"includes_monitor_presentation", false},
+                         {"includes_native_frame_swap", false}};
+        interactive_perf_report::emit_case(meta, *samples);
+    }
+    std::sort(render_elapsed_us.begin(), render_elapsed_us.end());
+    std::sort(visible_elapsed_us.begin(), visible_elapsed_us.end());
+    const auto p90_index = (visible_elapsed_us.size() * 9U - 1U) / 10U;
+    const auto render_median = render_elapsed_us[render_elapsed_us.size() / 2U];
+    const auto render_p90 = render_elapsed_us[p90_index];
+    const auto visible_median = visible_elapsed_us[visible_elapsed_us.size() / 2U];
+    const auto visible_p90 = visible_elapsed_us[p90_index];
     std::cerr << "interactive_preview_edge=" << max_edge << " runs=" << runs
-              << " render_min_ms=" << render_elapsed_ms.front()
-              << " render_median_ms=" << render_median << " render_p90_ms=" << render_p90
-              << " render_max_ms=" << render_elapsed_ms.back()
-              << " visible_min_ms=" << visible_elapsed_ms.front()
-              << " visible_median_ms=" << visible_median << " visible_p90_ms=" << visible_p90
-              << " visible_max_ms=" << visible_elapsed_ms.back() << '\n';
+              << " render_min_us=" << render_elapsed_us.front()
+              << " render_median_us=" << render_median << " render_p90_us=" << render_p90
+              << " render_max_us=" << render_elapsed_us.back()
+              << " visible_min_us=" << visible_elapsed_us.front()
+              << " visible_median_us=" << visible_median << " visible_p90_us=" << visible_p90
+              << " visible_max_us=" << visible_elapsed_us.back() << '\n';
     if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
     {
-        EXPECT_LE(visible_p90, std::stoll(budget));
+        const auto milliseconds = std::stoll(budget);
+        ASSERT_GE(milliseconds, 0);
+        ASSERT_LE(milliseconds, std::numeric_limits<std::int64_t>::max() / 1000);
+        EXPECT_LE(visible_p90, milliseconds * 1000);
     }
 
     ASSERT_TRUE(measured.close());

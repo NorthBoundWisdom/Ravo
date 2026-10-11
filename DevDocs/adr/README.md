@@ -185,3 +185,6 @@ decision bodies remain stable.
 | [0169](0169-studio-release-update-check.md) | Accepted | Desktop-owned bounded GitHub release checks, startup preference and confirmed browser handoff |
 | [0171](0171-exact-rgb8-display-transform-cache.md) | Accepted | Caller-owned exact RGB8 monitor transform cache with cancellable worker preparation and unchanged LittleCMS pixels |
 | [0172](0172-borrowed-retained-native-preview.md) | Accepted | Synchronous immutable CPU-input borrowing for a fully admitted retained native GPU tail |
+| [0173](0173-exact-cpu-spatial-processing.md) | Accepted | Exact contiguous dehaze lanes, single-plane clarity and reuse of perspective weights/intersections |
+| [0174](0174-exact-denoise-preview-basis.md) | Accepted | Bounded unblended denoise basis for exact strength/chroma mixing within the existing interactive prefix owner |
+| [0175](0175-exact-raw-preparation-work.md) | Accepted | Exact CFA lookup and opposed-highlight work reduction with preserved sequential reconstruction and row cancellation |

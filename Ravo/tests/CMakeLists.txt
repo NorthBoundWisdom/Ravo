@@ -109,6 +109,9 @@ add_executable(ravo_contract_tests
   engine_harmony_contrast_test.cpp
   engine_color_grading_test.cpp
   engine_controls_test.cpp
+  engine_spatial_cpu_test.cpp
+  profile_denoise_preview_test.cpp
+  raw_preprocess_perf_test.cpp
   engine_detail_test.cpp
   engine_raw_reference_test.cpp
   input_color_test.cpp

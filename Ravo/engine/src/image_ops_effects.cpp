@@ -622,46 +622,125 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
     return {};
 }
 
-void apply_clarity(WorkingImage &image, const double amount)
+// Clarity's three RGB blur channels were identical. Keep the original scalar
+// addition order and clamped borders on one plane, sharing only independent
+// rows with the render-owned executor (not the running-sum blur used elsewhere).
+[[nodiscard]] Result<void> blur_clarity_lightness(std::vector<float> &plane,
+                                                  const std::uint32_t width,
+                                                  const std::uint32_t height,
+                                                  const CancellationToken &cancellation)
 {
+    std::vector<float> temporary(plane.size());
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        auto horizontal =
+            for_each_row(height, cancellation,
+                         [&](const std::uint32_t row)
+                         {
+                             const std::size_t base = static_cast<std::size_t>(row) * width;
+                             for (std::uint32_t column = 0U; column < width; ++column)
+                             {
+                                 float sum = 0.0F;
+                                 for (int offset = -8; offset <= 8; ++offset)
+                                 {
+                                     const auto x = static_cast<std::uint32_t>(std::clamp(
+                                         static_cast<std::int64_t>(column) + offset,
+                                         std::int64_t{0}, static_cast<std::int64_t>(width) - 1));
+                                     sum += plane[base + x];
+                                 }
+                                 temporary[base + column] = sum / 17.0F;
+                             }
+                         });
+        if (!horizontal)
+        {
+            return horizontal.error();
+        }
+        auto vertical = for_each_row(
+            height, cancellation,
+            [&](const std::uint32_t row)
+            {
+                float *destination = plane.data() + static_cast<std::size_t>(row) * width;
+                std::fill_n(destination, width, 0.0F);
+                for (int offset = -8; offset <= 8; ++offset)
+                {
+                    const auto y = static_cast<std::uint32_t>(
+                        std::clamp(static_cast<std::int64_t>(row) + offset, std::int64_t{0},
+                                   static_cast<std::int64_t>(height) - 1));
+                    const float *source = temporary.data() + static_cast<std::size_t>(y) * width;
+                    for (std::uint32_t column = 0U; column < width; ++column)
+                    {
+                        destination[column] += source[column];
+                    }
+                }
+                for (std::uint32_t column = 0U; column < width; ++column)
+                {
+                    destination[column] /= 17.0F;
+                }
+            });
+        if (!vertical)
+        {
+            return vertical.error();
+        }
+    }
+    return {};
+}
+
+Result<void> apply_clarity(WorkingImage &image, const double amount,
+                           const CancellationToken &cancellation)
+{
+    auto active = cancellation.check();
+    if (!active)
+    {
+        return active.error();
+    }
     if (amount == 0.0)
     {
-        return;
+        return {};
     }
     const std::size_t pixels = static_cast<std::size_t>(image.width) * image.height;
     std::vector<float> L(pixels);
     std::vector<float> a(pixels);
     std::vector<float> b(pixels);
-    for (std::size_t index = 0; index < pixels; ++index)
+    std::vector<float> lightness(pixels);
+    auto converted =
+        for_each_row(image.height, cancellation,
+                     [&](const std::uint32_t row)
+                     {
+                         const std::size_t begin = static_cast<std::size_t>(row) * image.width;
+                         const std::size_t end = begin + image.width;
+                         for (std::size_t index = begin; index < end; ++index)
+                         {
+                             rgb_to_lab(image.rgb[index * 3U], image.rgb[index * 3U + 1U],
+                                        image.rgb[index * 3U + 2U], L[index], a[index], b[index]);
+                             const float inverted = 100.0F - std::clamp(L[index], 0.0F, 100.0F);
+                             lightness[index] = inverted / 100.0F;
+                         }
+                     });
+    if (!converted)
     {
-        rgb_to_lab(image.rgb[index * 3U], image.rgb[index * 3U + 1U], image.rgb[index * 3U + 2U],
-                   L[index], a[index], b[index]);
+        return converted.error();
     }
-    std::vector<float> inverted(pixels);
-    for (std::size_t index = 0; index < pixels; ++index)
+    auto blurred = blur_clarity_lightness(lightness, image.width, image.height, cancellation);
+    if (!blurred)
     {
-        inverted[index] = 100.0F - std::clamp(L[index], 0.0F, 100.0F);
+        return blurred.error();
     }
-    WorkingImage luma_image;
-    luma_image.width = image.width;
-    luma_image.height = image.height;
-    luma_image.rgb.resize(pixels * 3U);
-    for (std::size_t index = 0; index < pixels; ++index)
-    {
-        luma_image.rgb[index * 3U] = inverted[index] / 100.0F;
-        luma_image.rgb[index * 3U + 1U] = inverted[index] / 100.0F;
-        luma_image.rgb[index * 3U + 2U] = inverted[index] / 100.0F;
-    }
-    box_blur(luma_image, 8, 2);
     const float contrast_scale = static_cast<float>(amount) * 3.75F;
-    for (std::size_t index = 0; index < pixels; ++index)
-    {
-        const float mixed = (luma_image.rgb[index * 3U] * 100.0F + L[index]) - 100.0F;
-        const float hipass = std::clamp(mixed * contrast_scale + 50.0F, 0.0F, 100.0F);
-        const float out_L = L[index] + (hipass - 50.0F);
-        lab_to_rgb(out_L, a[index], b[index], image.rgb[index * 3U], image.rgb[index * 3U + 1U],
-                   image.rgb[index * 3U + 2U]);
-    }
+    return for_each_row(image.height, cancellation,
+                        [&](const std::uint32_t row)
+                        {
+                            const std::size_t begin = static_cast<std::size_t>(row) * image.width;
+                            const std::size_t end = begin + image.width;
+                            for (std::size_t index = begin; index < end; ++index)
+                            {
+                                const float mixed = (lightness[index] * 100.0F + L[index]) - 100.0F;
+                                const float hipass =
+                                    std::clamp(mixed * contrast_scale + 50.0F, 0.0F, 100.0F);
+                                const float out_L = L[index] + (hipass - 50.0F);
+                                lab_to_rgb(out_L, a[index], b[index], image.rgb[index * 3U],
+                                           image.rgb[index * 3U + 1U], image.rgb[index * 3U + 2U]);
+                            }
+                        });
 }
 
 void apply_soften(WorkingImage &image, const double amount)

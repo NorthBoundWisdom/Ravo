@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -203,6 +205,85 @@ TEST(PerspectiveTest, InterpolatorsHaveIndependentDeterministicGridGoldens)
     EXPECT_NE(hashes[1], hashes[2]);
     EXPECT_EQ(hashes, (std::vector<std::uint64_t>{16313785851501956540ULL, 7650514657445475949ULL,
                                                   13807960239381974773ULL}));
+}
+
+TEST(PerspectiveTest, LanczosWeightsMatchUnhoistedFloatReferenceIncludingEdges)
+{
+    const auto input = grid_image(37U, 65U);
+    const auto sinc = [](const double value)
+    {
+        if (std::abs(value) < 1.0e-12)
+            return 1.0;
+        const double angle = std::numbers::pi * value;
+        return std::sin(angle) / angle;
+    };
+    for (const int radius : {2, 3})
+    {
+        PerspectiveParams params;
+        params.rotation_degrees = -3.25;
+        params.vertical_shift = 0.17;
+        params.horizontal_shift = 0.11;
+        params.shear = -0.025;
+        params.constrain_crop = false;
+        params.interpolation = std::string(radius == 2 ? kPerspectiveInterpolationLanczos2 :
+                                                         kPerspectiveInterpolationLanczos3);
+        const auto weight = [&](const double value)
+        {
+            return std::abs(value) < static_cast<double>(radius) ?
+                       sinc(value) * sinc(value / radius) :
+                       0.0;
+        };
+        auto layout = compute_perspective_layout(input.width, input.height, params);
+        ASSERT_TRUE(layout) << layout.error().message;
+        auto actual = apply_perspective(input, params, {});
+        ASSERT_TRUE(actual) << actual.error().message;
+        std::size_t checked = 0U;
+        for (std::uint32_t y = 0U; y < actual.value().height; ++y)
+        {
+            for (std::uint32_t x = 0U; x < actual.value().width; ++x)
+            {
+                const auto point = map_point(layout.value().inverse, x, y);
+                const std::size_t target =
+                    (static_cast<std::size_t>(y) * actual.value().width + x) * 3U;
+                if (point.x < 0.0 || point.y < 0.0 || point.x > input.width - 1U ||
+                    point.y > input.height - 1U)
+                {
+                    for (std::size_t c = 0U; c < 3U; ++c)
+                        EXPECT_EQ(actual.value().rgb[target + c], 0.0F);
+                    continue;
+                }
+                const int center_x = static_cast<int>(std::floor(point.x));
+                const int center_y = static_cast<int>(std::floor(point.y));
+                std::array<double, 3> sums{};
+                double total = 0.0;
+                for (int sy = center_y - radius + 1; sy <= center_y + radius; ++sy)
+                {
+                    if (sy < 0 || sy >= static_cast<int>(input.height))
+                        continue;
+                    const double wy = weight(point.y - sy);
+                    for (int sx = center_x - radius + 1; sx <= center_x + radius; ++sx)
+                    {
+                        if (sx < 0 || sx >= static_cast<int>(input.width))
+                            continue;
+                        const double w = wy * weight(point.x - sx);
+                        const auto source = (static_cast<std::size_t>(sy) * input.width +
+                                             static_cast<std::size_t>(sx)) *
+                                            3U;
+                        for (std::size_t c = 0U; c < 3U; ++c)
+                            sums[c] += w * static_cast<double>(input.rgb[source + c]);
+                        total += w;
+                    }
+                }
+                ASSERT_GE(std::abs(total), 1.0e-12);
+                for (std::size_t c = 0U; c < 3U; ++c)
+                    ASSERT_EQ(std::bit_cast<std::uint32_t>(actual.value().rgb[target + c]),
+                              std::bit_cast<std::uint32_t>(static_cast<float>(sums[c] / total)))
+                        << "radius=" << radius << " pixel=" << x << ',' << y;
+                ++checked;
+            }
+        }
+        EXPECT_GT(checked, 1000U);
+    }
 }
 
 TEST(PerspectiveTest, InvalidInputAndCancellationFailWithoutPublication)

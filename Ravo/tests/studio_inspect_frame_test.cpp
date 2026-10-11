@@ -72,8 +72,10 @@ TEST(StudioInspectFrame, FailedPreparationRetainsPublishedPixelsAndResourceIdent
     FrameOwner owner;
     auto &inspect = owner.inspect;
     auto preview = frame_preview();
+    preview.gpu_backend = "reported-test-backend";
     ASSERT_FALSE(preview.color_profile.icc_bytes.empty());
     ASSERT_TRUE(inspect.show_preview_result(preview, 8, true));
+    EXPECT_EQ(inspect.lastPreviewGpuBackend(), QStringLiteral("reported-test-backend"));
     DevelopParams displayed;
     displayed.exposure_ev = 0.5;
     inspect.observeDisplayedDevelop(displayed);
@@ -88,6 +90,7 @@ TEST(StudioInspectFrame, FailedPreparationRetainsPublishedPixelsAndResourceIdent
                      [&](QString value) { error = std::move(value); });
 
     auto invalid = preview;
+    invalid.gpu_backend = "stale-backend";
     invalid.color_profile.icc_bytes = {1, 2, 3};
     invalid.gpu_display_generation = 17;
     invalid.gpu_display_native_surface = 99;
@@ -98,6 +101,7 @@ TEST(StudioInspectFrame, FailedPreparationRetainsPublishedPixelsAndResourceIdent
     EXPECT_EQ(inspect.previewImage(), image);
     EXPECT_EQ(inspect.previewUrl(), url);
     EXPECT_EQ(inspect.frameRevision(), 8U);
+    EXPECT_EQ(inspect.lastPreviewGpuBackend(), QStringLiteral("reported-test-backend"));
     EXPECT_EQ(inspect.previewViewportWidth(), width);
     EXPECT_EQ(inspect.previewViewportHeight(), height);
     EXPECT_EQ(inspect.gpuPreviewGeneration(), 0U);

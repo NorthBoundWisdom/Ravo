@@ -45,7 +45,8 @@ constexpr std::string_view kBlendV13 =
 
 [[nodiscard]] std::string mire1_path()
 {
-    return (repository_root() / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2").string();
+    return (repository_root() / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2")
+        .string();
 }
 
 [[nodiscard]] std::optional<std::string> read_file(const std::filesystem::path &path)
@@ -490,8 +491,8 @@ TEST(DehazeLegacyXmpTest, V1AndV2MapOnlyTheirFrozenUnmaskedSingletons)
     EXPECT_EQ(duplicate.error().code, ErrorCode::kConflict);
 
     std::vector<std::filesystem::path> records;
-    for (const auto &entry :
-         std::filesystem::recursive_directory_iterator(repository_root() / "Ravo" / "tests" / "fixtures" / "frozen"))
+    for (const auto &entry : std::filesystem::recursive_directory_iterator(
+             repository_root() / "Ravo" / "tests" / "fixtures" / "frozen"))
     {
         if (!entry.is_regular_file() || entry.path().extension() != ".xmp")
         {
@@ -544,6 +545,28 @@ TEST(DehazeTest, DarkChannelAmbientGuidedFilterAndAdaptiveWindowsMatchIndependen
     EXPECT_EQ(scaled_analysis.dark_channel_radius, 4);
     EXPECT_EQ(scaled_analysis.guided_filter_radius, 6);
     EXPECT_NE(scaled.value().rgb, production.value().rgb);
+}
+
+TEST(DehazeTest, OddPortraitAndTileBoundaryStatisticsMatchIndependentOracle)
+{
+    for (const auto [width, height] : std::array<std::pair<std::uint32_t, std::uint32_t>, 4>{
+             {{7U, 11U}, {33U, 19U}, {513U, 17U}, {17U, 513U}}})
+    {
+        const auto input = hazy_fixture(width, height);
+        for (const double strength : {-0.3, 0.7})
+        {
+            const DehazeParams params{strength, 0.65, false};
+            detail::DehazeAnalysis expected_analysis;
+            const auto expected = dehaze_oracle(input, params, expected_analysis);
+            auto actual = apply_dehaze(input, params, {});
+            ASSERT_TRUE(actual) << actual.error().message;
+            for (std::size_t i = 0U; i < expected.rgb.size(); ++i)
+            {
+                ASSERT_NEAR(actual.value().rgb[i], expected.rgb[i], 3.0e-4F)
+                    << width << 'x' << height << " strength=" << strength << " sample=" << i;
+            }
+        }
+    }
 }
 
 TEST(DehazeTest, OwnershipFailuresMemoryAndControlledCancellationAreAtomic)

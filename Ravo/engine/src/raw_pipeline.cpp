@@ -1024,8 +1024,8 @@ try
                           {{"reason", "invalid_raw_black_grid"}});
     }
     const auto channel_min = *std::min_element(black, black + 4);
-    const auto grid_min = black_count == 0U ? 0U :
-        *std::min_element(black + 6, black + 6 + black_count);
+    const auto grid_min =
+        black_count == 0U ? 0U : *std::min_element(black + 6, black + 6 + black_count);
     const std::uint64_t common_black =
         static_cast<std::uint64_t>(raw.color.black) + channel_min + grid_min;
     if (common_black >= (raw.color.maximum > 0 ? raw.color.maximum : 65535U))
@@ -1048,8 +1048,7 @@ try
     result.make = raw.idata.make;
     result.model = raw.idata.model;
     result.dng_opcodes = std::move(dng_opcodes).value();
-    result.exposure_deflicker_black_level =
-        static_cast<std::uint16_t>(result.black_level);
+    result.exposure_deflicker_black_level = static_cast<std::uint16_t>(result.black_level);
     const unsigned deflicker_white = raw.rawdata.color.linear_max[0] != 0U ?
                                          raw.rawdata.color.linear_max[0] :
                                          raw.rawdata.color.maximum;
@@ -1139,15 +1138,18 @@ try
         {
             const auto active_y = region.value().relative_top + y;
             const auto active_x = region.value().relative_left + x;
-            const int channel = xtrans ? raw.idata.xtrans[active_y % 6U][active_x % 6U] :
-                decoder.value()->COLOR(static_cast<int>(region.value().top + y),
-                                       static_cast<int>(region.value().left + x));
+            const int channel =
+                xtrans ? raw.idata.xtrans[active_y % 6U][active_x % 6U] :
+                         decoder.value()->COLOR(static_cast<int>(region.value().top + y),
+                                                static_cast<int>(region.value().left + x));
             if (channel < 0 || channel > 3)
             {
                 return make_error(ErrorCode::kUnsupported, "Unsupported RAW black-level channel");
             }
-            const auto grid = black_count == 0U ? 0U :
-                black[6U + (active_y % black_rows) * black_columns + active_x % black_columns];
+            const auto grid =
+                black_count == 0U ?
+                    0U :
+                    black[6U + (active_y % black_rows) * black_columns + active_x % black_columns];
             const std::uint64_t residual =
                 static_cast<std::uint64_t>(black[channel] - channel_min) + grid - grid_min;
             result.pixels[static_cast<std::size_t>(row_offset) + x] =
@@ -1331,6 +1333,11 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
             const std::uint64_t coordinate_bytes =
                 saturating_multiply(coordinate_count, sizeof(int));
             add_working_bytes(std::max(sample_bytes, coordinate_bytes));
+        }
+        if (operation.id == "ravo.detail.clarity")
+        {
+            // Lab L/a/b, single blurred lightness plane and one pass scratch.
+            add_working_bytes(saturating_multiply(output_pixels, 5U * sizeof(float)));
         }
         if (operation.id == "ravo.raw.cacorrect")
         {

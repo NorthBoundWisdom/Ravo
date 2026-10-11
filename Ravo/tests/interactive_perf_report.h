@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -69,6 +70,7 @@ struct CaseMeta
     std::optional<std::int64_t> peak_owned_bytes;
     std::optional<double> display_refresh_hz;
     std::optional<std::uint32_t> max_edge;
+    JsonValue::Object workload;
 };
 
 [[nodiscard]] inline std::string env_or_empty(const char *name)
@@ -158,6 +160,8 @@ struct CaseMeta
         object.emplace("display_refresh_hz", nullptr);
     if (meta.max_edge)
         object.emplace("max_edge", JsonValue::number(std::to_string(*meta.max_edge)));
+    if (!meta.workload.empty())
+        object.emplace("workload", meta.workload);
     JsonValue::Array sample_array;
     sample_array.reserve(samples.size());
     for (const auto sample : samples)
@@ -186,10 +190,15 @@ inline void emit_case(const CaseMeta &raw_meta, const std::vector<std::int64_t> 
     const std::filesystem::path path{report_path};
     if (path.has_parent_path())
         std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec)
+        throw std::runtime_error("Cannot create performance report directory: " + ec.message());
     std::ofstream file(path, std::ios::app);
     if (!file)
-        return;
+        throw std::runtime_error("Cannot open performance report: " + report_path);
     file << serialize_json(json) << '\n';
+    file.flush();
+    if (!file)
+        throw std::runtime_error("Cannot write performance report: " + report_path);
 }
 
 [[nodiscard]] inline std::size_t warmups_from_env(std::size_t fallback = kDefaultWarmups)

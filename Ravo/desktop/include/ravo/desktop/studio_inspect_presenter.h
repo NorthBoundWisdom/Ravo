@@ -98,6 +98,9 @@ public:
     [[nodiscard]] std::uint32_t frameWidth() const noexcept;
     [[nodiscard]] std::uint32_t frameHeight() const noexcept;
     [[nodiscard]] QString frameColorProfile() const;
+    // GUI-only value observation from the last accepted PreviewResult; empty
+    // means no GPU backend was reported. Does not initialize a device.
+    [[nodiscard]] QString lastPreviewGpuBackend() const;
     void bindDisplayPresentation(StudioDisplayPresentation *owner);
     struct DisplayPreparation
     {
@@ -222,6 +225,7 @@ private:
     std::uint32_t live_preview_width_ = 0;
     std::uint32_t live_preview_height_ = 0;
     QString live_preview_color_profile_id_;
+    QString last_preview_gpu_backend_;
     mutable QMutex preview_image_mutex_;
     QString zoom_mode_{QStringLiteral("fit")};
     double zoom_factor_ = 1.0;

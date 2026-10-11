@@ -55,6 +55,12 @@ can use the Engine QRhi GPU adapter; remaining stages use the declared hybrid
 path. macOS can present an owned IOSurface. Persisted previews, export, CLI PNG
 and gold tests use CPU pixels. This is not blanket GPU support on every host.
 
+Warm strength/chroma edits for an unmasked profile-denoise operation at the end
+of the interactive prefix reuse an exact bounded Engine basis. Radius changes
+rebuild it; nonterminal denoise keeps ordinary evaluation. Unsupported
+mask combinations retain their existing structured rejection.
+This does not change cold RAW preparation or export quality.
+
 ### Supported media
 
 - JPEG, PNG, supported TIFF/BigTIFF layouts, BMP, GIF and WebP.

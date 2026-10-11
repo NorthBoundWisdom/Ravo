@@ -216,19 +216,35 @@ horizontal_interval(const std::array<PerspectivePoint, 4> &quad, const double y)
     PerspectiveRect best{};
     double best_area = 0.0;
     const double initial_step = (maximum_y - minimum_y) / static_cast<double>(kSafeCropSamples);
+    // The grid uses the same 193 ordinates in every pair. Evaluate each scanline
+    // intersection once; preserve the pair search and its strict tie order.
+    std::array<double, kSafeCropSamples + 1U> ordinates{};
+    std::array<std::optional<std::pair<double, double>>, kSafeCropSamples + 1U> intervals{};
+    for (std::size_t index = 0U; index <= kSafeCropSamples; ++index)
+    {
+        ordinates[index] = minimum_y + static_cast<double>(index) * initial_step;
+        intervals[index] = horizontal_interval(quad, ordinates[index]);
+    }
     for (std::size_t top_index = 0U; top_index < kSafeCropSamples; ++top_index)
     {
-        const double top = minimum_y + static_cast<double>(top_index) * initial_step;
+        const double top = ordinates[top_index];
         for (std::size_t bottom_index = top_index + 1U; bottom_index <= kSafeCropSamples;
              ++bottom_index)
         {
-            const double bottom = minimum_y + static_cast<double>(bottom_index) * initial_step;
-            PerspectiveRect candidate{};
-            const double area = crop_area(quad, top, bottom, &candidate);
+            const double bottom = ordinates[bottom_index];
+            if (!(bottom > top) || !intervals[top_index] || !intervals[bottom_index])
+                continue;
+            const double left =
+                std::max(intervals[top_index]->first, intervals[bottom_index]->first);
+            const double right =
+                std::min(intervals[top_index]->second, intervals[bottom_index]->second);
+            if (!(right > left))
+                continue;
+            const double area = (right - left) * (bottom - top);
             if (area > best_area)
             {
                 best_area = area;
-                best = candidate;
+                best = {left, top, right, bottom};
             }
         }
     }
@@ -304,16 +320,23 @@ void sample_lanczos(const LinearWorkingBuffer &input, const double x, const doub
     const int center_y = static_cast<int>(std::floor(y));
     std::array<double, 3> sums{};
     double weight_sum = 0.0;
+    // Horizontal weights depend on x alone. Hoist their transcendental
+    // evaluation without changing any sample, multiply or accumulation order.
+    std::array<double, 6> horizontal_weights{};
+    const int first_x = std::max(0, center_x - radius + 1);
+    const int last_x = std::min(static_cast<int>(input.width) - 1, center_x + radius);
+    for (int sample_x = first_x; sample_x <= last_x; ++sample_x)
+        horizontal_weights[static_cast<std::size_t>(sample_x - first_x)] =
+            lanczos_weight(x - static_cast<double>(sample_x), radius);
     for (int sample_y = center_y - radius + 1; sample_y <= center_y + radius; ++sample_y)
     {
         if (sample_y < 0 || sample_y >= static_cast<int>(input.height))
             continue;
         const double wy = lanczos_weight(y - static_cast<double>(sample_y), radius);
-        for (int sample_x = center_x - radius + 1; sample_x <= center_x + radius; ++sample_x)
+        for (int sample_x = first_x; sample_x <= last_x; ++sample_x)
         {
-            if (sample_x < 0 || sample_x >= static_cast<int>(input.width))
-                continue;
-            const double weight = wy * lanczos_weight(x - static_cast<double>(sample_x), radius);
+            const double weight =
+                wy * horizontal_weights[static_cast<std::size_t>(sample_x - first_x)];
             const std::size_t index = (static_cast<std::size_t>(sample_y) * input.width +
                                        static_cast<std::size_t>(sample_x)) *
                                       3U;

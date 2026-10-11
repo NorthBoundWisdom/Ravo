@@ -91,7 +91,8 @@ void apply_contrast(WorkingImage &image, double amount);
 [[nodiscard]] Result<void> apply_vibrance_saturation(WorkingImage &image, double vibrance,
                                                      double saturation,
                                                      const CancellationToken &cancellation);
-void apply_clarity(WorkingImage &image, double amount);
+[[nodiscard]] Result<void> apply_clarity(WorkingImage &image, double amount,
+                                         const CancellationToken &cancellation);
 void apply_soften(WorkingImage &image, double amount);
 void apply_bloom(WorkingImage &image, double amount);
 [[nodiscard]] Result<void> apply_vignette(WorkingImage &image, double amount, double midpoint,

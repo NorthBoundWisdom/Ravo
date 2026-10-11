@@ -518,7 +518,11 @@ The smoke also transitions the menu bar between zero and visible client-area
 height and checks that Import starts immediately below it, with no stale
 automatic top inset. Native system-menu objects and commands remain present.
 The smoke checks equal-width destination mode segments and C++-owned Move
-availability, matching source/destination tree surfaces, inline month/count styling and final scroll
+availability, including the whole panel's work/preflight/interaction blocking
+state. It waits for those bindings and geometry to converge within five seconds;
+the equal-width/height tolerances remain unchanged. This avoids treating an
+intentionally disabled ancestor as a Move-policy or layout failure.
+It checks matching source/destination tree surfaces, inline month/count styling and final scroll
 visibility with dozens of Home siblings and deferred ancestor listings, absence
 of a separate preview list, adaptive tree growth and collapse/Add sizing,
 and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.
@@ -2034,6 +2038,47 @@ timings do not make the normal contract suite flaky.
 <a id="interactive-performance-comparison"></a>
 ### Interactive performance comparison
 
+The CPU spatial optimizations in
+[ADR-0173](adr/0173-exact-cpu-spatial-processing.md) retain all dehaze oracle and
+frozen RAW tests. Odd/portrait/tile-boundary cases cover compensated box-mean
+lanes. `EngineSpatialCpuTest` compares clarity float bits to the preceding serial
+RGB blur over signed/HDR inputs, checks cancellation, and accounts for its five
+scratch planes. `PerspectiveTest` retains interpolation goldens and compares
+float bits with an unhoisted Lanczos evaluator, including invalid edge taps.
+Run these before the full unit/contract suite and the same-source matrix:
+
+```text
+cmake --build --preset mac_clang_release --target ravo_contract_tests RavoCodeQuality
+build/mac_clang_release/Ravo/tests/ravo_contract_tests --gtest_filter='Dehaze*.*:EngineSpatialCpuTest.*:Perspective*.*'
+```
+
+When comparing preceding/current binaries, retain their hashes and source
+provenance, use the same dependencies, monitor, source and workload, and run
+sequentially without concurrent tests/builds. Kernel timings do not substitute
+for intent-to-owned-image P90; a repeated run must preserve qualified pixel
+response and original/recipe/history hashes.
+
+`ProfileDenoisePreviewTest` covers the ADR-0174 float basis/mix equivalence,
+signed/HDR inputs, true-dependency changes, payload admission, no-ops,
+cancellation, errors and moves. Engine dispatch sweeps compare ordinary output
+and exercise nonterminal recipes and unchanged masked-operation rejection.
+`RawPreparationPerfTest` compares CFA
+lookup to generic modulo and opposed averages to the preceding three-root
+evaluator, with exact float bits and edge/tiny frames. Existing profile-denoise
+and RAW highlight fixtures remain enabled. Run with:
+
+```text
+build/mac_clang_release/Ravo/tests/ravo_contract_tests --gtest_filter='ProfileDenoise*.*:RawPreparationPerfTest.*:EngineFacadeTest.RawHighlight*:EngineFacadeTest.InteractivePrefixCache*'
+```
+
+For RAW preparation, separately time original histogram/copy, highlight
+reconstruction, demosaic and Input Color using the actual Engine functions.
+Opposed reconstruction is sequential by contract; a row-parallel rewrite is
+not an equivalent optimization. Verify preceding/current CPU probe RGB and ICC
+hashes through the real CLI, then rerun complete WB/denoise intents through the
+monitor-bound matrix. Warm strength/chroma reuse does not imply cold wavelets,
+radius/noise changes or all RAW preparation meet that same latency.
+
 The pinned LightCraft reference is
 [`0ba118de`'s benchmark](https://github.com/storytold/lightcraft/blob/0ba118de92a81f7463ca0e6d79e1323137b1adae/crates/engine/examples/render_bench.rs)
 and its [measurement scope](https://github.com/storytold/lightcraft/blob/0ba118de92a81f7463ca0e6d79e1323137b1adae/docs/gpu-pipeline.md#measurements).
@@ -2089,6 +2134,50 @@ performance budget. Separate transform construction, row evaluation, worker
 startup/join, packing and surface publication before choosing an optimization.
 Adoption work and unverified targets remain in
 [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md).
+
+The repository-owned runner creates a new private catalog through CLI, imports
+one explicit RAW in place, and executes the Studio numeric matrix plus the
+960/1600/1920px CPU-pixel service probes sequentially:
+
+```sh
+python3 Ravo/tools/measure_interactive_preview.py \
+  --build-dir build/mac_clang_release \
+  --input Ravo/tests/fixtures/frozen/images/hlrecovery.arw \
+  --report-dir /tmp/ravo-preview-matrix-new
+```
+
+It requires an already-built single-config Release tree and 30–1000 samples;
+it neither builds nor changes dependencies. Output must be a new directory
+outside the repository. Explicit executable overrides support alternate host
+layouts. `ravo.interactive-benchmark/v1` records source/binary/harness hashes,
+source commit, combined staged/unstaged diff identity, untracked first-party
+source hashes, baseline recipe/history, and preservation
+readbacks. Missing/duplicate measurement rows or any subprocess failure make the
+run fail. Report write errors also fail their GoogleTest case.
+
+`MeasuresNumericControlMatrixWithMonitor` uses a fresh Presenter per field,
+two actual parameter warmups, and the existing numeric-intent owner for Exposure,
+Contrast, Highlights, Saturation, manual WB red coefficient, Sharpen, Denoise,
+Clarity, Dehaze and Straighten. It requires at least one changed pixel frame per
+field; signed controls include both directions around their baseline. Dehaze's
+negative values add haze, and its positive interval can be pixel-invariant for a
+particular scene. Each sample records `pixel_changed_from_previous`; unresponsive
+samples are preserved explicitly and cannot qualify a performance budget.
+The optional `workload` object in `ravo.perf01.report/v1` uses
+`ravo.perf01.numeric-workload/v1`: ordered parameter values, output dimensions
+and reported GPU backend per sample, monitor profile fingerprint, output profile,
+exact-table bytes and explicit measurement boundaries. Backend observations come
+from accepted PreviewResults, never device discovery or log parsing. They report
+GPU use, not an assertion that every operation ran on GPU. No recipe is saved.
+Timing excludes the subsequent pixel-change check and physical presentation.
+
+The service probe now reports microseconds and ordered JSONL samples with
+`ravo.perf01.service-workload/v1`, including actual dimensions, output-profile
+fingerprints, reported backends, parameters and `need_cpu_pixels=true`.
+Its baseline warmup and optional separate settled-lane warmup remain distinct
+from the Studio matrix's two true parameter warmups. The human-readable service
+summary uses `_us` suffixes; `RAVO_INTERACTIVE_PERF_P90_BUDGET_MS` remains in ms
+and is converted explicitly at the comparison boundary.
 
 The opt-in `InteractivePreviewPerformanceProbe` warms both live and settled
 working slots, then measures a non-persistent Develop parameter sweep through

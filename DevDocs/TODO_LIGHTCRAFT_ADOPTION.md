@@ -34,17 +34,21 @@ IQ-00，现有 RAW/profile、Lightroom、架构重构任务仍归各自 TODO。�
 - [ ] 在同一台机器、同一源图及相同输出尺寸/颜色合同下运行；分别记录原片尺寸、
   prepared 尺寸、输出尺寸、像素数、有效配方、CPU/GPU、质量、mask/ICC 与缓存状态。
   无法构建参考项目或缺少同图时明确标记未验证，不给跨项目速度倍数。
-- [ ] 至少覆盖曝光/对比度/饱和度、白平衡、锐化、降噪、清晰度/去雾、局部蒙版、
-  几何与 1:1 ROI；加入典型复杂配方，不能只测 identity 或删掉默认锐化。
+- [ ] 在现有常用数值/空间字段矩阵之外，补局部蒙版、1:1 ROI、典型复杂配方、
+  多相机/高 ISO 与多 profile 的场景；不能只测 identity 或删掉默认锐化。
 - [ ] 先暖机，再采集至少 30 个真实参数变动样本及持续拖动/快速突发样本；记录
   min/P50/P90/P95/max、掉帧/合并、峰值 owned bytes、缓存与上传命中。
 - [ ] 暖机须完成真实参数变化的 processing/GPU/prefix 路径；仅显示 cached settled
   图片不算暖机。补齐首次拖动、GPU/shader 冷启动与真正 warm burst 的独立场景。
-- [ ] 将 service probe 的整数毫秒扩为可核对的微秒统计；补实际尺寸、配方、backend、
-  profile、线程与资源 metadata，不能把未填字段的历史报告用于口径匹配。
+- [ ] 补 prepared 尺寸、阶段缓存/上传命中、线程和峰值资源 metadata；现有微秒
+  service probe 与参数矩阵按 [TESTING.md](TESTING.md#interactive-performance-comparison)
+  重跑。未填字段、旧整数毫秒日志不能用于口径匹配。
 - [ ] 分解计时：输入分派/排队、catalog/source 验证、Recipe 构造/校验、解码/准备、
   prefix 与空间阶段、GPU upload/copy/dispatch/submit/wait/readback、RGB8 owned handoff、
   ICC、GUI publication、hash/scopes、真实 native frame swap。
+- [ ] 继续调查去雾正向区间的场景无响应与剩余高耗时，分解源准备、环境光和
+  传输率下限；补有雾/HDR/正负强度 corpus。按现有 CPU oracle 验证优化，语义
+  改动单独决策；不得用无响应样本通过速度门槛。
 - [ ] 将显示 owner 绑定/解除绑定的诊断对照纳入可复跑测量，交错顺序并记录真实
   monitor profile；解除绑定只用于归因，不作为正确显示结果或性能达标路径。
 - [ ] 记录实际执行过的阶段、dispatch、字节复制、readback、分配和线程创建次数。
@@ -63,6 +67,12 @@ IQ-00，现有 RAW/profile、Lightroom、架构重构任务仍归各自 TODO。�
   分层，列出 Ravo 每个阶段真正读取的参数、源 generation、几何、颜色与 mask 输入。
 - [ ] 依据 LC-00 结果扩展现有 `InteractivePreviewRenderCache`，评估可安全复用的
   几何结果、profile/preprocess、降噪与空间中间量；只失效真实依赖的阶段及其后继。
+- [ ] 优先分解白平衡/去雾的 RAW 准备重算和几何密度变化导致的 prepared miss；
+  缓存边界必须保留白平衡逐样本舍入、demosaic、去雾与 Input Color 的原顺序。
+  不把大尺寸 working 二次缩放的结果假定为直接准备的逐位等价结果。
+- [ ] 在末尾未蒙版降噪 basis 复用之外，分解冷 wavelet/MAD、半径/噪声输入变化
+  和复杂多阶段配方成本；评估 mask/非末尾阶段复用前先冻结 owned-byte 上限与
+  所有真实输入的失效合同，保留 uncached CPU 等价和取消。
 - [ ] 保留 Ravo 现有算法顺序。不得为仿照参考缓存，把依赖曝光结果的 Lab 锐化等
   空间运算移动到曝光之前，或在输入变化后复用其旧中间量。
 - [ ] 评估 per-view、分辨率/ROI generation 有界缓存与 GPU 常驻；分析全图/ROI、

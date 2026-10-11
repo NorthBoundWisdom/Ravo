@@ -1,5 +1,19 @@
 # Ravo Migration Policy
 
+2026-10-11: [ADR-0175](adr/0175-exact-raw-preparation-work.md) admits exact CFA
+lookup and opposed-highlight work reduction. Source-order reconstruction and
+rounding remain unchanged; row cancellation propagates through the RAW owner.
+
+2026-10-11: [ADR-0174](adr/0174-exact-denoise-preview-basis.md) admits a private
+64 MiB float-payload denoise basis in the existing interactive prefix cache.
+Only terminal unmasked strength/chroma mixing reuses it; wavelet math, source
+generation, CPU gold, cancellation and GPU admission contracts remain unchanged.
+
+2026-10-11: [ADR-0173](adr/0173-exact-cpu-spatial-processing.md) admits exact
+contiguous CPU dehaze lanes, single-plane clarity on existing owned row jobs,
+and exact perspective weight/intersection reuse. Algorithm order, floating recurrences,
+preview size and CPU/GPU admission bounds remain unchanged; no fallback is added.
+
 2026-10-11: [ADR-0172](adr/0172-borrowed-retained-native-preview.md) admits
 synchronous immutable-input borrowing for the existing retained macOS native
 GPU tail. Complete-tail admission precedes dispatch; shader mathematics, CPU

@@ -12,6 +12,7 @@ target_sources(ravo_engine
     src/bayer_demosaic.h
     src/capability_ops.cpp
     src/capability_raw.cpp
+    src/profile_denoise_preview.cpp
     src/capability_lens_color.cpp
     src/capability_color_equalizer.cpp
     src/capability_tone_equalizer.cpp

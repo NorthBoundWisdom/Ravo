@@ -952,6 +952,11 @@ ops, other RGB kernels, and export stay on CPU. IOSurface layout/lock/allocation
 failures are structured and publish no replacement snapshot. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
+Inspect retains the last accepted PreviewResult's reported GPU backend as a
+GUI-thread value observation for measurement. Reading it does not discover or
+initialize a device; failed preparation retains the previous observation and
+clearing the displayed frame clears it. It is not a renderer configuration or
+another image/state owner.
 
 Display ICC conversion belongs to `services/display_presentation.cpp`.
 `StudioInspectPresenter::apply_display_presentation_image` calls it synchronously
@@ -2293,6 +2298,46 @@ token; every invalid ambient/profile/scale/buffer/non-finite/allocation path
 publishes no output. The generic old guided-filter owner remains frozen for
 other unaccepted consumers. [ADR-0057](adr/0057-source-linear-dark-channel-dehaze.md)
 freezes these boundaries.
+
+CPU spatial processing follows [ADR-0173](adr/0173-exact-cpu-spatial-processing.md).
+Dehaze box means batch independent contiguous lanes without changing each
+lane's Kahan recurrence, source order or tile geometry. Clarity keeps one
+lightness plane and the original two radius-eight clamped float blur passes;
+Lab conversion, blur and mixing use the existing synchronous render-owned row
+executor. Its five float scratch planes enter RAW memory preflight. Jobs borrow
+buffers until the pass joins, allocate on the caller, and propagate cancellation
+or worker errors without publishing a partial image. Perspective keeps Lanczos
+and safe-crop mathematics while reusing each pixel's horizontal weights and
+each grid ordinate's intersections in bounded call-local arrays. No persistent
+spatial cache, approximation, extra executor or GPU admission is implied.
+
+The interactive prefix owner additionally holds at most one exact profile-denoise
+basis ([ADR-0174](adr/0174-exact-denoise-preview-basis.md)): its immutable
+pre-operation input and unblended reconstructed candidate. Only a last enabled,
+non-bypassed unmasked denoise operation qualifies. Serialized prefix identity
+normalizes strength/chroma only; radius, noise model, preceding operations,
+asset/masks and every other field invalidate it. The caller discards the whole
+interactive cache with its immutable working generation, as before. Cache hits
+use the ordinary mix equations and return distinct owned pixels on the existing
+row executor. Other supported recipes evaluate in their original order;
+unsupported mask combinations reject during validation before cache access.
+
+Retained denoise float payload is at most 64 MiB per Engine cache; two foreground
+service slots therefore retain at most 128 MiB extra float payload. Captured
+profile and key capacities are each bounded to 1 MiB. Replacement evicts the
+basis before allocating a new input/candidate, while the preceding accepted
+prefix/frame remains intact on failure. Cold capture adds two RGB planes to
+ordinary denoise scratch; tiny/no-op or over-budget inputs retain no basis.
+There is no new task owner, persistent state, GPU algorithm or export path.
+
+RAW preparation follows [ADR-0175](adr/0175-exact-raw-preparation-work.md).
+CFA periods specialize once per opposed reconstruction, and the reference
+average omits only the unused channel's cube root. Chrominance sums and in-place
+reconstruction remain in source order, including reads of updated neighbours.
+Row cancellation covers mask/dilation, reduction and reconstruction before
+float-to-RAW publication. The enclosing Engine request owns/discards prepared
+RAW on failure; no immutable-copy approximation or parallel reconstruction is
+introduced.
 
 Every decode/preview/render boundary carries explicit pixel format, alpha,
 source/target colour description, and profile state. UI, file name, or unmarked

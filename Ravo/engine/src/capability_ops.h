@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 #include "image_ops.h"
 #include "raw_pipeline.h"
 #include "ravo/recipe/recipe.h"
@@ -14,7 +16,15 @@ namespace ravo
                                                 const CancellationToken &cancellation);
 [[nodiscard]] Result<void> apply_denoise_profile(WorkingImage &image,
                                                  const OperationInstance &operation,
-                                                 const CancellationToken &cancellation);
+                                                 const CancellationToken &cancellation,
+                                                 std::vector<float> *candidate = nullptr);
+// Candidate capture/mixing is synchronous and private to Engine. Capture must
+// not alias image.rgb; an empty capture denotes an ordinary no-op. Mixing
+// borrows an immutable, completely captured candidate until the call returns.
+[[nodiscard]] Result<void> mix_denoise_profile_candidate(WorkingImage &image,
+                                                         std::span<const float> candidate,
+                                                         const OperationInstance &operation,
+                                                         const CancellationToken &cancellation);
 [[nodiscard]] Result<void> apply_lens_correction(WorkingImage &image,
                                                  const OperationInstance &operation,
                                                  const CancellationToken &cancellation);

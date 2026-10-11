@@ -528,7 +528,12 @@ Result<WorkingImage> apply_recipe_ops(WorkingImage image, const Recipe &recipe,
         }
         if (operation.id == "ravo.detail.clarity")
         {
-            apply_clarity(image, parameter(operation, "amount", 0.0));
+            auto clarified =
+                apply_clarity(image, parameter(operation, "amount", 0.0), cancellation);
+            if (!clarified)
+            {
+                return clarified.error();
+            }
             continue;
         }
         if (operation.id == "ravo.effect.vignette")

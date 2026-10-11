@@ -364,6 +364,10 @@ void hsl_to_rgb(const float h, const float s, const float l, float &r, float &g,
 [[nodiscard]] std::uint8_t cfa_channel(const DecodedRaw &raw, const std::uint32_t x,
                                        const std::uint32_t y) noexcept
 {
+    if (raw.cfa_width == 2U && raw.cfa_height == 2U)
+        return raw.cfa_channels[(y & 1U) * 2U + (x & 1U)];
+    if (raw.cfa_width == 6U && raw.cfa_height == 6U)
+        return raw.cfa_channels[(y % 6U) * 6U + (x % 6U)];
     return raw.cfa_channels[(y % raw.cfa_height) * raw.cfa_width + (x % raw.cfa_width)];
 }
 
@@ -782,11 +786,22 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     return std::exp2(dens * clip01(0.5F + length));
 }
 
-[[nodiscard]] float calc_refavg(const std::vector<float> &input, const DecodedRaw &raw,
-                                const std::uint32_t width, const std::uint32_t height,
-                                const std::uint32_t row, const std::uint32_t col) noexcept
+template <std::uint32_t Period>
+[[nodiscard]] std::uint8_t fixed_cfa_channel(const DecodedRaw &raw, const std::uint32_t x,
+                                             const std::uint32_t y) noexcept
 {
-    const auto color = cfa_channel(raw, col, row);
+    if constexpr (Period == 0U)
+        return cfa_channel(raw, x, y);
+    else
+        return raw.cfa_channels[(y % Period) * Period + (x % Period)];
+}
+
+template <std::uint32_t Period>
+[[nodiscard]] float calc_refavg_impl(const std::vector<float> &input, const DecodedRaw &raw,
+                                     const std::uint32_t width, const std::uint32_t height,
+                                     const std::uint32_t row, const std::uint32_t col) noexcept
+{
+    const auto color = fixed_cfa_channel<Period>(raw, col, row);
     std::array<float, 3> mean{};
     std::array<float, 3> count{};
     const int dymin = std::max(0, static_cast<int>(row) - 1);
@@ -797,8 +812,8 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     {
         for (int dx = dxmin; dx < dxmax; ++dx)
         {
-            const auto c =
-                cfa_channel(raw, static_cast<std::uint32_t>(dx), static_cast<std::uint32_t>(dy));
+            const auto c = fixed_cfa_channel<Period>(raw, static_cast<std::uint32_t>(dx),
+                                                     static_cast<std::uint32_t>(dy));
             mean[c] += std::max(
                 0.0F, input[static_cast<std::size_t>(dy) * width + static_cast<std::uint32_t>(dx)]);
             count[c] += 1.0F;
@@ -807,11 +822,25 @@ void periodic_rbf_interpolate(std::array<float, kColorNodes> nodes, const float 
     for (int c = 0; c < 3; ++c)
     {
         const auto channel = static_cast<std::size_t>(c);
-        mean[channel] = count[channel] > 0.0F ? std::cbrt(mean[channel] / count[channel]) : 0.0F;
+        // Opposed reconstruction uses only the other two channel means.
+        mean[channel] = channel != color && count[channel] > 0.0F ?
+                            std::cbrt(mean[channel] / count[channel]) :
+                            0.0F;
     }
     const std::array<float, 3> opp{0.5F * (mean[1] + mean[2]), 0.5F * (mean[0] + mean[2]),
                                    0.5F * (mean[0] + mean[1])};
     return opp[color] * opp[color] * opp[color];
+}
+
+[[nodiscard]] float calc_refavg(const std::vector<float> &input, const DecodedRaw &raw,
+                                const std::uint32_t width, const std::uint32_t height,
+                                const std::uint32_t row, const std::uint32_t col) noexcept
+{
+    if (raw.cfa_width == 2U && raw.cfa_height == 2U)
+        return calc_refavg_impl<2U>(input, raw, width, height, row, col);
+    if (raw.cfa_width == 6U && raw.cfa_height == 6U)
+        return calc_refavg_impl<6U>(input, raw, width, height, row, col);
+    return calc_refavg_impl<0U>(input, raw, width, height, row, col);
 }
 
 void process_highlights_clip(std::vector<float> &buffer, const DecodedRaw &raw,
@@ -1026,9 +1055,14 @@ void process_highlights_inpaint(std::vector<float> &buffer, const DecodedRaw &ra
     buffer.swap(out);
 }
 
-void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &raw,
-                                const std::array<float, 3> &clips)
+template <std::uint32_t Period>
+Result<void> process_highlights_opposed_impl(std::vector<float> &buffer, const DecodedRaw &raw,
+                                             const std::array<float, 3> &clips,
+                                             const CancellationToken &cancellation)
 {
+    auto active = cancellation.check();
+    if (!active)
+        return active.error();
     const std::size_t width = raw.width;
     const std::size_t height = raw.height;
     const std::size_t mwidth = width / 3U;
@@ -1041,6 +1075,9 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
         bool any_clipped = false;
         for (std::size_t mrow = 0; mrow < mheight; ++mrow)
         {
+            active = cancellation.check();
+            if (!active)
+                return active.error();
             for (std::size_t mcol = 0; mcol < mwidth; ++mcol)
             {
                 std::array<char, 3> mbuff{};
@@ -1054,8 +1091,8 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
                         {
                             continue;
                         }
-                        const auto color = cfa_channel(raw, static_cast<std::uint32_t>(col),
-                                                       static_cast<std::uint32_t>(row));
+                        const auto color = fixed_cfa_channel<Period>(
+                            raw, static_cast<std::uint32_t>(col), static_cast<std::uint32_t>(row));
                         if (buffer[row * width + col] >= clips[color])
                         {
                             mbuff[color] = 1;
@@ -1076,6 +1113,9 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
             {
                 for (std::size_t row = 0; row < mheight; ++row)
                 {
+                    active = cancellation.check();
+                    if (!active)
+                        return active.error();
                     for (std::size_t col = 0; col < mwidth; ++col)
                     {
                         const std::size_t mx = row * mwidth + col;
@@ -1114,19 +1154,23 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
             std::array<float, 3> counts{};
             for (std::size_t row = 0; row < height; ++row)
             {
+                active = cancellation.check();
+                if (!active)
+                    return active.error();
                 for (std::size_t col = 0; col < width; ++col)
                 {
-                    const auto color = cfa_channel(raw, static_cast<std::uint32_t>(col),
-                                                   static_cast<std::uint32_t>(row));
+                    const auto color = fixed_cfa_channel<Period>(
+                        raw, static_cast<std::uint32_t>(col), static_cast<std::uint32_t>(row));
                     const float inval = buffer[row * width + col];
                     const std::size_t mx =
                         std::min(row / 3U, mheight - 1U) * mwidth + std::min(col / 3U, mwidth - 1U);
                     if (inval < clips[color] && inval > 0.2F * clips[color] &&
                         dilated[static_cast<std::size_t>(color) * msize + mx] != 0)
                     {
-                        sums[color] += inval - calc_refavg(buffer, raw, raw.width, raw.height,
-                                                           static_cast<std::uint32_t>(row),
-                                                           static_cast<std::uint32_t>(col));
+                        sums[color] +=
+                            inval - calc_refavg_impl<Period>(buffer, raw, raw.width, raw.height,
+                                                             static_cast<std::uint32_t>(row),
+                                                             static_cast<std::uint32_t>(col));
                         counts[color] += 1.0F;
                     }
                 }
@@ -1143,18 +1187,34 @@ void process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &ra
 
     for (std::uint32_t row = 0; row < raw.height; ++row)
     {
+        active = cancellation.check();
+        if (!active)
+            return active.error();
         for (std::uint32_t col = 0; col < raw.width; ++col)
         {
             const std::size_t index = static_cast<std::size_t>(row) * raw.width + col;
-            const auto color = cfa_channel(raw, col, row);
+            const auto color = fixed_cfa_channel<Period>(raw, col, row);
             const float inval = buffer[index];
             if (inval >= clips[color])
             {
-                const float ref = calc_refavg(buffer, raw, raw.width, raw.height, row, col);
+                const float ref =
+                    calc_refavg_impl<Period>(buffer, raw, raw.width, raw.height, row, col);
                 buffer[index] = std::max(inval, ref + chrominance[color]);
             }
         }
     }
+    return cancellation.check();
+}
+
+Result<void> process_highlights_opposed(std::vector<float> &buffer, const DecodedRaw &raw,
+                                        const std::array<float, 3> &clips,
+                                        const CancellationToken &cancellation)
+{
+    if (raw.cfa_width == 2U && raw.cfa_height == 2U)
+        return process_highlights_opposed_impl<2U>(buffer, raw, clips, cancellation);
+    if (raw.cfa_width == 6U && raw.cfa_height == 6U)
+        return process_highlights_opposed_impl<6U>(buffer, raw, clips, cancellation);
+    return process_highlights_opposed_impl<0U>(buffer, raw, clips, cancellation);
 }
 
 [[nodiscard]] Result<std::vector<float>> raw_to_float(const DecodedRaw &raw,

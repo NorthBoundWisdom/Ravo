@@ -8,6 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -631,6 +632,143 @@ TEST(StudioInteractivePreviewPerformanceProbe, MeasuresWarmBurstWithMonitorPrese
     {
         EXPECT_LE(first_us, std::stoll(budget) * 1000);
         EXPECT_LE(latest_us, std::stoll(budget) * 1000);
+    }
+}
+
+TEST(InteractivePerformanceReportTest, RejectsReportOutputFailure)
+{
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    ScopedEnvironmentVariable path("RAVO_INTERACTIVE_PERF_REPORT_PATH", directory.path().toUtf8());
+    CaseMeta meta;
+    meta.case_id = "output-failure";
+    std::ostringstream output;
+    EXPECT_THROW(interactive_perf_report::emit_case(meta, {1, 2}, output), std::runtime_error);
+}
+
+TEST(StudioInteractivePreviewPerformanceProbe, MeasuresNumericControlMatrixWithMonitor)
+{
+    const char *catalog = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (!catalog || !asset)
+        GTEST_SKIP() << "set an explicit private performance catalog and asset";
+    const auto runs = recorded_samples_from_env(30U);
+    ASSERT_GE(runs, 30U);
+    ASSERT_LE(runs, 1000U);
+    ensure_qt_core();
+    ravo::init_logging("ravo-numeric-control-matrix");
+    struct Control
+    {
+        const char *field;
+        std::function<double(const StudioDevelopPresenter &)> read;
+        double low, high, step;
+    };
+    const std::array<Control, 10> controls{{
+        {"exposure", [](const auto &d) { return d.editExposure(); }, -2.0, 2.0, .01},
+        {"contrast", [](const auto &d) { return d.editContrast(); }, -.7, .7, .03},
+        {"highlights", [](const auto &d) { return d.editHighlights(); }, -.7, .7, .03},
+        {"saturation", [](const auto &d) { return d.editSaturation(); }, -.7, .7, .03},
+        {"whiteBalanceRed",
+         [](const auto &d) { return d.editWhiteBalance().value("red").toDouble(); }, .5, 4.0, .03},
+        {"sharpen", [](const auto &d) { return d.editSharpen(); }, .2, 1.7, .03},
+        {"denoise", [](const auto &d) { return d.editDenoise(); }, .2, .7, .03},
+        {"clarity", [](const auto &d) { return d.editClarity(); }, .2, .7, .03},
+        {"dehaze", [](const auto &d) { return d.editDehaze(); }, -.7, .7, .03},
+        {"straighten", [](const auto &d) { return d.editStraighten(); }, .5, 2.0, .1},
+    }};
+    for (const auto &control : controls)
+    {
+        SCOPED_TRACE(control.field);
+        StudioDisplayPresentation display;
+        ASSERT_TRUE(display.valid());
+        StudioPresenter presenter;
+        presenter.bindDisplayPresentation(&display);
+        presenter.openCatalogFromPath(QString::fromUtf8(catalog));
+        ASSERT_TRUE(
+            wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000));
+        presenter.selectAsset(QString::fromUtf8(asset));
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                return presenter.selectedAssetId() == QString::fromUtf8(asset) && !presenter.busy();
+            },
+            30000));
+        presenter.setBrowseMode(QStringLiteral("develop"));
+        ASSERT_TRUE(wait_until(
+            [&] { return preview_settled(presenter) && presenter.develop()->canAdjustExposure(); },
+            30000));
+        const auto center =
+            std::clamp(control.read(*presenter.develop()), control.low, control.high);
+        std::vector<std::int64_t> samples;
+        JsonValue::Array values, sizes, backends, pixel_changes;
+        std::size_t changed = 0;
+        QImage previous_image;
+        for (std::size_t i = 0; i < runs + 2U; ++i)
+        {
+            const double value = center + (static_cast<int>(i % 7U) - 3) * control.step;
+            const auto previous_revision = presenter.inspect()->frameRevision();
+            auto elapsed = measure_until(
+                presenter,
+                [&]
+                {
+                    presenter.develop()->previewDevelopNumber(QString::fromUtf8(control.field),
+                                                              value);
+                },
+                [&]
+                {
+                    return presenter.inspect()->frameRevision() != previous_revision &&
+                           !presenter.inspect()->previewImage().isNull();
+                });
+            ASSERT_TRUE(elapsed) << presenter.errorText().toStdString();
+            ASSERT_NEAR(control.read(*presenter.develop()), value, 1e-12);
+            const auto image = presenter.inspect()->previewImage();
+            if (i >= 2U)
+            {
+                samples.push_back(*elapsed);
+                values.emplace_back(JsonValue::number(std::to_string(value)));
+                sizes.emplace_back(
+                    JsonValue::Array{JsonValue::number(std::to_string(image.width())),
+                                     JsonValue::number(std::to_string(image.height()))});
+                backends.emplace_back(
+                    presenter.inspect()->lastPreviewGpuBackend().isEmpty() ?
+                        "cpu" :
+                        presenter.inspect()->lastPreviewGpuBackend().toStdString());
+                const bool pixels_changed = image != previous_image;
+                pixel_changes.emplace_back(pixels_changed);
+                if (pixels_changed)
+                    ++changed;
+            }
+            previous_image = image;
+        }
+        EXPECT_GT(changed, 0U) << "A non-no-op pixel response is required";
+        CaseMeta meta;
+        meta.case_id = std::string("numeric_control_") + control.field;
+        meta.path = "develop_intent_to_owned_image";
+        meta.source_kind = presenter.selectedMediaType().toStdString();
+        meta.warmups = 2U;
+        meta.recorded_samples = runs;
+        meta.max_edge = kDefaultPreviewMaxEdge;
+        meta.asset_id = asset;
+        meta.catalog_path = catalog;
+        meta.gpu_backend = presenter.inspect()->lastPreviewGpuBackend().isEmpty() ?
+                               "cpu" :
+                               presenter.inspect()->lastPreviewGpuBackend().toStdString();
+        meta.workload = {
+            {"schema", "ravo.perf01.numeric-workload/v1"},
+            {"field", control.field},
+            {"values", std::move(values)},
+            {"output_sizes", std::move(sizes)},
+            {"gpu_backends", std::move(backends)},
+            {"changed_pixel_frames", JsonValue::number(std::to_string(changed))},
+            {"pixel_changed_from_previous", std::move(pixel_changes)},
+            {"monitor_profile_fingerprint", display.presentationState().profile_fingerprint},
+            {"render_output_profile", presenter.inspect()->frameColorProfile().toStdString()},
+            {"display_table_bytes",
+             JsonValue::number(
+                 std::to_string(presenter.inspect()->displayPreparation().cache->owned_bytes()))},
+            {"includes_monitor_presentation", true},
+            {"includes_native_frame_swap", false}};
+        emit_case(meta, samples);
     }
 }
 
