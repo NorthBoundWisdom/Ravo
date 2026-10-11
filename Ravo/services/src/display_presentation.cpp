@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <mutex>
 #include <new>
 #include <string>
 #include <system_error>
@@ -279,9 +280,10 @@ copy_display_icc_bytes(const CGDirectDisplayID display)
 
 [[nodiscard]] Result<CmsProfile> open_profile(const ColorProfileState &state, CmsContext &context)
 {
-    if (state.icc_bytes.empty())
+    if (state.icc_bytes.empty() || state.icc_bytes.size() > kMaxIccBytes)
     {
-        return make_error(ErrorCode::kValidation, "Colour profile lacks ICC bytes for presentation",
+        return make_error(ErrorCode::kValidation,
+                          "Colour profile ICC bytes are missing or exceed the presentation limit",
                           {{"identifier", state.identifier}});
     }
     CmsProfile profile(
@@ -445,6 +447,272 @@ apply_synthetic_matrix(const std::vector<std::uint8_t> &source_rgb8, std::uint32
 }
 
 } // namespace
+
+struct DisplayPresentationCache::Impl
+{
+    struct Entry
+    {
+        ColorProfileState source;
+        ColorProfileState monitor;
+        std::vector<std::uint32_t> pixels;
+    };
+    mutable std::mutex mutex;
+    std::mutex preparation_mutex;
+    std::uint64_t generation = 0;
+    std::shared_ptr<const Entry> entry;
+};
+
+DisplayPresentationCache::DisplayPresentationCache() noexcept = default;
+
+DisplayPresentationCache::~DisplayPresentationCache() = default;
+
+void DisplayPresentationCache::clear()
+{
+    const std::lock_guard initialization(impl_mutex_);
+    if (!impl_)
+        return;
+    const std::lock_guard lock(impl_->mutex);
+    ++impl_->generation;
+    impl_->entry.reset();
+}
+
+std::size_t DisplayPresentationCache::owned_bytes() const
+{
+    const std::lock_guard initialization(impl_mutex_);
+    if (!impl_)
+        return 0U;
+    const std::lock_guard lock(impl_->mutex);
+    return impl_->entry ? impl_->entry->pixels.size() * sizeof(std::uint32_t) : 0U;
+}
+
+Result<void> DisplayPresentationCache::prepare(const ColorProfileState &source_profile,
+                                               const DisplayPresentationState &presentation,
+                                               const CancellationToken &cancellation,
+                                               DisplayConversionObserver *observer)
+try
+{
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    if (!presentation.valid)
+        return make_error(ErrorCode::kValidation, "Display presentation state is not valid");
+    if (presentation.source == DisplayProfileSource::kSyntheticMatrix ||
+        presentation.source == DisplayProfileSource::kSyntheticLut)
+        return {};
+    std::uint64_t generation;
+    {
+        const std::lock_guard initialization(impl_mutex_);
+        // Lazy allocation stays inside this Result boundary. Construction and
+        // cache misses do not allocate an implementation or hide allocation errors.
+        if (!impl_)
+            impl_ = std::make_unique<Impl>();
+        const std::lock_guard lock(impl_->mutex);
+        generation = impl_->generation;
+    }
+    auto source = source_profile.icc_bytes.empty() ? make_srgb_color_profile() :
+                                                     Result<ColorProfileState>{source_profile};
+    if (!source)
+        return source.error();
+    if (source.value() == presentation.monitor_profile)
+        return {};
+    const std::lock_guard preparation_lock(impl_->preparation_mutex);
+    {
+        const std::lock_guard lock(impl_->mutex);
+        if (generation != impl_->generation)
+            return make_error(ErrorCode::kCancelled,
+                              "Display conversion preparation was superseded");
+        if (impl_->entry && impl_->entry->source == source.value() &&
+            impl_->entry->monitor == presentation.monitor_profile)
+            return cancellation.check();
+    }
+    CmsContext context;
+    if (context.get() == nullptr)
+        return make_error(ErrorCode::kInternal,
+                          "LittleCMS could not allocate a presentation context");
+    auto from = open_profile(source.value(), context);
+    if (!from)
+        return from.error();
+    auto to = open_profile(presentation.monitor_profile, context);
+    if (!to)
+        return to.error();
+    CmsTransform transform(cmsCreateTransformTHR(
+        context.get(), from.value().get(), TYPE_RGB_8, to.value().get(), TYPE_RGB_8,
+        INTENT_RELATIVE_COLORIMETRIC,
+        cmsFLAGS_NOCACHE | cmsFLAGS_NOOPTIMIZE | cmsFLAGS_BLACKPOINTCOMPENSATION));
+    if (transform.get() == nullptr)
+        return make_error(ErrorCode::kUnsupported,
+                          "LittleCMS could not create a monitor presentation transform");
+    constexpr std::uint32_t colors = 1U << 24U;
+    constexpr std::uint32_t batch = 4096U;
+    const auto workers = std::min(8U, std::max(1U, std::thread::hardware_concurrency()));
+    auto entry = std::make_shared<Impl::Entry>();
+    entry->source = std::move(source).value();
+    entry->monitor = presentation.monitor_profile;
+    entry->pixels.resize(colors);
+    // All allocations precede thread startup; worker bodies cannot throw.
+    std::array<std::vector<std::uint8_t>, 8> input, output;
+    for (unsigned k = 0; k < workers; ++k)
+    {
+        input[k].resize(batch * 3U);
+        output[k].resize(batch * 3U);
+    }
+    const auto fill = [&](unsigned k) noexcept
+    {
+        struct Observation
+        {
+            DisplayConversionObserver *sink;
+            ~Observation()
+            {
+                if (sink)
+                    sink->worker_stopped();
+            }
+        } observation{observer};
+        if (observer)
+            observer->worker_started(k != 0U);
+        for (std::uint32_t base = k * batch; base < colors; base += workers * batch)
+        {
+            if (cancellation.is_cancellation_requested())
+                return;
+            // clear()/profile changes invalidate preparation without waiting for
+            // a full enumeration. Hold the metadata lock for this check only.
+            {
+                const std::lock_guard lock(impl_->mutex);
+                if (generation != impl_->generation)
+                    return;
+            }
+            auto &in = input[k];
+            auto &out = output[k];
+            for (std::uint32_t i = 0; i < batch; ++i)
+            {
+                const auto rgb = base + i;
+                in[i * 3U] = static_cast<std::uint8_t>(rgb >> 16U);
+                in[i * 3U + 1U] = static_cast<std::uint8_t>(rgb >> 8U);
+                in[i * 3U + 2U] = static_cast<std::uint8_t>(rgb);
+            }
+            cmsDoTransform(transform.get(), in.data(), out.data(), batch);
+            for (std::uint32_t i = 0; i < batch; ++i)
+                entry->pixels[base + i] = static_cast<std::uint32_t>(out[i * 3U]) |
+                                          (static_cast<std::uint32_t>(out[i * 3U + 1U]) << 8U) |
+                                          (static_cast<std::uint32_t>(out[i * 3U + 2U]) << 16U);
+        }
+    };
+    {
+        DisplayConversionWorkers owned;
+        for (unsigned k = 1; k < workers; ++k)
+            owned.threads[k - 1U] = std::thread(fill, k);
+        fill(0U);
+    }
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    const std::lock_guard lock(impl_->mutex);
+    if (generation != impl_->generation)
+        return make_error(ErrorCode::kCancelled, "Display conversion preparation was superseded");
+    impl_->entry = std::move(entry);
+    return {};
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Display conversion cache allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+catch (const std::system_error &error)
+{
+    return make_error(
+        ErrorCode::kIo, "Unable to prepare display conversion cache",
+        {{"reason", "display_cache_worker_failed"}, {"detail", error.code().message()}});
+}
+
+Result<std::optional<DisplayPresentationRgb8>> DisplayPresentationCache::apply_if_prepared(
+    const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width, std::uint32_t height,
+    const ColorProfileState &source_profile, const DisplayPresentationState &presentation,
+    const CancellationToken &cancellation, DisplayConversionObserver *observer) const
+try
+{
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    if (!presentation.valid || width == 0U || height == 0U ||
+        width > std::numeric_limits<std::size_t>::max() / 3U / height ||
+        source_rgb8.size() != static_cast<std::size_t>(width) * height * 3U)
+        return make_error(ErrorCode::kValidation, "Display presentation RGB8 buffer is invalid");
+    std::shared_ptr<const Impl::Entry> entry;
+    {
+        const std::lock_guard initialization(impl_mutex_);
+        if (!impl_)
+            return std::optional<DisplayPresentationRgb8>{};
+        const std::lock_guard lock(impl_->mutex);
+        entry = impl_->entry;
+    }
+    if (!entry)
+        return std::optional<DisplayPresentationRgb8>{};
+    auto source = source_profile.icc_bytes.empty() ? make_srgb_color_profile() :
+                                                     Result<ColorProfileState>{source_profile};
+    if (!source)
+        return source.error();
+    if (entry->source != source.value() || entry->monitor != presentation.monitor_profile ||
+        presentation.source == DisplayProfileSource::kSyntheticMatrix ||
+        presentation.source == DisplayProfileSource::kSyntheticLut)
+        return std::optional<DisplayPresentationRgb8>{};
+    DisplayPresentationRgb8 result;
+    result.width = width;
+    result.height = height;
+    result.color_profile = presentation.monitor_profile;
+    result.rgb8.resize(source_rgb8.size());
+    const auto workers =
+        source_rgb8.size() < 512U * 1024U ?
+            1U :
+            std::min({8U, std::max(1U, std::thread::hardware_concurrency()), height});
+    const auto rows = [&](unsigned worker) noexcept
+    {
+        struct Observation
+        {
+            DisplayConversionObserver *sink;
+            ~Observation()
+            {
+                if (sink)
+                    sink->worker_stopped();
+            }
+        } observation{observer};
+        if (observer)
+            observer->worker_started(worker != 0U);
+        for (std::uint32_t y = worker; y < height; y += workers)
+        {
+            if (cancellation.is_cancellation_requested())
+                return;
+            const auto row_bytes = static_cast<std::size_t>(width) * 3U;
+            const auto start = static_cast<std::size_t>(y) * row_bytes;
+            for (std::size_t i = start; i < start + row_bytes; i += 3U)
+            {
+                const auto index = (static_cast<std::uint32_t>(source_rgb8[i]) << 16U) |
+                                   (static_cast<std::uint32_t>(source_rgb8[i + 1U]) << 8U) |
+                                   source_rgb8[i + 2U];
+                const auto pixel = entry->pixels[index];
+                result.rgb8[i] = static_cast<std::uint8_t>(pixel);
+                result.rgb8[i + 1U] = static_cast<std::uint8_t>(pixel >> 8U);
+                result.rgb8[i + 2U] = static_cast<std::uint8_t>(pixel >> 16U);
+            }
+        }
+    };
+    {
+        DisplayConversionWorkers owned;
+        for (unsigned worker = 1U; worker < workers; ++worker)
+            owned.threads[worker - 1U] = std::thread(rows, worker);
+        rows(0U);
+    }
+    if (auto active = cancellation.check(); !active)
+        return active.error();
+    return std::optional<DisplayPresentationRgb8>{std::move(result)};
+}
+catch (const std::bad_alloc &)
+{
+    return make_error(ErrorCode::kIo, "Display conversion allocation failed",
+                      {{"reason", "allocation_failed"}});
+}
+
+catch (const std::system_error &error)
+{
+    return make_error(
+        ErrorCode::kIo, "Unable to start display cache lookup worker",
+        {{"reason", "display_worker_start_failed"}, {"detail", error.code().message()}});
+}
 
 Result<ColorProfileState> make_srgb_color_profile()
 {
@@ -709,7 +977,7 @@ Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
     const std::vector<std::uint8_t> &source_rgb8, const std::uint32_t width,
     const std::uint32_t height, const ColorProfileState &source_profile,
     const DisplayPresentationState &presentation, const CancellationToken &cancellation,
-    DisplayConversionObserver *observer)
+    DisplayConversionObserver *observer, const DisplayPresentationCache *cache)
 {
     if (!presentation.valid)
     {
@@ -721,6 +989,15 @@ Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
     if (width == 0 || height == 0 || source_rgb8.size() != expected)
     {
         return make_error(ErrorCode::kValidation, "Display presentation RGB8 buffer is invalid");
+    }
+    if (cache)
+    {
+        auto cached = cache->apply_if_prepared(source_rgb8, width, height, source_profile,
+                                               presentation, cancellation, observer);
+        if (!cached)
+            return cached.error();
+        if (cached.value())
+            return std::move(*cached.value());
     }
     if (presentation.source == DisplayProfileSource::kSyntheticMatrix)
     {

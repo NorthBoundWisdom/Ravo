@@ -741,6 +741,39 @@ TEST(EngineFacadeTest, GpuPreviewRgbStackKeepsShadowsSharpenAndSigmoidOnGpu)
     }
 }
 
+TEST(EngineFacadeTest, CompleteGpuTailRejectsCpuStagesMasksAndCancellation)
+{
+    const auto working = make_preview_working(16, 8);
+    Recipe recipe;
+    ExposureParams exposure;
+    exposure.exposure_ev = .25;
+    recipe.operations.push_back({std::string(kExposureOperationId), kExposureOperationSchemaVersion,
+                                 "exposure", true, exposure_to_parameters(exposure), std::nullopt});
+    auto full = gpu_preview_rgb_passes(working, recipe, {}, true);
+    ASSERT_TRUE(full);
+    ASSERT_TRUE(full.value());
+    ASSERT_EQ(full.value()->size(), 1U);
+    recipe.operations.push_back(
+        {"ravo.geometry.rotate", 1, "rotate", true, {{"quarters", 1.0}}, std::nullopt});
+    auto prefix = gpu_preview_rgb_passes(working, recipe, {});
+    ASSERT_TRUE(prefix);
+    ASSERT_TRUE(prefix.value());
+    EXPECT_EQ(prefix.value()->size(), 1U);
+    full = gpu_preview_rgb_passes(working, recipe, {}, true);
+    ASSERT_TRUE(full);
+    EXPECT_FALSE(full.value());
+    recipe.operations.back() = recipe.operations.front();
+    recipe.operations.back().mask_id = "local-mask";
+    full = gpu_preview_rgb_passes(working, recipe, {}, true);
+    ASSERT_TRUE(full);
+    EXPECT_FALSE(full.value());
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("closed"));
+    auto rejected = gpu_preview_rgb_passes(working, recipe, cancelled.token(), true);
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+}
+
 TEST(EngineFacadeTest, GpuRetainedSourceMatchesUploadedPassesWhenAvailable)
 {
     auto gpu = GpuAdapter::try_create();

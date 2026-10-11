@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -22,6 +23,7 @@
 
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/desktop/studio_display_presentation.h"
 #include "ravo/domain/types.h"
 #include "ravo/foundation/log.h"
 
@@ -530,6 +532,106 @@ TEST(StudioRapidRawTonePerformanceProbe, MeasuresAllToneControls)
     emit_case(meta, samples);
     if (const char *budget = std::getenv("RAVO_INTERACTIVE_PERF_P90_BUDGET_MS"))
         EXPECT_LE(interactive_perf_report::summarize(samples).p90, std::stoll(budget) * 1000);
+}
+
+TEST(StudioInteractivePreviewPerformanceProbe, MeasuresWarmBurstWithMonitorPresentation)
+{
+    const char *catalog = std::getenv("RAVO_INTERACTIVE_PERF_CATALOG");
+    const char *asset = std::getenv("RAVO_INTERACTIVE_PERF_ASSET_ID");
+    if (!catalog || !asset)
+        GTEST_SKIP() << "set an explicit private performance catalog and asset";
+    ensure_qt_core();
+    ravo::init_logging("ravo-desktop-command-tests");
+    StudioDisplayPresentation display;
+    ASSERT_TRUE(display.valid());
+    StudioPresenter presenter;
+    presenter.bindDisplayPresentation(&display);
+    presenter.openCatalogFromPath(QString::fromUtf8(catalog));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }, 30000));
+    presenter.selectAsset(QString::fromUtf8(asset));
+    ASSERT_TRUE(wait_until(
+        [&]
+        { return presenter.selectedAssetId() == QString::fromUtf8(asset) && !presenter.busy(); },
+        30000));
+    presenter.setBrowseMode(QStringLiteral("develop"));
+    ASSERT_TRUE(wait_until([&] { return preview_settled(presenter); }, 30000));
+    const double baseline = std::clamp(presenter.develop()->editExposure(), -2.8, 3.8);
+    for (int warmup = 0; warmup < 2; ++warmup)
+    {
+        const auto previous = presenter.inspect()->previewUrl();
+        ASSERT_TRUE(measure_until(
+                        presenter,
+                        [&]
+                        {
+                            presenter.develop()->previewDevelopNumber(
+                                QStringLiteral("exposure"), baseline + 0.01 * (warmup + 1));
+                        },
+                        [&]
+                        {
+                            return presenter.inspect()->previewUrl() != previous &&
+                                   !presenter.inspect()->previewImage().isNull();
+                        })
+                        .has_value());
+    }
+    const std::size_t count =
+        std::getenv("RAVO_INTERACTIVE_BURST_RUNS") ?
+            static_cast<std::size_t>(std::stoul(std::getenv("RAVO_INTERACTIVE_BURST_RUNS"))) :
+            40U;
+    ASSERT_GT(count, 1U);
+    ASSERT_LE(count, 128U);
+    const double last_value = baseline - 0.02 + static_cast<double>(count - 1U) * 0.001;
+    QElapsedTimer timer;
+    QEventLoop loop;
+    QTimer updates, timeout;
+    updates.setTimerType(Qt::PreciseTimer);
+    updates.setInterval(1);
+    timeout.setSingleShot(true);
+    std::size_t sent = 0;
+    std::optional<qint64> first_intent, last_intent, latest;
+    std::vector<std::int64_t> frames;
+    QObject::connect(&updates, &QTimer::timeout, &loop,
+                     [&]
+                     {
+                         const auto now = timer.nsecsElapsed() / 1000;
+                         if (!first_intent)
+                             first_intent = now;
+                         last_intent = now;
+                         presenter.develop()->previewDevelopNumber(
+                             QStringLiteral("exposure"),
+                             baseline - 0.02 + static_cast<double>(sent) * 0.001);
+                         if (++sent == count)
+                             updates.stop();
+                     });
+    QObject::connect(presenter.develop(), &StudioDevelopPresenter::interactivePreviewPublished,
+                     &loop,
+                     [&](qulonglong, qlonglong)
+                     {
+                         const auto now = timer.nsecsElapsed() / 1000;
+                         frames.push_back(now);
+                         const auto &shown = presenter.inspect()->displayedDevelop();
+                         if (sent == count && shown && shown->exposure_ev == last_value)
+                         {
+                             latest = now;
+                             loop.quit();
+                         }
+                     });
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timer.start();
+    updates.start();
+    timeout.start(5000);
+    loop.exec();
+    ASSERT_TRUE(first_intent && last_intent && latest);
+    ASSERT_FALSE(frames.empty());
+    const auto first_us = frames.front() - *first_intent;
+    const auto latest_us = *latest - *last_intent;
+    std::cerr << "studio_warm_display_burst_intents=" << count
+              << " published_frames=" << frames.size() << " first_intent_to_publish_us=" << first_us
+              << " latest_intent_to_publish_us=" << latest_us << '\n';
+    if (const char *budget = std::getenv("RAVO_INTERACTIVE_BURST_BUDGET_MS"))
+    {
+        EXPECT_LE(first_us, std::stoll(budget) * 1000);
+        EXPECT_LE(latest_us, std::stoll(budget) * 1000);
+    }
 }
 
 TEST(StudioGalleryViewerDevelopPerformanceProbe, LargeLibrarySyntheticPageObservation)

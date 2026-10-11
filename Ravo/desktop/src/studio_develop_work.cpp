@@ -579,8 +579,10 @@ void StudioDevelopPresenter::kick_develop_work()
     const auto catalog = catalog_path_;
     const auto session_generation = catalog_session_generation_;
     const auto load_generation = recipe_load_generation_;
+    const auto display_work = inspect_.displayPreparation();
     executor_.post(
-        [this, job, revision, cancellation, catalog, session_generation, load_generation]()
+        [this, job, revision, cancellation, catalog, session_generation, load_generation,
+         display_work]()
         {
             Result<RecipeSaveResult> saved =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -641,10 +643,26 @@ void StudioDevelopPresenter::kick_develop_work()
                         auto owned = own_preview_pixels_for_handoff(preview.value(), cancellation);
                         if (!owned)
                             preview = owned.error();
+                        if (preview && job.interactive && display_work.presentation)
+                        {
+                            auto prepared = display_work.cache->prepare(
+                                preview.value().color_profile, *display_work.presentation,
+                                request.cancellation);
+                            if (!prepared)
+                                preview = prepared.error();
+                        }
                     }
                 }
             }
             const bool recovery_due = job.save && save_ok;
+            // Publish the first settled image before warming an empty cache.
+            // Never evict a live-frame entry for a differently serialized settled
+            // output profile. This work is cancelled by a new intent.
+            const auto warm_display_source =
+                preview && !job.interactive && display_work.presentation &&
+                        display_work.cache->owned_bytes() == 0U ?
+                    std::optional<ColorProfileState>{preview.value().color_profile} :
+                    std::optional<ColorProfileState>{};
             QMetaObject::invokeMethod(
                 this,
                 [this, job, revision, catalog, session_generation, load_generation,
@@ -888,6 +906,27 @@ void StudioDevelopPresenter::kick_develop_work()
                     kick_develop_work();
                 },
                 Qt::QueuedConnection);
+            if (warm_display_source)
+            {
+                auto warmed = display_work.cache->prepare(*warm_display_source,
+                                                          *display_work.presentation, cancellation);
+                if (!warmed && warmed.error().code != ErrorCode::kCancelled)
+                {
+                    const auto failure = qstring_from_utf8(warmed.error().message);
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this, failure, catalog, session_generation, load_generation,
+                         asset_id = job.asset_id]
+                        {
+                            if (catalog_path_ == catalog &&
+                                catalog_session_generation_ == session_generation &&
+                                recipe_load_generation_ == load_generation &&
+                                utf8_from_qstring(selected_asset_id_) == asset_id)
+                                emit errorOccurred(failure);
+                        },
+                        Qt::QueuedConnection);
+                }
+            }
             if (recovery_due && host_.worker_develop_service() != nullptr)
             {
                 auto synchronized =

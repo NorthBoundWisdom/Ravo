@@ -1,5 +1,23 @@
 # Ravo Migration Policy
 
+2026-10-11: [ADR-0170](adr/0170-borrowed-retained-native-preview.md) admits
+synchronous immutable-input borrowing for the existing retained macOS native
+GPU tail. Complete-tail admission precedes dispatch; shader mathematics, CPU
+oracle, hybrid paths, cache identity and fail-closed GPU errors are unchanged.
+
+2026-10-11: [ADR-0169](adr/0169-exact-rgb8-display-transform-cache.md) admits a
+caller-owned exact RGB8 display-transform cache for the requested performance
+work. Cancellable preparation uses the existing Develop executor and unchanged
+LittleCMS evaluator. No GPU algorithm, colour tolerance, preview size, recipe,
+export, schema, global cache or executor policy changes are admitted by it.
+
+2026-10-11: the user-requested LightCraft adoption investigation is tracked in
+[TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md), starting with comparable
+Release interactive-render measurements under PERF-01. Measured optimizations
+remain subject to PERF-02 and IQ-00; current C++20/QRhi/shared-service ownership
+is unchanged. Models, semantic-result schemas, new formats/panorama scope and Web
+entry points remain explicit decision gates, not implemented capabilities.
+
 2026-10-11: [ADR-0168](adr/0168-ai-control-and-mcp.md) admits native local stdio
 MCP for the requested AI grading workflow. CLI remains the acceptance surface;
 read-only candidates, mask/history intents and per-photo batches use the existing

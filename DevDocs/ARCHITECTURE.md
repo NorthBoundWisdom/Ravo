@@ -902,7 +902,13 @@ and mathematics.
 The process-wide adapter reuses grow-only SSBOs, keeps the current CFA-window or
 interactive-prefix RGB resident as a GPU source so RGB sliders copy+apply
 without a CPU upload, and on macOS packs display sRGB into an IOSurface that
-Qt Quick samples. IOSurface `bytesPerRow` is 16-byte aligned so odd preview
+Qt Quick samples. [ADR-0170](adr/0170-borrowed-retained-native-preview.md) lets a
+fully admitted retained native tail borrow its immutable CPU source during the
+synchronous dispatch, avoiding an unused full float-image clone. Complete-tail
+classification rejects any CPU stage; primaries/profile conversion, overlays,
+CPU-pixel requests and hybrid recipes keep the ordinary path. Pass builders,
+shaders, source identity and structured GPU failures remain unchanged.
+IOSurface `bytesPerRow` is 16-byte aligned so odd preview
 widths are valid Metal textures. Catalog copies only the generation and
 native-surface token; it does not hold device objects. A pure Studio interactive
 Develop request skips the synchronous float-buffer readback. Desktop immediately
@@ -911,9 +917,9 @@ the result to UI, while the same completed IOSurface is still valid. Engine
 double-buffer tokens never cross that asynchronous handoff; resize, another
 render and delayed UI delivery cannot change the captured pixels. UI applies
 monitor presentation and publishes its own surface, so live identity and scopes
-describe the displayed pixels
-without delaying the canvas for CPU output conversion. The inspect ROI provider
-also owns that snapshot before its revision URL is published, including the
+describe the displayed pixels. This avoids the Engine float readback; the
+subsequent RGB8 display conversion still precedes image publication. The inspect
+ROI provider also owns that snapshot before its revision URL is published, including the
 GPU-only display path. Hidden CPU ROI items clear their source while the GPU
 surface is displayed, so they never request an unavailable provider image.
 Non-Metal hosts and
@@ -925,8 +931,27 @@ failures are structured and publish no replacement snapshot. Failures are
 fail-closed. Recipe, Catalog, CLI, and QML do not hold device objects.
 `catalog probe --json` reports `gpu_backend`.
 
-Display ICC conversion belongs to `services/display_presentation.cpp`. RGB8
-buffers below 512 KiB remain serial; larger conversions use at most eight
+Display ICC conversion belongs to `services/display_presentation.cpp`.
+`StudioInspectPresenter::apply_display_presentation_image` calls it synchronously
+on the GUI publication path, packing QImage rows into owned RGB8 and copying the
+converted rows back into a new QImage. Under
+[ADR-0169](adr/0169-exact-rgb8-display-transform-cache.md), Inspect owns one exact
+RGB8 transform cache shared across photos. Develop snapshots the monitor state
+on GUI and prepares the 64 MiB integer lookup table on its existing executor.
+Every RGB8 input is evaluated with the unchanged LittleCMS transform; lookup has
+no interpolation or precision loss. Exact source and destination profile values
+bind the cache, so a profile mismatch uses the existing uncached CPU evaluator.
+Profile change/close clears the entry and invalidates in-flight preparation.
+Preparation is serialized, bounded, cancellable per 4096 colours and scope-joined;
+replacement may temporarily retain a preceding 64 MiB immutable reader entry.
+The first settled image is queued before prewarming an empty cache; settled work
+does not evict a live-frame entry for a differently serialized output profile.
+A cold interactive request
+prepares before publication. Cold preparation and warm lookup are separate budgets.
+
+Each uncached ICC conversion constructs its own LittleCMS context,
+source/destination profiles and transform. RGB8
+buffers below 512 KiB remain serial; larger uncached conversions use at most eight
 scope-owned workers (including the caller), capped by hardware concurrency and
 row count. They share a read-only LittleCMS transform with `NOCACHE`, write
 disjoint rows and check cancellation before each row. All workers join before
@@ -938,22 +963,26 @@ failures are explicit and no partial output is published. `NOOPTIMIZE` remains
 enabled to preserve the serial evaluator's exact pixels, including LUT profiles.
 This reduces synchronous presentation latency without changing the recipe,
 Engine GPU path, export, or thread ownership outside a conversion call. Thread
-startup is paid per large conversion; no persistent pool or global cache is added.
+startup is paid per large conversion. Large exact lookups likewise use at most
+eight scope-owned row participants; small lookups remain serial. No persistent
+pool or global cache is added.
 
 For an ordinary commit whose parameters are not
 already displayed, Studio first saves
-atomically, publishes that 960px memory preview, then queues the same
+atomically, publishes its 1600px memory preview, then queues the same
 revision for an exact 1600px persisted preview. Foreground Develop and
 background Gallery work own separate bounded decode/working lanes; within the
 foreground lane, one linear-working slot is retained for each size class. A
 new decoded source, incompatible preprocess key, close, or destruction
-invalidates only the applicable lane. The 960px foreground slot additionally
-owns one exact serialized pre-light operation-prefix buffer and one reusable
-row team. Prefix identity includes operation order, parameters, enabled state,
-masks, and asset recipe identity; the containing working slot binds source,
+invalidates only the applicable lane. Foreground requests through the interactive
+cache path additionally own one exact serialized pre-light operation-prefix
+buffer and one reusable row team. Prefix identity includes operation order,
+parameters, enabled state, masks, and asset recipe identity; the containing working slot binds source,
 dimensions, profile/preprocess state, and lifetime. A changed prefix replaces
-the prior value only after successful completion. The 1600px and Gallery lanes
-do not retain this state. Active background preview work is
+the prior value only after successful completion. The service admits this path
+up to 960px, and up to 1600px for native-display requests that do not require CPU
+pixels. Standard CPU-pixel requests above 960px and Gallery requests use the
+ordinary render path. Active background preview work is
 cancelled for Develop, and queued foreground work leads normal work while
 preserving FIFO order within each priority. It must not fall back to embedded
 JPEG. CPU pixel rows use deterministic static partitions with at most 16

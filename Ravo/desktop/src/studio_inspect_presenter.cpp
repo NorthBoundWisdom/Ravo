@@ -194,6 +194,7 @@ void StudioInspectPresenter::shutdown()
     if (stopped_)
         return;
     stopped_ = true;
+    display_conversion_cache_->clear();
     clear_inspect_roi();
     releasePresentationResources();
     decoded_preview_images_.clear();

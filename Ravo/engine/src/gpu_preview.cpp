@@ -482,8 +482,8 @@ enum class PreviewOpClass : std::uint8_t
         pass.kind = GpuRgbPass::Kind::kRapidRawToneControls;
         pass.rapidraw_tone.width = working.width;
         pass.rapidraw_tone.height = working.height;
-        pass.rapidraw_tone.radius = rapidraw_tonal_blur_radius(
-            working.canonical_roi_scale.reference_short_edge());
+        pass.rapidraw_tone.radius =
+            rapidraw_tonal_blur_radius(working.canonical_roi_scale.reference_short_edge());
         pass.rapidraw_tone.ev_shift = static_cast<float>(parsed.value().ev_shift);
         pass.rapidraw_tone.exposure = static_cast<float>(parsed.value().exposure);
         pass.rapidraw_tone.contrast = static_cast<float>(parsed.value().contrast);
@@ -605,7 +605,7 @@ make_gpu_pass_consuming(const LinearWorkingBuffer &working, const Recipe &recipe
 
 Result<std::optional<std::vector<GpuRgbPass>>>
 gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
-                       const CancellationToken &cancellation)
+                       const CancellationToken &cancellation, const bool require_complete_tail)
 {
     std::vector<GpuRgbPass> passes;
     for (std::size_t index = 0U; index < recipe.operations.size();)
@@ -627,7 +627,7 @@ gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
         }
         if (classified.value() == PreviewOpClass::Cpu)
         {
-            if (passes.empty())
+            if (passes.empty() || require_complete_tail)
             {
                 return std::optional<std::vector<GpuRgbPass>>{};
             }

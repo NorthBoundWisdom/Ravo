@@ -938,6 +938,47 @@ namespace
     {
         return output_color.error();
     }
+#if defined(__APPLE__)
+    // ADR-0170: a retained all-GPU native tail borrows this immutable input
+    // only for the synchronous dispatch. Do not clone pixels that it never uses.
+    if (use_gpu && prefer_retained_source && !need_cpu_pixels && overlay_alpha == nullptr &&
+        working.color_profile.model == ColorModel::kRgb &&
+        working.color_profile.identifier == kInputProfileLinearRec709 &&
+        std::none_of(recipe.operations.begin(), recipe.operations.end(),
+                     [](const auto &op) { return op.enabled && op.id == kPrimariesOperationId; }))
+    {
+        ensure_gpu_adapter();
+        if (g_gpu_adapter && g_gpu_adapter->has_retained_source(working.width, working.height))
+        {
+            auto passes = gpu_preview_rgb_passes(working, recipe, cancellation, true);
+            if (!passes)
+                return passes.error();
+            if (passes.value() && !passes.value()->empty())
+            {
+                GpuRgbApplyOptions options;
+                options.download = false;
+                options.publish_display = true;
+                options.from_retained_source = true;
+                options.display_slot = display_slot;
+                options.publish_crop_x = display_publish_crop.x;
+                options.publish_crop_y = display_publish_crop.y;
+                options.publish_crop_w = display_publish_crop.width;
+                options.publish_crop_h = display_publish_crop.height;
+                auto rendered = apply_gpu_preview_rgb(working, *passes.value(), *g_gpu_adapter,
+                                                      cancellation, options);
+                if (!rendered)
+                    return rendered.error();
+                if (gpu_backend)
+                    *gpu_backend = std::string(g_gpu_adapter->backend_id());
+                ProfiledOutputBuffer result;
+                result.width = rendered.value().width;
+                result.height = rendered.value().height;
+                result.color_profile = std::move(rendered.value().color_profile);
+                return result;
+            }
+        }
+    }
+#endif
     WorkingImage image = working;
     Recipe remaining_recipe = recipe;
     for (auto &operation : remaining_recipe.operations)

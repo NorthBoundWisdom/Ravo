@@ -101,9 +101,37 @@ TEST(StudioGpuPreviewTest, PortraitRawNativePublicationMatchesCpuGold)
     auto recipe = recipe_from_develop({"portrait-probe", input.toStdString(), std::nullopt},
                                       develop_raw_import_baseline());
     ASSERT_TRUE(recipe) << recipe.error().message;
+    // Preserve source pixel density before constructing a portrait fixture.
+    // Stretching an arbitrary landscape RAW to 1066x1600 correctly invalidates
+    // canonical scale and cannot serve as a positive-radius sharpening oracle.
+    const auto source_width = decoded.value().width;
+    const auto source_height = decoded.value().height;
+    ASSERT_GT(source_width, 0U);
+    ASSERT_GT(source_height, 0U);
+    const auto width = source_width >= source_height ?
+                           1600U :
+                           static_cast<std::uint32_t>(static_cast<std::uint64_t>(source_width) *
+                                                      1600U / source_height);
+    const auto height = source_width >= source_height ?
+                            static_cast<std::uint32_t>(static_cast<std::uint64_t>(source_height) *
+                                                       1600U / source_width) :
+                            1600U;
     auto working =
-        engine.value().linear_working_from_raw(decoded.value(), recipe.value(), 1066U, 1600U, {});
+        engine.value().linear_working_from_raw(decoded.value(), recipe.value(), width, height, {});
     ASSERT_TRUE(working) << working.error().message;
+    ASSERT_TRUE(working.value().canonical_roi_scale.valid());
+    if (width > height)
+    {
+        auto rotated = working.value().rgb;
+        for (std::uint32_t y = 0; y < height; ++y)
+            for (std::uint32_t x = 0; x < width; ++x)
+                for (std::size_t c = 0; c < 3U; ++c)
+                    rotated[(static_cast<std::size_t>(x) * height + height - 1U - y) * 3U + c] =
+                        working.value().rgb[(static_cast<std::size_t>(y) * width + x) * 3U + c];
+        working.value().rgb = std::move(rotated);
+        std::swap(working.value().width, working.value().height);
+        // A quarter turn preserves pixel density and reference short edge.
+    }
     for (auto &operation : recipe.value().operations)
         if (operation.id == "ravo.raw.highlights")
             operation.enabled = false;

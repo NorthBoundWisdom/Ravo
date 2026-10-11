@@ -23,6 +23,15 @@ correctness reference.
 
 ## Queue discipline
 
+The user-requested LightCraft adoption queue is
+[TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md). Its first priority is
+LC-00: comparable Release parameter-render measurements and bottleneck attribution
+inside PERF-01, followed by measured LC-01/02 optimizations under PERF-02 and
+IQ-00. Complete this performance tranche before its broader feature-adoption
+work; existing source-safety/correctness blockers still take precedence. The
+queue does not admit Rust, a second renderer/UI, silent fallback, or unapproved
+models/formats; those expansion items retain explicit decision gates.
+
 The explicitly requested video work is bounded by
 [ADR-0165](adr/0165-video-library-and-playback.md). Host, audio and real-corpus
 qualification remains in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
@@ -278,7 +287,12 @@ residuals are hard. Harness expand:
 `LargeLibrarySyntheticPageObservation` seeds synthetic N metadata assets
 (default 1000, override `RAVO_PERF01_LARGE_LIBRARY_N`) and emits observation-only
 `large_library_page_first` samples — **not** a budget admit and **not** PERF-02.
-Do not start PERF-02 optimization work yet.
+Complete LC-00's remaining workload/profile/native-frame qualification in
+[TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md). Further PERF-02
+optimizations require a measured dominant owner and applicable IQ-00 gates;
+the historical observations above do not themselves admit a change. The current
+exact RGB8 display cache and borrowed native GPU input contracts belong to
+ADR-0169/0170 and the architecture/testing authorities.
 
 Measure complete user-visible paths with two warmups and at least eight recorded
 samples:

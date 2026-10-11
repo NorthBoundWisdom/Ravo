@@ -20,6 +20,7 @@
 #include "ravo/engine/engine.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/foundation/executor.h"
+#include "ravo/services/display_presentation.h"
 
 namespace ravo
 {
@@ -98,6 +99,13 @@ public:
     [[nodiscard]] std::uint32_t frameHeight() const noexcept;
     [[nodiscard]] QString frameColorProfile() const;
     void bindDisplayPresentation(StudioDisplayPresentation *owner);
+    struct DisplayPreparation
+    {
+        std::shared_ptr<DisplayPresentationCache> cache;
+        std::optional<DisplayPresentationState> presentation;
+    };
+    // GUI-only snapshot. The worker receives values and a cache, never a QObject.
+    [[nodiscard]] DisplayPreparation displayPreparation() const;
     void releasePresentationResources();
 
     ~StudioInspectPresenter() override;
@@ -194,6 +202,8 @@ private:
     Context context_;
     Host host_;
     QPointer<StudioDisplayPresentation> display_presentation_;
+    std::shared_ptr<DisplayPresentationCache> display_conversion_cache_ =
+        std::make_shared<DisplayPresentationCache>();
     QUrl preview_url_;
     QUrl comparison_before_url_;
     QImage preview_image_;

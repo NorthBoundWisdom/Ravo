@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <future>
+#include <atomic>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -1183,6 +1185,184 @@ TEST(DisplayPresentationColorTest, LutRowsCancellationAndSubsequentConversionSta
             EXPECT_EQ(actual.value().rgb8, expected);
             EXPECT_EQ(pixels, original);
         }
+    }
+}
+
+TEST(DisplayPresentationColorTest, ExactCacheMatchesEveryRgb8InputForMatrixAndLutProfiles)
+{
+    auto source = make_srgb_color_profile();
+    ASSERT_TRUE(source);
+    const auto matrix_bytes = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    const std::vector<std::uint8_t> matrix(matrix_bytes.cbegin(), matrix_bytes.cend());
+    const auto lut = rgb_output_lut_profile();
+    ASSERT_FALSE(lut.empty()) << output_lut_profile_error;
+    DisplayPresentationCache cache;
+    for (const auto &bytes : {matrix, lut})
+    {
+        DisplayPresentationState display;
+        display.valid = true;
+        display.monitor_profile.icc_bytes = bytes;
+        display.profile_fingerprint = color_profile_fingerprint(display.monitor_profile);
+        ASSERT_TRUE(cache.prepare(source.value(), display, {}));
+        EXPECT_EQ(cache.owned_bytes(), 64U * 1024U * 1024U);
+        std::vector<std::uint8_t> pixels(65536U * 3U);
+        // Complete finite RGB8 domain, not a coarse cube or tolerance check.
+        for (unsigned r = 0; r < 256U; ++r)
+        {
+            for (unsigned gb = 0; gb < 65536U; ++gb)
+            {
+                pixels[gb * 3U] = static_cast<std::uint8_t>(r);
+                pixels[gb * 3U + 1U] = static_cast<std::uint8_t>(gb >> 8U);
+                pixels[gb * 3U + 2U] = static_cast<std::uint8_t>(gb);
+            }
+            auto expected =
+                apply_display_presentation_rgb8(pixels, 65536U, 1U, source.value(), display, {});
+            auto actual = cache.apply_if_prepared(pixels, 65536U, 1U, source.value(), display, {});
+            ASSERT_TRUE(expected);
+            ASSERT_TRUE(actual);
+            ASSERT_TRUE(actual.value().has_value());
+            ASSERT_EQ(actual.value()->rgb8, expected.value().rgb8) << "red plane=" << r;
+            EXPECT_EQ(actual.value()->color_profile, display.monitor_profile);
+        }
+    }
+    cache.clear();
+    EXPECT_EQ(cache.owned_bytes(), 0U);
+}
+
+TEST(DisplayPresentationColorTest, ExactCacheRejectsStaleProfilesCancellationAndMalformedInputs)
+{
+    auto source = make_srgb_color_profile();
+    ASSERT_TRUE(source);
+    DisplayPresentationState display;
+    display.valid = true;
+    const auto p3 = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    display.monitor_profile.icc_bytes.assign(p3.cbegin(), p3.cend());
+    display.profile_fingerprint = "identifier-is-not-the-cache-key";
+    DisplayPresentationCache cache;
+    ASSERT_TRUE(cache.prepare(source.value(), display, {}));
+    const std::vector<std::uint8_t> pixels{0U, 1U, 255U, 127U, 128U, 129U};
+    auto hit = cache.apply_if_prepared(pixels, 2U, 1U, source.value(), display, {});
+    ASSERT_TRUE(hit);
+    ASSERT_TRUE(hit.value());
+    std::vector<std::uint8_t> odd_rows(1025U * 513U * 3U);
+    for (std::size_t i = 0; i < odd_rows.size(); ++i)
+        odd_rows[i] = static_cast<std::uint8_t>(i * 17U);
+    auto reference =
+        apply_display_presentation_rgb8(odd_rows, 1025U, 513U, source.value(), display, {});
+    auto parallel = cache.apply_if_prepared(odd_rows, 1025U, 513U, source.value(), display, {});
+    ASSERT_TRUE(reference);
+    ASSERT_TRUE(parallel);
+    ASSERT_TRUE(parallel.value());
+    EXPECT_EQ(parallel.value()->rgb8, reference.value().rgb8);
+    auto changed = display;
+    const auto adobe = QColorSpace(QColorSpace::AdobeRgb).iccProfile();
+    changed.monitor_profile.icc_bytes.assign(adobe.cbegin(), adobe.cend());
+    auto miss = cache.apply_if_prepared(pixels, 2U, 1U, source.value(), changed, {});
+    ASSERT_TRUE(miss);
+    EXPECT_FALSE(miss.value());
+    auto other_source = source.value();
+    other_source.icc_bytes = changed.monitor_profile.icc_bytes;
+    miss = cache.apply_if_prepared(pixels, 2U, 1U, other_source, display, {});
+    ASSERT_TRUE(miss);
+    EXPECT_FALSE(miss.value());
+    CancellationSource stopped;
+    ASSERT_TRUE(stopped.cancel("closed"));
+    auto cancelled = cache.prepare(source.value(), changed, stopped.token());
+    ASSERT_FALSE(cancelled);
+    EXPECT_EQ(cancelled.error().code, ErrorCode::kCancelled);
+    auto rejected =
+        cache.apply_if_prepared(pixels, 2U, 1U, source.value(), display, stopped.token());
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.error().code, ErrorCode::kCancelled);
+    EXPECT_FALSE(cache.apply_if_prepared(pixels, 3U, 1U, source.value(), display, {}));
+    EXPECT_FALSE(
+        cache.apply_if_prepared(pixels, UINT32_MAX, UINT32_MAX, source.value(), display, {}));
+    changed.monitor_profile.icc_bytes = {1U, 2U, 3U};
+    EXPECT_FALSE(cache.prepare(source.value(), changed, {}));
+    // Failed preparation preserves a complete prior entry, never a partial table.
+    hit = cache.apply_if_prepared(pixels, 2U, 1U, source.value(), display, {});
+    ASSERT_TRUE(hit);
+    EXPECT_TRUE(hit.value());
+    cache.clear();
+    miss = cache.apply_if_prepared(pixels, 2U, 1U, source.value(), display, {});
+    ASSERT_TRUE(miss);
+    EXPECT_FALSE(miss.value());
+}
+
+TEST(DisplayPresentationColorTest, ExactCacheClearAndCancellationRejectInFlightPreparation)
+{
+    auto source = make_srgb_color_profile();
+    ASSERT_TRUE(source);
+    DisplayPresentationState display;
+    display.valid = true;
+    const auto p3 = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    display.monitor_profile.icc_bytes.assign(p3.cbegin(), p3.cend());
+    struct Barrier final : DisplayConversionObserver
+    {
+        std::promise<void> entered;
+        std::promise<void> release;
+        std::shared_future<void> gate = release.get_future().share();
+        std::atomic<bool> first{true};
+        std::atomic<int> active{0};
+        void worker_started(bool) noexcept override
+        {
+            ++active;
+            if (first.exchange(false))
+            {
+                entered.set_value();
+                gate.wait();
+            }
+        }
+        void worker_stopped() noexcept override
+        {
+            --active;
+        }
+    };
+    for (const bool clear : {true, false})
+    {
+        DisplayPresentationCache cache;
+        Barrier barrier;
+        auto entered = barrier.entered.get_future();
+        CancellationSource cancellation;
+        auto task = std::async(
+            std::launch::async,
+            [&] { return cache.prepare(source.value(), display, cancellation.token(), &barrier); });
+        const bool reached =
+            entered.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+        if (clear)
+            cache.clear();
+        else
+            EXPECT_TRUE(cancellation.cancel("window_closed"));
+        barrier.release.set_value();
+        auto result = task.get();
+        ASSERT_TRUE(reached);
+        ASSERT_FALSE(result);
+        EXPECT_EQ(result.error().code, ErrorCode::kCancelled);
+        EXPECT_EQ(barrier.active.load(), 0);
+        EXPECT_EQ(cache.owned_bytes(), 0U);
+        // Owner survives interruption and a subsequent complete table is usable.
+        ASSERT_TRUE(cache.prepare(source.value(), display, {}));
+        EXPECT_EQ(cache.owned_bytes(), 64U * 1024U * 1024U);
+        Barrier lookup_barrier;
+        auto lookup_entered = lookup_barrier.entered.get_future();
+        CancellationSource lookup_cancel;
+        const std::vector<std::uint8_t> pixels(1025U * 513U * 3U, 127U);
+        auto lookup = std::async(std::launch::async,
+                                 [&]
+                                 {
+                                     return cache.apply_if_prepared(
+                                         pixels, 1025U, 513U, source.value(), display,
+                                         lookup_cancel.token(), &lookup_barrier);
+                                 });
+        const bool lookup_reached =
+            lookup_entered.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+        EXPECT_TRUE(lookup_cancel.cancel("window_closed_during_lookup"));
+        lookup_barrier.release.set_value();
+        auto interrupted = lookup.get();
+        ASSERT_TRUE(lookup_reached);
+        ASSERT_FALSE(interrupted);
+        EXPECT_EQ(interrupted.error().code, ErrorCode::kCancelled);
+        EXPECT_EQ(lookup_barrier.active.load(), 0);
     }
 }
 

@@ -40,6 +40,10 @@ The architecture and testing authorities cover:
   automatic-backup drafts and the existing recovery task owner.
 - Shared menus, shortcuts and controls; complete localisation; local Studio
   sessions and CLI acceptance without UI automation.
+- Exact RGB8 monitor conversion caching with worker preparation and bounded
+  ownership ([ADR-0169](adr/0169-exact-rgb8-display-transform-cache.md)), and
+  borrowed immutable input for retained native GPU tails
+  ([ADR-0170](adr/0170-borrowed-retained-native-preview.md)).
 - Three-job development CI and five-architecture Release build/test/package
   jobs, with independent clean-package startup gates and no release Debug stage.
   Compiler-cache checks share the restored directory with the whole job;
@@ -70,6 +74,7 @@ For AI grading and native MCP, see
 | --- | --- |
 | [TODO.md](TODO.md) | Ordered product, correctness, performance and release gates |
 | [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) | Remaining ownership/refactor qualification |
+| [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md) | Render-latency-first investigation, then command/MCP, model, mask, camera/lens and workflow adoption gates |
 | [TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md) | RAW rendering/profile qualification |
 | [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md) | Video host, audio, corpus and package qualification |
 | [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md) | Lightroom data, Develop, offline identity and corpus qualification |

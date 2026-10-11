@@ -308,11 +308,24 @@ void StudioInspectPresenter::bindDisplayPresentation(StudioDisplayPresentation *
     if (display_presentation_ != nullptr)
         disconnect(display_presentation_, nullptr, this, nullptr);
     display_presentation_ = owner;
+    display_conversion_cache_->clear();
     if (display_presentation_ == nullptr)
         return;
     connect(display_presentation_, &StudioDisplayPresentation::stateChanged, this,
-            &StudioInspectPresenter::reapply_display_presentation_to_cached_previews);
+            [this]
+            {
+                display_conversion_cache_->clear();
+                reapply_display_presentation_to_cached_previews();
+            });
     reapply_display_presentation_to_cached_previews();
+}
+
+StudioInspectPresenter::DisplayPreparation StudioInspectPresenter::displayPreparation() const
+{
+    DisplayPreparation work{display_conversion_cache_, {}};
+    if (!stopped_ && display_presentation_ && display_presentation_->valid())
+        work.presentation = display_presentation_->presentationState();
+    return work;
 }
 
 QUrl StudioInspectPresenter::previewUrl() const
@@ -610,7 +623,8 @@ Result<QImage> StudioInspectPresenter::apply_display_presentation_image(
     }
     auto converted = apply_display_presentation_rgb8(
         pixels, static_cast<std::uint32_t>(rgb.width()), static_cast<std::uint32_t>(rgb.height()),
-        source_profile, display_presentation_->presentationState(), CancellationToken{});
+        source_profile, display_presentation_->presentationState(), CancellationToken{}, nullptr,
+        display_conversion_cache_.get());
     if (!converted)
         return converted.error();
 

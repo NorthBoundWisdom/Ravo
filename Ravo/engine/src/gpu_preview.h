@@ -14,7 +14,7 @@ namespace ravo
 
 [[nodiscard]] Result<std::optional<std::vector<GpuRgbPass>>>
 gpu_preview_rgb_passes(const LinearWorkingBuffer &working, const Recipe &recipe,
-                       const CancellationToken &cancellation);
+                       const CancellationToken &cancellation, bool require_complete_tail = false);
 [[nodiscard]] Result<LinearWorkingBuffer>
 apply_gpu_preview_rgb(const LinearWorkingBuffer &working, std::span<const GpuRgbPass> passes,
                       const GpuAdapter &gpu, const CancellationToken &cancellation,

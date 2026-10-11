@@ -2012,6 +2012,65 @@ milliseconds. Optional `RAVO_PRESET_PERF_FIRST_PREVIEW_BUDGET_MS` and
 gates; the test skips when its fixture variables are absent, so host-specific
 timings do not make the normal contract suite flaky.
 
+<a id="interactive-performance-comparison"></a>
+### Interactive performance comparison
+
+The pinned LightCraft reference is
+[`0ba118de`'s benchmark](https://github.com/storytold/lightcraft/blob/0ba118de92a81f7463ca0e6d79e1323137b1adae/crates/engine/examples/render_bench.rs)
+and its [measurement scope](https://github.com/storytold/lightcraft/blob/0ba118de92a81f7463ca0e6d79e1323137b1adae/docs/gpu-pipeline.md#measurements).
+The historical ~3.9/4 ms value is a minimum of warm 1920×1280 GPU rerenders from
+an already decoded/prepared source, including packed RGBA8 readback and histogram.
+The benchmark's exposure row also changes contrast. Decode, device/shader setup,
+catalog writes, monitor presentation, UI publication and native frame swap are
+outside that row. The historical table uses seven runs; the pinned executable's
+`N` is configurable and defaults to five. Neither establishes a P90 user-visible
+budget or full-resolution 24 MP latency.
+
+Ravo comparisons must distinguish these existing paths:
+
+| Path | Boundary |
+| --- | --- |
+| Preview render log (`render_ms`) | Coarse integer-ms timed render/prepared-working section in `catalog_preview.cpp`; excludes earlier request work, subsequent owned handoff, monitor ICC and GUI publication; not a GPU timestamp or complete interaction time |
+| Catalog interactive probe | Full service request plus its separately reported RGB ownership and histogram work; output size and `need_cpu_pixels` select a different path from native Studio |
+| Studio intent-to-owned-image probe | Presenter intent through owned image publication with the monitor presentation owner; includes handoff and ICC, excludes native frame swap |
+| Native presentation trace | `RAVO_TRACE_PREVIEW_PRESENTATION=1` joins intent/image publication to `QQuickWindow::frameSwapped`; report refresh-rate quantization separately |
+
+The service's prefix-cache route admits foreground requests up to 960px, or
+native-display requests up to 1600px when CPU pixels are not required. The
+catalog performance probe requests CPU pixels, so its 1600/1920px samples are
+not the native Studio GPU path. The Studio exposure probe uses the current
+1600px display request; `RAVO_INTERACTIVE_PERF_MAX_EDGE` does not resize it.
+Cached settled image readiness does not establish warm GPU/prefix state: cold
+first-edit and genuinely warmed parameter/burst measurements are separate cases.
+
+For a comparison, pin source and recipe identity, actual input/prepared/output
+dimensions, effective stages, color/profile, backend, quality and memory state.
+Use a current Release build, warm through real parameter changes and record at
+least 30 non-no-op samples with min/P50/P90/P95/max. Isolate runs from builds and
+other probes; preserve identical parameter sequences across backend variants.
+Retain cold opening/first-edit, warm pointwise, spatial changes, masks, ROI,
+settlement and export as distinct workloads. Different algorithms, hardware or
+output sizes do not establish a speed ratio or pixel equivalence.
+Cached/fused paths still require the existing CPU gold and IQ-00 GPU bounds;
+LightCraft's test tolerance is not a replacement for Ravo's admission policy.
+The reference can be built independently in its own checkout; it is not a Ravo
+dependency or CMake target:
+
+```sh
+CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --locked --release -p lightcraft-engine --example render_bench
+ONLY=drag N=30 target/release/examples/render_bench <raw-file>
+```
+
+That executable reports minima. Percentiles require retaining each sample while
+preserving the rendering workload; identify any timing instrumentation separately.
+For display-path attribution, compare the same Studio publication workload with
+and without its monitor presentation binding, in alternating order. The unbound
+case is diagnostic only: it cannot qualify correct monitor output or a product
+performance budget. Separate transform construction, row evaluation, worker
+startup/join, packing and surface publication before choosing an optimization.
+Adoption work and unverified targets remain in
+[TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md).
+
 The opt-in `InteractivePreviewPerformanceProbe` warms both live and settled
 working slots, then measures a non-persistent Develop parameter sweep through
 CatalogService and includes the RGB ownership copies plus histogram work used
@@ -2066,6 +2125,32 @@ Adobe RGB and ProPhoto RGB, plus a real BToA LUT fixture, odd rows, cancellation
 and repeated calls after cancellation. Small images exercise the serial branch.
 Run these through `ravo_contract_tests`; display/history/export preservation
 remains covered by `DisplayPresentationTest` in `ravo_catalog_tests`.
+
+[ADR-0169](adr/0169-exact-rgb8-display-transform-cache.md) keeps the unoptimized
+service as the oracle for the caller-owned exact RGB8 cache.
+`ExactCacheMatchesEveryRgb8InputForMatrixAndLutProfiles` enumerates all 16,777,216
+RGB8 values for each destination profile and requires byte equality. Companion
+cases reject source/destination content changes even with a reused fingerprint,
+malformed dimensions/profiles, pre-cancellation and clear during preparation.
+An observer barrier makes in-flight cancellation deterministic; all participants
+must join, no partial entry may become visible, and subsequent preparation must
+succeed. The table is 64 MiB; large lookups use at most eight scope-owned row
+participants. Odd-stride partition tails and cancellation during lookup retain
+byte equality and join every worker before returning.
+Release performance runs must distinguish first preparation, warm parameter
+publication and cold versus genuinely warmed burst latency. Existing monitor
+change, immutable handoff, late-result and window teardown contracts still apply.
+`MeasuresWarmBurstWithMonitorPresentation` binds the real display owner, finishes
+two actual parameter renders before injecting one-millisecond intents, and checks
+that the latest published Develop value equals the final intent. It reports
+first/latest owned-image response and published-frame count separately from the
+older cold/unbound burst case. `RAVO_INTERACTIVE_BURST_BUDGET_MS` is an optional
+local gate for both responses; it is not a native-frame timing assertion.
+`CompleteGpuTailRejectsCpuStagesMasksAndCancellation` protects the borrowed-input
+admission boundary in [ADR-0170](adr/0170-borrowed-retained-native-preview.md).
+Existing `StudioGpuPreviewTest` cases cover native pixels against CPU gold,
+portrait dimensions, source reuse and delayed immutable handoff; retained-source
+replacement tests continue to bind the exact cache/source generation.
 
 `RAVO_TRACE_PREVIEW_PRESENTATION=1` enables a read-only Studio trace that joins
 the presenter's interactive intent timestamp to the next native

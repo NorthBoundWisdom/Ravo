@@ -1,7 +1,10 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -116,10 +119,40 @@ public:
     virtual void worker_started(bool created_thread) noexcept = 0;
     virtual void worker_stopped() noexcept = 0;
 };
+
+// ADR-0169. One caller-owned 64 MiB exact RGB8 table, never an interpolated LUT.
+// prepare() is worker-only, synchronous, serialized and cancellable. Readers
+// retain immutable entries; clear() invalidates both ready and in-flight work.
+// Source/destination profile values bind the entry. There is no global cache.
+class DisplayPresentationCache final
+{
+public:
+    DisplayPresentationCache() noexcept;
+    ~DisplayPresentationCache();
+    DisplayPresentationCache(const DisplayPresentationCache &) = delete;
+    DisplayPresentationCache &operator=(const DisplayPresentationCache &) = delete;
+    [[nodiscard]] Result<void> prepare(const ColorProfileState &source_profile,
+                                       const DisplayPresentationState &presentation,
+                                       const CancellationToken &cancellation,
+                                       DisplayConversionObserver *observer = nullptr);
+    void clear();
+    [[nodiscard]] std::size_t owned_bytes() const;
+    // An empty optional means no matching prepared entry, not a conversion error.
+    [[nodiscard]] Result<std::optional<DisplayPresentationRgb8>> apply_if_prepared(
+        const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width, std::uint32_t height,
+        const ColorProfileState &source_profile, const DisplayPresentationState &presentation,
+        const CancellationToken &cancellation, DisplayConversionObserver *observer = nullptr) const;
+
+private:
+    struct Impl;
+    mutable std::mutex impl_mutex_;
+    std::unique_ptr<Impl> impl_;
+};
 [[nodiscard]] Result<DisplayPresentationRgb8> apply_display_presentation_rgb8(
     const std::vector<std::uint8_t> &source_rgb8, std::uint32_t width, std::uint32_t height,
     const ColorProfileState &source_profile, const DisplayPresentationState &presentation,
-    const CancellationToken &cancellation, DisplayConversionObserver *observer = nullptr);
+    const CancellationToken &cancellation, DisplayConversionObserver *observer = nullptr,
+    const DisplayPresentationCache *cache = nullptr);
 
 [[nodiscard]] JsonValue display_presentation_state_to_json(const DisplayPresentationState &state);
 
