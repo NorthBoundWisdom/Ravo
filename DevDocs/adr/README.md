@@ -182,5 +182,6 @@ decision bodies remain stable.
 | [0166](0166-lightroom-data-preservation-and-develop.md) | Accepted | Immutable foreign catalog archive and compatible database Develop, copies, metadata, history/snapshots and static sets |
 | [0167](0167-foreign-conversion-checkpoints.md) | Accepted | Durable per-record conversion receipts, conservative resume and cancellable source audits |
 | [0168](0168-ai-control-and-mcp.md) | Accepted | Revision-bound read-only grading candidates, session operation receipts and thin native stdio MCP over CLI |
-| [0169](0169-exact-rgb8-display-transform-cache.md) | Accepted | Caller-owned exact RGB8 monitor transform cache with cancellable worker preparation and unchanged LittleCMS pixels |
-| [0170](0170-borrowed-retained-native-preview.md) | Accepted | Synchronous immutable CPU-input borrowing for a fully admitted retained native GPU tail |
+| [0169](0169-studio-release-update-check.md) | Accepted | Desktop-owned bounded GitHub release checks, startup preference and confirmed browser handoff |
+| [0171](0171-exact-rgb8-display-transform-cache.md) | Accepted | Caller-owned exact RGB8 monitor transform cache with cancellable worker preparation and unchanged LittleCMS pixels |
+| [0172](0172-borrowed-retained-native-preview.md) | Accepted | Synchronous immutable CPU-input borrowing for a fully admitted retained native GPU tail |

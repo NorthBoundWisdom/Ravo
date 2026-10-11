@@ -939,7 +939,7 @@ namespace
         return output_color.error();
     }
 #if defined(__APPLE__)
-    // ADR-0170: a retained all-GPU native tail borrows this immutable input
+    // ADR-0172: a retained all-GPU native tail borrows this immutable input
     // only for the synchronous dispatch. Do not clone pixels that it never uses.
     if (use_gpu && prefer_retained_source && !need_cpu_pixels && overlay_alpha == nullptr &&
         working.color_profile.model == ColorModel::kRgb &&

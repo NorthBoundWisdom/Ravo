@@ -10,6 +10,7 @@ Rectangle {
     required property var commands
     required property var languageManager
     required property var assistant
+    required property var updates
     required property var panelLayout
     signal closeRequested
     signal chooseBackupFolderRequested
@@ -159,6 +160,24 @@ Rectangle {
                 wrapMode: Text.WordWrap
                 color: Theme.errorColor
                 text: root.languageManager.lastError
+                visible: text.length > 0
+            }
+            CustomCheckBox {
+                objectName: "settingsAutomaticUpdates"
+                text: qsTr("Check for updates at startup")
+                checked: root.updates.automatic
+                onClicked: {
+                    root.updates.setAutomatic(checked);
+                    checked = Qt.binding(function () {
+                        return root.updates.automatic;
+                    });
+                }
+            }
+            CustomLabel {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: Theme.errorColor
+                text: root.updates.settingsError
                 visible: text.length > 0
             }
         }

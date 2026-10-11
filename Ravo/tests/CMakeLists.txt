@@ -465,6 +465,7 @@ add_executable(ravo_desktop_command_tests
   studio_offline_edit_qml_contract_test.cpp
   studio_live_control_test.cpp
   studio_assistant_test.cpp
+  studio_update_test.cpp
   studio_backup_settings_test.cpp
   studio_window_geometry_test.cpp
   studio_startup_test.cpp

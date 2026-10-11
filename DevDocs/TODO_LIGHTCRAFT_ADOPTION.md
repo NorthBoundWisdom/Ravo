@@ -11,7 +11,7 @@ IQ-00，现有 RAW/profile、Lightroom、架构重构任务仍归各自 TODO。�
 ## 顺序与边界
 
 1. 最优先补齐 LC-00 的场景矩阵和 LC-02 剩余显示交接/发布开销；精确 RGB8 缓存
-   的稳定合同归 [ADR-0169](adr/0169-exact-rgb8-display-transform-cache.md)。后续由
+   的稳定合同归 [ADR-0171](adr/0171-exact-rgb8-display-transform-cache.md)。后续由
    同口径测量选择 LC-01 或 GPU 融合，不强行先改已足够快的 GPU 内核。
 2. 性能改善有可复现证据后，再推进 LC-03 至 LC-09；明确的数据损坏/误改问题
    始终优先修复，不等待性能工作。
@@ -70,7 +70,7 @@ IQ-00，现有 RAW/profile、Lightroom、架构重构任务仍归各自 TODO。�
 - [ ] 对预览/CFA window/前景 prefix 使用同一明确的内存核算和驱逐规则；区分资源
   容量复用与像素内容命中，不能只凭宽高复用。需要新预算时先由 PERF-01 冻结。
 - [ ] 核实混合/CPU 路径的 `WorkingImage` 拷贝、RGB 交接、Recipe 序列化与整图遍历
-  的必要性；已准入 native GPU tail 的借用合同归 [ADR-0170](adr/0170-borrowed-retained-native-preview.md)。在
+  的必要性；已准入 native GPU tail 的借用合同归 [ADR-0172](adr/0172-borrowed-retained-native-preview.md)。在
   lifetime 可证明的边界使用不可变共享输入/租借，保留错误与 owned publication。
 - [ ] 覆盖源文件替换、同尺寸 pan、operation order/enabled/mask/profile 改变、Undo、
   catalog/asset 切换、缓存驱逐、取消、设备丢失和窗口销毁后的失效。

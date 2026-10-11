@@ -1,4 +1,4 @@
-# ADR-0170: Borrow immutable input for a retained native GPU tail
+# ADR-0172: Borrow immutable input for a retained native GPU tail
 
 - Status: Accepted
 - Date: 2026-10-11

@@ -519,6 +519,10 @@ Item {
         actionId: root.ids.windowAbout || ""
     }
     RegisteredAction {
+        id: checkUpdatesAction
+        actionId: root.ids.windowCheckUpdates || ""
+    }
+    RegisteredAction {
         id: rating0Action
         actionId: root.ids.actionRating0 || ""
     }

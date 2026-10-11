@@ -4116,10 +4116,6 @@ Differenz: %6</translation>
             <translation>Ravo Studio ist eine lokale Fotobibliothek und ein Bildbearbeitungsprogramm.</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
-        </message>
-        <message>
             <source>Create Library</source>
             <translation>Bibliothek erstellen</translation>
         </message>
@@ -4753,6 +4749,10 @@ Differenz: %6</translation>
             <translation>Anwendungseinstellungen gelten für alle Kataloge.</translation>
         </message>
         <message>
+            <source>Check for updates at startup</source>
+            <translation>Beim Start nach Updates suchen</translation>
+        </message>
+        <message>
             <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
             <translation>Panelgrößen werden automatisch gespeichert. Sie können sie auch durch Ziehen der Ränder ändern.</translation>
         </message>
@@ -4783,6 +4783,53 @@ Differenz: %6</translation>
         <message>
             <source>Assistant</source>
             <translation>Assistent</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioApplicationDialogs</name>
+        <message>
+            <source>Version %1</source>
+            <translation>Version %1</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
+        </message>
+        <message>
+            <source>Update Available</source>
+            <translation>Update verfügbar</translation>
+        </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>Nach Updates suchen</translation>
+        </message>
+        <message>
+            <source>Checking for updates…</source>
+            <translation>Updates werden gesucht…</translation>
+        </message>
+        <message>
+            <source>Ravo Studio %1 is available. You are using %2.</source>
+            <translation>Ravo Studio %1 ist verfügbar. Sie verwenden %2.</translation>
+        </message>
+        <message>
+            <source>You are using the latest version of Ravo Studio (%1).</source>
+            <translation>Sie verwenden die neueste Version von Ravo Studio (%1).</translation>
+        </message>
+        <message>
+            <source>Later</source>
+            <translation>Später</translation>
+        </message>
+        <message>
+            <source>Open GitHub Release</source>
+            <translation>GitHub-Veröffentlichung öffnen</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Schließen</translation>
+        </message>
+        <message>
+            <source>Retry</source>
+            <translation>Erneut versuchen</translation>
         </message>
     </context>
     <context>
@@ -5573,6 +5620,10 @@ Differenz: %6</translation>
             <translation>Ordner aus Katalog entfernen...</translation>
         </message>
         <message>
+            <source>Check for Updates...</source>
+            <translation>Nach Updates suchen...</translation>
+        </message>
+        <message>
             <source>About Ravo Studio</source>
             <translation>Über Ravo Studio</translation>
         </message>
@@ -6215,10 +6266,6 @@ Differenz: %6</translation>
             <translation>0 / %1 werden importiert …</translation>
         </message>
         <message>
-            <source>Ingest failed.</source>
-            <translation>Aufnahme fehlgeschlagen.</translation>
-        </message>
-        <message>
             <source>Importing %1 / %2…</source>
             <translation>Import %1 / %2 …</translation>
         </message>
@@ -6761,6 +6808,49 @@ Differenz: %6</translation>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>Die Katalog-Aufgabenverarbeitung ist nicht verfügbar.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioUpdates</name>
+        <message>
+            <source>Unable to read update preferences.</source>
+            <translation>Update-Einstellungen konnten nicht gelesen werden.</translation>
+        </message>
+        <message>
+            <source>Unable to save update preferences.</source>
+            <translation>Update-Einstellungen konnten nicht gespeichert werden.</translation>
+        </message>
+        <message>
+            <source>Unable to connect to GitHub. Check your internet connection and try again.</source>
+            <translation>Verbindung zu GitHub nicht möglich. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.</translation>
+        </message>
+        <message>
+            <source>The update check timed out. Please try again.</source>
+            <translation>Zeitüberschreitung bei der Update-Prüfung. Bitte versuchen Sie es erneut.</translation>
+        </message>
+        <message>
+            <source>GitHub is limiting update requests. Please try again later.</source>
+            <translation>GitHub begrenzt Update-Anfragen. Bitte versuchen Sie es später erneut.</translation>
+        </message>
+        <message>
+            <source>GitHub could not provide the latest release. Please try again later.</source>
+            <translation>GitHub konnte die neueste Veröffentlichung nicht bereitstellen. Bitte versuchen Sie es später erneut.</translation>
+        </message>
+        <message>
+            <source>GitHub returned invalid release information.</source>
+            <translation>GitHub hat ungültige Informationen zur Veröffentlichung zurückgegeben.</translation>
+        </message>
+        <message>
+            <source>The update response exceeded the size limit.</source>
+            <translation>Die Update-Antwort hat die Größenbegrenzung überschritten.</translation>
+        </message>
+        <message>
+            <source>Unable to open the release page in your browser.</source>
+            <translation>Die Veröffentlichungsseite konnte nicht im Browser geöffnet werden.</translation>
+        </message>
+        <message>
+            <source>The update check was cancelled.</source>
+            <translation>Die Update-Prüfung wurde abgebrochen.</translation>
         </message>
     </context>
     <context>

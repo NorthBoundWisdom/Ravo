@@ -4116,10 +4116,6 @@ Diferencia: %6</translation>
             <translation>Ravo Studio es una biblioteca y editor de fotografías local.</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>Aceptar</translation>
-        </message>
-        <message>
             <source>Create Library</source>
             <translation>Crear biblioteca</translation>
         </message>
@@ -4753,6 +4749,10 @@ Diferencia: %6</translation>
             <translation>Las preferencias de la aplicación se aplican a todos los catálogos.</translation>
         </message>
         <message>
+            <source>Check for updates at startup</source>
+            <translation>Buscar actualizaciones al iniciar</translation>
+        </message>
+        <message>
             <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
             <translation>Los tamaños de los paneles se guardan automáticamente. También puede ajustarlos arrastrando sus bordes.</translation>
         </message>
@@ -4783,6 +4783,53 @@ Diferencia: %6</translation>
         <message>
             <source>Assistant</source>
             <translation>Asistente</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioApplicationDialogs</name>
+        <message>
+            <source>Version %1</source>
+            <translation>Versión %1</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>Aceptar</translation>
+        </message>
+        <message>
+            <source>Update Available</source>
+            <translation>Actualización disponible</translation>
+        </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>Buscar actualizaciones</translation>
+        </message>
+        <message>
+            <source>Checking for updates…</source>
+            <translation>Buscando actualizaciones…</translation>
+        </message>
+        <message>
+            <source>Ravo Studio %1 is available. You are using %2.</source>
+            <translation>Ravo Studio %1 está disponible. Está utilizando %2.</translation>
+        </message>
+        <message>
+            <source>You are using the latest version of Ravo Studio (%1).</source>
+            <translation>Está utilizando la última versión de Ravo Studio (%1).</translation>
+        </message>
+        <message>
+            <source>Later</source>
+            <translation>Más tarde</translation>
+        </message>
+        <message>
+            <source>Open GitHub Release</source>
+            <translation>Abrir publicación en GitHub</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Cerrar</translation>
+        </message>
+        <message>
+            <source>Retry</source>
+            <translation>Reintentar</translation>
         </message>
     </context>
     <context>
@@ -5573,6 +5620,10 @@ Diferencia: %6</translation>
             <translation>Quitar carpeta del catálogo...</translation>
         </message>
         <message>
+            <source>Check for Updates...</source>
+            <translation>Buscar actualizaciones...</translation>
+        </message>
+        <message>
             <source>About Ravo Studio</source>
             <translation>Acerca de Ravo Studio</translation>
         </message>
@@ -6215,10 +6266,6 @@ Diferencia: %6</translation>
             <translation>Importando 0 / %1…</translation>
         </message>
         <message>
-            <source>Ingest failed.</source>
-            <translation>La ingesta falló.</translation>
-        </message>
-        <message>
             <source>Importing %1 / %2…</source>
             <translation>Importando %1 / %2…</translation>
         </message>
@@ -6761,6 +6808,49 @@ Diferencia: %6</translation>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>El ejecutor de tareas del catálogo no está disponible.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioUpdates</name>
+        <message>
+            <source>Unable to read update preferences.</source>
+            <translation>No se pudieron leer las preferencias de actualización.</translation>
+        </message>
+        <message>
+            <source>Unable to save update preferences.</source>
+            <translation>No se pudieron guardar las preferencias de actualización.</translation>
+        </message>
+        <message>
+            <source>Unable to connect to GitHub. Check your internet connection and try again.</source>
+            <translation>No se pudo conectar con GitHub. Compruebe su conexión a internet e inténtelo de nuevo.</translation>
+        </message>
+        <message>
+            <source>The update check timed out. Please try again.</source>
+            <translation>Se agotó el tiempo de espera de la búsqueda de actualizaciones. Inténtelo de nuevo.</translation>
+        </message>
+        <message>
+            <source>GitHub is limiting update requests. Please try again later.</source>
+            <translation>GitHub está limitando las solicitudes de actualización. Inténtelo más tarde.</translation>
+        </message>
+        <message>
+            <source>GitHub could not provide the latest release. Please try again later.</source>
+            <translation>GitHub no pudo proporcionar la última publicación. Inténtelo más tarde.</translation>
+        </message>
+        <message>
+            <source>GitHub returned invalid release information.</source>
+            <translation>GitHub devolvió información de publicación no válida.</translation>
+        </message>
+        <message>
+            <source>The update response exceeded the size limit.</source>
+            <translation>La respuesta de actualización superó el límite de tamaño.</translation>
+        </message>
+        <message>
+            <source>Unable to open the release page in your browser.</source>
+            <translation>No se pudo abrir la página de la publicación en el navegador.</translation>
+        </message>
+        <message>
+            <source>The update check was cancelled.</source>
+            <translation>Se canceló la búsqueda de actualizaciones.</translation>
         </message>
     </context>
     <context>

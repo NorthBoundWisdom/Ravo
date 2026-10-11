@@ -4116,10 +4116,6 @@ Diff: %6</translation>
             <translation>Ravo Studio is a local photo library and editor.</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
-        </message>
-        <message>
             <source>Create Library</source>
             <translation>Create Library</translation>
         </message>
@@ -4753,6 +4749,10 @@ Diff: %6</translation>
             <translation>Application preferences apply to all catalogs.</translation>
         </message>
         <message>
+            <source>Check for updates at startup</source>
+            <translation>Check for updates at startup</translation>
+        </message>
+        <message>
             <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
             <translation>Panel sizes are saved automatically. You can also resize them by dragging their edges.</translation>
         </message>
@@ -4783,6 +4783,53 @@ Diff: %6</translation>
         <message>
             <source>Assistant</source>
             <translation>Assistant</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioApplicationDialogs</name>
+        <message>
+            <source>Version %1</source>
+            <translation>Version %1</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
+        </message>
+        <message>
+            <source>Update Available</source>
+            <translation>Update Available</translation>
+        </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>Check for Updates</translation>
+        </message>
+        <message>
+            <source>Checking for updates…</source>
+            <translation>Checking for updates…</translation>
+        </message>
+        <message>
+            <source>Ravo Studio %1 is available. You are using %2.</source>
+            <translation>Ravo Studio %1 is available. You are using %2.</translation>
+        </message>
+        <message>
+            <source>You are using the latest version of Ravo Studio (%1).</source>
+            <translation>You are using the latest version of Ravo Studio (%1).</translation>
+        </message>
+        <message>
+            <source>Later</source>
+            <translation>Later</translation>
+        </message>
+        <message>
+            <source>Open GitHub Release</source>
+            <translation>Open GitHub Release</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>Close</translation>
+        </message>
+        <message>
+            <source>Retry</source>
+            <translation>Retry</translation>
         </message>
     </context>
     <context>
@@ -5597,6 +5644,10 @@ Diff: %6</translation>
             <translation>Remove Folder from Catalog...</translation>
         </message>
         <message>
+            <source>Check for Updates...</source>
+            <translation>Check for Updates...</translation>
+        </message>
+        <message>
             <source>About Ravo Studio</source>
             <translation>About Ravo Studio</translation>
         </message>
@@ -6029,10 +6080,6 @@ Diff: %6</translation>
         <message>
             <source>Importing 0 / %1…</source>
             <translation>Importing 0 / %1…</translation>
-        </message>
-        <message>
-            <source>Ingest failed.</source>
-            <translation>Ingest failed.</translation>
         </message>
         <message>
             <source>Importing %1 / %2…</source>
@@ -6761,6 +6808,49 @@ Diff: %6</translation>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>Catalog executor is unavailable.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioUpdates</name>
+        <message>
+            <source>Unable to read update preferences.</source>
+            <translation>Unable to read update preferences.</translation>
+        </message>
+        <message>
+            <source>Unable to save update preferences.</source>
+            <translation>Unable to save update preferences.</translation>
+        </message>
+        <message>
+            <source>Unable to connect to GitHub. Check your internet connection and try again.</source>
+            <translation>Unable to connect to GitHub. Check your internet connection and try again.</translation>
+        </message>
+        <message>
+            <source>The update check timed out. Please try again.</source>
+            <translation>The update check timed out. Please try again.</translation>
+        </message>
+        <message>
+            <source>GitHub is limiting update requests. Please try again later.</source>
+            <translation>GitHub is limiting update requests. Please try again later.</translation>
+        </message>
+        <message>
+            <source>GitHub could not provide the latest release. Please try again later.</source>
+            <translation>GitHub could not provide the latest release. Please try again later.</translation>
+        </message>
+        <message>
+            <source>GitHub returned invalid release information.</source>
+            <translation>GitHub returned invalid release information.</translation>
+        </message>
+        <message>
+            <source>The update response exceeded the size limit.</source>
+            <translation>The update response exceeded the size limit.</translation>
+        </message>
+        <message>
+            <source>Unable to open the release page in your browser.</source>
+            <translation>Unable to open the release page in your browser.</translation>
+        </message>
+        <message>
+            <source>The update check was cancelled.</source>
+            <translation>The update check was cancelled.</translation>
         </message>
     </context>
     <context>

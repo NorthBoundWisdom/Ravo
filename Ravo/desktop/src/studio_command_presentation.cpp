@@ -246,6 +246,7 @@ QVariantMap StudioCommandController::ids() const
         {QStringLiteral("windowClose"), QLatin1String(command::kWindowClose)},
         {QStringLiteral("windowQuit"), QLatin1String(command::kWindowQuit)},
         {QStringLiteral("windowAbout"), QLatin1String(command::kWindowAbout)},
+        {QStringLiteral("windowCheckUpdates"), QLatin1String(command::kWindowCheckUpdates)},
         {QStringLiteral("windowCommandPalette"), QLatin1String(command::kWindowPalette)},
         {QStringLiteral("windowDismiss"), QLatin1String(command::kWindowDismiss)},
         {QStringLiteral("actionRating0"), QLatin1String(action_id::kRating0)},

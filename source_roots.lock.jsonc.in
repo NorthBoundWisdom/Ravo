@@ -69,19 +69,19 @@
     },
     "LibRaw": {
       "remote": "https://github.com/LibRaw/LibRaw.git",
-      "commit": "4f0144031c4adfadf7e053937826c49ed80cfa89"
+      "commit": "7bfffe2efa508da00c0d8af299c37cd426a4528d"
     },
     "RawSpeed": {
       "remote": "https://github.com/darktable-org/rawspeed.git",
-      "commit": "c835b05aecfacb7343f7c424abd620aa12116c3f"
+      "commit": "c10cc5004c5e8097ff272e57e3692cd9c7e257ef"
     },
     "GeoControls": {
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
-      "commit": "e079d23d27c6e0e3fd62f8a1876ed10c730db142"
+      "commit": "9e749a3878503d93996bd90f64439ad22ffdbdba"
     },
     "LensFun": {
       "remote": "https://github.com/lensfun/lensfun.git",
-      "commit": "bbd4332a9ec566fd9aa548c9e0d8ced238c56261"
+      "commit": "43f9e001ab66c4fcdd4f400463f13b72f94b2288"
     },
     "LibTIFF": {
       "remote": "https://gitlab.com/libtiff/libtiff.git",

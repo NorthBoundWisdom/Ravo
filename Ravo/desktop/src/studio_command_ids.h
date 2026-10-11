@@ -188,6 +188,7 @@ inline constexpr auto kWindowAssistant = "studio.window.toggle_assistant";
 inline constexpr auto kWindowClose = "studio.window.close";
 inline constexpr auto kWindowQuit = "studio.window.quit";
 inline constexpr auto kWindowAbout = "studio.window.show_about";
+inline constexpr auto kWindowCheckUpdates = "studio.window.check_updates";
 inline constexpr auto kWindowPalette = "studio.window.show_command_palette";
 inline constexpr auto kWindowDismiss = "studio.window.dismiss";
 } // namespace command

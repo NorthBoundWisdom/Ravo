@@ -64,6 +64,7 @@ WorkspaceSupport command_workspace_support(const QString &command_id)
         QLatin1String(command::kWindowClose),
         QLatin1String(command::kWindowQuit),
         QLatin1String(command::kWindowAbout),
+        QLatin1String(command::kWindowCheckUpdates),
         QLatin1String(command::kWindowPalette),
         QLatin1String(command::kWindowDismiss),
         QLatin1String(command::kPhotoCopyInfo),

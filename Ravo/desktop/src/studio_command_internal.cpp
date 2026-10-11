@@ -314,6 +314,7 @@ QStringList command_ids()
             QLatin1String(command::kWindowClose),
             QLatin1String(command::kWindowQuit),
             QLatin1String(command::kWindowAbout),
+            QLatin1String(command::kWindowCheckUpdates),
             QLatin1String(command::kWindowPalette),
             QLatin1String(command::kWindowDismiss)};
 }
@@ -795,6 +796,11 @@ QVector<ActionSpec> builtin_actions()
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Library")),
         {QStringLiteral("folder"), QStringLiteral("delete"), QStringLiteral("remove")}, {}, 0,
         true);
+    add(command::kWindowCheckUpdates, command::kWindowCheckUpdates,
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Check for Updates...")),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Help")),
+        {QStringLiteral("update"), QStringLiteral("version"), QStringLiteral("download")},
+        QStringLiteral("help.about"), 5, true);
     add(command::kWindowAbout, command::kWindowAbout,
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "About Ravo Studio")),
         QString::fromUtf8(QT_TRANSLATE_NOOP("StudioCommands", "Help")), {QStringLiteral("version")},

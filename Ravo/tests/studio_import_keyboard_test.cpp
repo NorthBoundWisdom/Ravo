@@ -874,7 +874,7 @@ TEST(StudioImportKeyboard, SelectAllThroughProductionStudioActions)
     const auto modal_slice = main_source.mid(modal_pos, 500);
     EXPECT_FALSE(modal_slice.contains(QStringLiteral("studio.imports.importPageOpen")))
         << "Re-introducing importPageOpen into modalOpen must fail this contract";
-    EXPECT_TRUE(modal_slice.contains(QStringLiteral("aboutDialog.visible")));
+    EXPECT_TRUE(modal_slice.contains(QStringLiteral("applicationDialogs.modalOpen")));
     EXPECT_TRUE(modal_slice.contains(QStringLiteral("removeDialog.visible")));
 }
 

@@ -1,4 +1,4 @@
-# ADR-0169: Exact RGB8 display transform cache
+# ADR-0171: Exact RGB8 display transform cache
 
 - Status: Accepted
 - Date: 2026-10-11

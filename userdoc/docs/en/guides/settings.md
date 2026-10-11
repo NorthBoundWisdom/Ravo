@@ -16,6 +16,19 @@ Language affects interface labels, menus and shortcuts, not image rendering.
 Unsupported languages, a missing translation package, or a settings-write
 failure produce an error and retain the previous active setting.
 
+## General: updates
+
+**Check for updates at startup** is enabled by default and applies across
+catalogs. Studio checks in the background once startup finishes. If a newer
+formal release is available, a dialog shows your version and the new version.
+Choose **Open GitHub Release** to open that release's page in your browser, then
+download and install the appropriate package. **Later** dismisses the dialog.
+Offline startup and failed automatic checks do not interrupt your work.
+
+Use **Help → Check for Updates...** at any time, even when automatic checks are
+disabled. Manual checks show progress, an up-to-date result or an error with a
+retry option. Studio does not download or install updates automatically.
+
 ## Workspace: panel sizes
 
 Set the left panel width, right panel width and filmstrip height. Changes save

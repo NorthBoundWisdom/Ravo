@@ -120,7 +120,7 @@ public:
     virtual void worker_stopped() noexcept = 0;
 };
 
-// ADR-0169. One caller-owned 64 MiB exact RGB8 table, never an interpolated LUT.
+// ADR-0171. One caller-owned 64 MiB exact RGB8 table, never an interpolated LUT.
 // prepare() is worker-only, synchronous, serialized and cancellable. Readers
 // retain immutable entries; clear() invalidates both ready and in-flight work.
 // Source/destination profile values bind the entry. There is no global cache.
