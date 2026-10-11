@@ -371,6 +371,11 @@ resource-exhausted, cancelled, and corrupt-profile paths.
 
 ## REL-02 — Installed package, upgrade, and restore evidence
 
+- Qualify [ADR-0169](adr/0169-studio-release-update-check.md) on installed
+  macOS/Windows/Linux packages: manual check, silent offline startup, saved
+  automatic-check preference and confirmed system-browser release handoff.
+  Injected network/URL tests do not establish native browser launch.
+
 **Status:** macOS Release DMG tranche recorded (honest C2-style, not C3) for
 candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580` — report id
 `20260905_023651` under `~/Documents/RavoEvidence/reports/`. Sanctioned

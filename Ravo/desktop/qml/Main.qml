@@ -263,7 +263,7 @@ ApplicationWindow {
     }
 
     function openAboutDialog() {
-        aboutDialog.openWithButtons();
+        applicationDialogs.openAbout();
     }
 
     function showPhotoMenu() {
@@ -349,7 +349,7 @@ ApplicationWindow {
     Binding {
         target: studioCommands
         property: "modalOpen"
-        value: inspectorSidePanel.metadataEditing || removeDialog.visible || deleteDiskDialog.visible || aboutDialog.visible || exportOptionsDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
+        value: inspectorSidePanel.metadataEditing || removeDialog.visible || deleteDiskDialog.visible || applicationDialogs.modalOpen || exportOptionsDialog.visible || presetRenameDialog.visible || parameterSelectionDialog.visible || presetDeleteDialog.visible || removeFolderDialog.visible || dialogCoordinator.companionConfirmationVisible || dialogCoordinator.photoMergeDialogVisible
     }
 
     StudioCommandShortcuts {
@@ -1310,6 +1310,7 @@ ApplicationWindow {
         commands: studioActions
         languageManager: studioLanguage
         assistant: studioAssistant
+        updates: studioUpdates
         panelLayout: studioLayout
         onCloseRequested: studioCommands.settingsOpen = false
         onChooseBackupFolderRequested: {
@@ -1433,14 +1434,12 @@ ApplicationWindow {
         onAccepted: window.finishDeletePreset(qsTr("Cancel"))
     }
 
-    MessageDialog {
-        id: aboutDialog
-        objectName: "aboutDialog"
-        parentItem: window.contentItem
-        titleText: qsTr("About Ravo Studio")
-        messageText: qsTr("Ravo Studio is a local photo library and editor.")
-        buttons: [qsTr("OK")]
-        defaultButtonText: qsTr("OK")
+    StudioApplicationDialogs {
+        id: applicationDialogs
+        updates: studioUpdates
+        windowHost: window
+        windowReady: window.visible && window.active
+        otherModalOpen: studioCommands.modalOpen && !modalOpen
     }
 
     QmlFileDialogPage {

@@ -182,3 +182,4 @@ decision bodies remain stable.
 | [0166](0166-lightroom-data-preservation-and-develop.md) | Accepted | Immutable foreign catalog archive and compatible database Develop, copies, metadata, history/snapshots and static sets |
 | [0167](0167-foreign-conversion-checkpoints.md) | Accepted | Durable per-record conversion receipts, conservative resume and cancellable source audits |
 | [0168](0168-ai-control-and-mcp.md) | Accepted | Revision-bound read-only grading candidates, session operation receipts and thin native stdio MCP over CLI |
+| [0169](0169-studio-release-update-check.md) | Accepted | Desktop-owned bounded GitHub release checks, startup preference and confirmed browser handoff |

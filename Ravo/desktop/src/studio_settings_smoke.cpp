@@ -1,4 +1,5 @@
 #include "ravo/desktop/studio_command_controller.h"
+#include "ravo/desktop/studio_update_controller.h"
 #include "ravo/foundation/log.h"
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -11,7 +12,8 @@
 
 namespace ravo
 {
-bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &commands)
+bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &commands,
+                    StudioUpdateController &updates)
 {
     auto *window = engine.rootObjects().isEmpty() ?
                        nullptr :
@@ -60,6 +62,26 @@ bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &comm
                                        scroll->width() > 0 && scroll->height() > 0 &&
                                        content->width() > 0 && content->height() > 0;
             valid = valid && section_valid;
+            if (section == QLatin1String("general") && section_valid)
+            {
+                auto *toggle = page->findChild<QObject *>("settingsAutomaticUpdates");
+                const bool previous = updates.automatic();
+                bool update_valid = toggle && toggle->property("checked").toBool() == previous &&
+                                    toggle->setProperty("checked", !previous) &&
+                                    QMetaObject::invokeMethod(toggle, "clicked") &&
+                                    updates.automatic() == !previous;
+                StudioUpdateController reopened;
+                update_valid = update_valid && reopened.initialize() &&
+                               reopened.automatic() == !previous &&
+                               reopened.currentVersion() == QCoreApplication::applicationVersion();
+                // Restore through the same production control intent.
+                update_valid = update_valid && toggle->setProperty("checked", previous) &&
+                               QMetaObject::invokeMethod(toggle, "clicked") &&
+                               updates.automatic() == previous;
+                valid = valid && update_valid;
+                if (!update_valid)
+                    LOG_ERROR(ravo::logger(), "Settings update preference smoke failed");
+            }
             if (!section_valid)
                 LOG_ERROR(
                     ravo::logger(),

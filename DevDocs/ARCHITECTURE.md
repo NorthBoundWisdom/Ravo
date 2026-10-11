@@ -1,5 +1,27 @@
 # Ravo Architecture
 
+Studio release checks are owned by desktop C++ `StudioUpdateController`,
+composed beside the startup and command owners. Help's
+`studio.window.check_updates` intent and the queued startup-complete signal use
+one asynchronous Qt Network request on the main-thread event loop. Smoke mode
+suppresses automatic HTTP. Shutdown disconnects/aborts any pending reply.
+Requests have a 15-second absolute deadline and a 1 MiB response bound. No
+credentials or image/catalog data are sent; the User-Agent identifies Studio's
+compiled version. No new worker, dependency, service/catalog state or renderer
+is introduced. See [ADR-0169](adr/0169-studio-release-update-check.md).
+
+Only a strictly newer formal GitHub release, compared as numeric version
+triples against CMake's project version, requests an automatic prompt. Manual
+checks show progress and results; automatic failures retain structured state
+without a popup. Invalid metadata, prereleases/drafts, redirects, network/TLS,
+HTTP and size failures remain errors. QML owns presentation and modal deferral,
+never HTTP/version policy. Explicit confirmation opens only that release's
+verified HTTPS page in the repository on github.com; browser failure is visible.
+The typed per-user `desktop/updates/automatic` preference defaults to true.
+Write failures keep the previous typed value; malformed values are repaired
+synchronously before applying the default. There is no download, installation,
+automatic retry or alternate-source fallback.
+
 Video assets (ADR-0165) use domain-owned `VideoInfo` and a private FFmpeg
 decoder port, separate from RasterDecoder and photo recipes. Schema 18 stores
 bounded versioned metadata in `asset_video`; import commits it with the asset,
@@ -496,7 +518,7 @@ failure is reported and leaves active state unchanged. Source TS catalogs and
 locale-specific translation memories are repository assets; CMake derives its
 complete catalog set from the same manifest, validates it, and compiles it to
 build-local QM files, which are the only files deployed with
-Studio. Typed desktop settings are the UI language, assistant
+Studio. Typed desktop settings are the UI language, automatic release checks, assistant
 endpoint/model/key, window size/position/maximized state, last selected valid
 import destination root, last selected import source root, and
 import organization (`single`, `hierarchy`, `date`, or `month`). Source and

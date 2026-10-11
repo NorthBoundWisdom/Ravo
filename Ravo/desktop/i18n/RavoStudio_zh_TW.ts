@@ -4116,10 +4116,6 @@ Diff: %6</source>
             <translation>Ravo Studio 是本機相片相片庫和編輯器。</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>確定</translation>
-        </message>
-        <message>
             <source>Create Library</source>
             <translation>建立相片庫</translation>
         </message>
@@ -4753,6 +4749,10 @@ Diff: %6</source>
             <translation>應用程式偏好設定適用於所有目錄庫。</translation>
         </message>
         <message>
+            <source>Check for updates at startup</source>
+            <translation>啟動時檢查更新</translation>
+        </message>
+        <message>
             <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
             <translation>面板尺寸會自動儲存，也可以拖曳邊緣調整。</translation>
         </message>
@@ -4783,6 +4783,53 @@ Diff: %6</source>
         <message>
             <source>Assistant</source>
             <translation>助手</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioApplicationDialogs</name>
+        <message>
+            <source>Version %1</source>
+            <translation>版本 %1</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>確定</translation>
+        </message>
+        <message>
+            <source>Update Available</source>
+            <translation>發現新版本</translation>
+        </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>檢查更新</translation>
+        </message>
+        <message>
+            <source>Checking for updates…</source>
+            <translation>正在檢查更新…</translation>
+        </message>
+        <message>
+            <source>Ravo Studio %1 is available. You are using %2.</source>
+            <translation>Ravo Studio %1 已發布。您目前使用的是 %2。</translation>
+        </message>
+        <message>
+            <source>You are using the latest version of Ravo Studio (%1).</source>
+            <translation>您使用的已是最新版 Ravo Studio（%1）。</translation>
+        </message>
+        <message>
+            <source>Later</source>
+            <translation>稍後</translation>
+        </message>
+        <message>
+            <source>Open GitHub Release</source>
+            <translation>開啟 GitHub 發布頁面</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>關閉</translation>
+        </message>
+        <message>
+            <source>Retry</source>
+            <translation>重試</translation>
         </message>
     </context>
     <context>
@@ -5573,6 +5620,10 @@ Diff: %6</source>
             <translation>從目錄中刪除資料夾...</translation>
         </message>
         <message>
+            <source>Check for Updates...</source>
+            <translation>檢查更新...</translation>
+        </message>
+        <message>
             <source>About Ravo Studio</source>
             <translation>關於 Ravo Studio</translation>
         </message>
@@ -6215,10 +6266,6 @@ Diff: %6</source>
             <translation>正在匯入 0 / %1…</translation>
         </message>
         <message>
-            <source>Ingest failed.</source>
-            <translation>攝取失敗。</translation>
-        </message>
-        <message>
             <source>Importing %1 / %2…</source>
             <translation>正在匯入 %1 / %2…</translation>
         </message>
@@ -6761,6 +6808,49 @@ Diff: %6</source>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>圖庫工作執行器無法使用。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioUpdates</name>
+        <message>
+            <source>Unable to read update preferences.</source>
+            <translation>無法讀取更新設定。</translation>
+        </message>
+        <message>
+            <source>Unable to save update preferences.</source>
+            <translation>無法儲存更新設定。</translation>
+        </message>
+        <message>
+            <source>Unable to connect to GitHub. Check your internet connection and try again.</source>
+            <translation>無法連線至 GitHub。請檢查網路連線後重試。</translation>
+        </message>
+        <message>
+            <source>The update check timed out. Please try again.</source>
+            <translation>檢查更新逾時，請重試。</translation>
+        </message>
+        <message>
+            <source>GitHub is limiting update requests. Please try again later.</source>
+            <translation>GitHub 限制了更新請求，請稍後重試。</translation>
+        </message>
+        <message>
+            <source>GitHub could not provide the latest release. Please try again later.</source>
+            <translation>GitHub 無法提供最新發布資訊，請稍後重試。</translation>
+        </message>
+        <message>
+            <source>GitHub returned invalid release information.</source>
+            <translation>GitHub 傳回的發布資訊無效。</translation>
+        </message>
+        <message>
+            <source>The update response exceeded the size limit.</source>
+            <translation>更新回應超出了大小限制。</translation>
+        </message>
+        <message>
+            <source>Unable to open the release page in your browser.</source>
+            <translation>無法在瀏覽器中開啟發布頁面。</translation>
+        </message>
+        <message>
+            <source>The update check was cancelled.</source>
+            <translation>檢查更新已取消。</translation>
         </message>
     </context>
     <context>

@@ -154,6 +154,13 @@ existing unpack tools.
 
 ## GitHub Actions
 
+Studio update checks consume this repository's latest formal GitHub Release.
+Publish numeric `v<major>.<minor>.<patch>` tags matching CMake's project version;
+Studio compares components numerically, rejects prereleases/drafts and opens the
+specific release page only after confirmation. A newer source checkout than the
+published release does not offer a downgrade. Checks do not download/install
+assets or alter the package graph. See [ADR-0169](adr/0169-studio-release-update-check.md).
+
 Ordinary branch pushes and pull requests run three full-suite jobs: macOS ARM64
 and Linux x86_64 Debug, and Windows x86_64 Release. Static checks gate compilation.
 Tags and manual package rehearsals skip this development matrix. Instead, five

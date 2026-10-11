@@ -4116,10 +4116,6 @@ Diff: %6</source>
             <translation>Ravo Studio は、ローカルの写真ライブラリおよびエディタです。</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>OK</translation>
-        </message>
-        <message>
             <source>Create Library</source>
             <translation>ライブラリの作成</translation>
         </message>
@@ -4753,6 +4749,10 @@ Diff: %6</source>
             <translation>アプリの環境設定はすべてのカタログに適用されます。</translation>
         </message>
         <message>
+            <source>Check for updates at startup</source>
+            <translation>起動時に更新を確認</translation>
+        </message>
+        <message>
             <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
             <translation>パネルのサイズは自動保存されます。端をドラッグして変更することもできます。</translation>
         </message>
@@ -4783,6 +4783,53 @@ Diff: %6</source>
         <message>
             <source>Assistant</source>
             <translation>SettingsPage::Assistant</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioApplicationDialogs</name>
+        <message>
+            <source>Version %1</source>
+            <translation>バージョン %1</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>OK</translation>
+        </message>
+        <message>
+            <source>Update Available</source>
+            <translation>更新があります</translation>
+        </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>更新を確認</translation>
+        </message>
+        <message>
+            <source>Checking for updates…</source>
+            <translation>更新を確認しています…</translation>
+        </message>
+        <message>
+            <source>Ravo Studio %1 is available. You are using %2.</source>
+            <translation>Ravo Studio %1 が利用可能です。現在のバージョンは %2 です。</translation>
+        </message>
+        <message>
+            <source>You are using the latest version of Ravo Studio (%1).</source>
+            <translation>最新の Ravo Studio（%1）を使用しています。</translation>
+        </message>
+        <message>
+            <source>Later</source>
+            <translation>後で</translation>
+        </message>
+        <message>
+            <source>Open GitHub Release</source>
+            <translation>GitHub のリリースページを開く</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>閉じる</translation>
+        </message>
+        <message>
+            <source>Retry</source>
+            <translation>再試行</translation>
         </message>
     </context>
     <context>
@@ -5573,6 +5620,10 @@ Diff: %6</source>
             <translation>カタログからフォルダーを削除...</translation>
         </message>
         <message>
+            <source>Check for Updates...</source>
+            <translation>更新を確認...</translation>
+        </message>
+        <message>
             <source>About Ravo Studio</source>
             <translation>StudioCommands::About Ravo Studio</translation>
         </message>
@@ -6215,10 +6266,6 @@ Diff: %6</source>
             <translation>インポート中 0 / %1…</translation>
         </message>
         <message>
-            <source>Ingest failed.</source>
-            <translation>取り込みに失敗しました。</translation>
-        </message>
-        <message>
             <source>Importing %1 / %2…</source>
             <translation>インポート中 %1 / %2…</translation>
         </message>
@@ -6761,6 +6808,49 @@ Diff: %6</source>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>カタログのタスク実行機能を利用できません。</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioUpdates</name>
+        <message>
+            <source>Unable to read update preferences.</source>
+            <translation>更新設定を読み込めませんでした。</translation>
+        </message>
+        <message>
+            <source>Unable to save update preferences.</source>
+            <translation>更新設定を保存できませんでした。</translation>
+        </message>
+        <message>
+            <source>Unable to connect to GitHub. Check your internet connection and try again.</source>
+            <translation>GitHub に接続できません。インターネット接続を確認して再試行してください。</translation>
+        </message>
+        <message>
+            <source>The update check timed out. Please try again.</source>
+            <translation>更新の確認がタイムアウトしました。再試行してください。</translation>
+        </message>
+        <message>
+            <source>GitHub is limiting update requests. Please try again later.</source>
+            <translation>GitHub が更新リクエストを制限しています。しばらくしてから再試行してください。</translation>
+        </message>
+        <message>
+            <source>GitHub could not provide the latest release. Please try again later.</source>
+            <translation>GitHub から最新のリリース情報を取得できませんでした。しばらくしてから再試行してください。</translation>
+        </message>
+        <message>
+            <source>GitHub returned invalid release information.</source>
+            <translation>GitHub から無効なリリース情報が返されました。</translation>
+        </message>
+        <message>
+            <source>The update response exceeded the size limit.</source>
+            <translation>更新の応答がサイズ制限を超えました。</translation>
+        </message>
+        <message>
+            <source>Unable to open the release page in your browser.</source>
+            <translation>ブラウザーでリリースページを開けませんでした。</translation>
+        </message>
+        <message>
+            <source>The update check was cancelled.</source>
+            <translation>更新の確認をキャンセルしました。</translation>
         </message>
     </context>
     <context>

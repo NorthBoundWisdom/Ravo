@@ -4116,10 +4116,6 @@ Diff: %6</source>
             <translation>Ravo Studio는 로컬 사진 라이브러리 및 편집기입니다.</translation>
         </message>
         <message>
-            <source>OK</source>
-            <translation>확인</translation>
-        </message>
-        <message>
             <source>Create Library</source>
             <translation>라이브러리 만들기</translation>
         </message>
@@ -4753,6 +4749,10 @@ Diff: %6</source>
             <translation>앱 환경 설정은 모든 카탈로그에 적용됩니다.</translation>
         </message>
         <message>
+            <source>Check for updates at startup</source>
+            <translation>시작 시 업데이트 확인</translation>
+        </message>
+        <message>
             <source>Panel sizes are saved automatically. You can also resize them by dragging their edges.</source>
             <translation>패널 크기는 자동으로 저장됩니다. 가장자리를 드래그하여 조정할 수도 있습니다.</translation>
         </message>
@@ -4783,6 +4783,53 @@ Diff: %6</source>
         <message>
             <source>Assistant</source>
             <translation>어시스턴트</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioApplicationDialogs</name>
+        <message>
+            <source>Version %1</source>
+            <translation>버전 %1</translation>
+        </message>
+        <message>
+            <source>OK</source>
+            <translation>확인</translation>
+        </message>
+        <message>
+            <source>Update Available</source>
+            <translation>업데이트 사용 가능</translation>
+        </message>
+        <message>
+            <source>Check for Updates</source>
+            <translation>업데이트 확인</translation>
+        </message>
+        <message>
+            <source>Checking for updates…</source>
+            <translation>업데이트 확인 중…</translation>
+        </message>
+        <message>
+            <source>Ravo Studio %1 is available. You are using %2.</source>
+            <translation>Ravo Studio %1 버전을 사용할 수 있습니다. 현재 사용 중인 버전은 %2입니다.</translation>
+        </message>
+        <message>
+            <source>You are using the latest version of Ravo Studio (%1).</source>
+            <translation>최신 버전의 Ravo Studio(%1)를 사용하고 있습니다.</translation>
+        </message>
+        <message>
+            <source>Later</source>
+            <translation>나중에</translation>
+        </message>
+        <message>
+            <source>Open GitHub Release</source>
+            <translation>GitHub 릴리스 페이지 열기</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>닫기</translation>
+        </message>
+        <message>
+            <source>Retry</source>
+            <translation>다시 시도</translation>
         </message>
     </context>
     <context>
@@ -5573,6 +5620,10 @@ Diff: %6</source>
             <translation>카탈로그에서 폴더 제거...</translation>
         </message>
         <message>
+            <source>Check for Updates...</source>
+            <translation>업데이트 확인...</translation>
+        </message>
+        <message>
             <source>About Ravo Studio</source>
             <translation>Ravo Studio 정보</translation>
         </message>
@@ -6215,10 +6266,6 @@ Diff: %6</source>
             <translation>가져오는 중 0 / %1…</translation>
         </message>
         <message>
-            <source>Ingest failed.</source>
-            <translation>수집에 실패했습니다.</translation>
-        </message>
-        <message>
             <source>Importing %1 / %2…</source>
             <translation>%1 / %2 가져오는 중…</translation>
         </message>
@@ -6761,6 +6808,49 @@ Diff: %6</source>
         <message>
             <source>Catalog executor is unavailable.</source>
             <translation>카탈로그 작업 실행기를 사용할 수 없습니다.</translation>
+        </message>
+    </context>
+    <context>
+        <name>StudioUpdates</name>
+        <message>
+            <source>Unable to read update preferences.</source>
+            <translation>업데이트 설정을 읽을 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Unable to save update preferences.</source>
+            <translation>업데이트 설정을 저장할 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>Unable to connect to GitHub. Check your internet connection and try again.</source>
+            <translation>GitHub에 연결할 수 없습니다. 인터넷 연결을 확인한 후 다시 시도하세요.</translation>
+        </message>
+        <message>
+            <source>The update check timed out. Please try again.</source>
+            <translation>업데이트 확인 시간이 초과되었습니다. 다시 시도하세요.</translation>
+        </message>
+        <message>
+            <source>GitHub is limiting update requests. Please try again later.</source>
+            <translation>GitHub에서 업데이트 요청을 제한하고 있습니다. 나중에 다시 시도하세요.</translation>
+        </message>
+        <message>
+            <source>GitHub could not provide the latest release. Please try again later.</source>
+            <translation>GitHub에서 최신 릴리스 정보를 제공하지 못했습니다. 나중에 다시 시도하세요.</translation>
+        </message>
+        <message>
+            <source>GitHub returned invalid release information.</source>
+            <translation>GitHub에서 잘못된 릴리스 정보를 반환했습니다.</translation>
+        </message>
+        <message>
+            <source>The update response exceeded the size limit.</source>
+            <translation>업데이트 응답이 크기 제한을 초과했습니다.</translation>
+        </message>
+        <message>
+            <source>Unable to open the release page in your browser.</source>
+            <translation>브라우저에서 릴리스 페이지를 열 수 없습니다.</translation>
+        </message>
+        <message>
+            <source>The update check was cancelled.</source>
+            <translation>업데이트 확인이 취소되었습니다.</translation>
         </message>
     </context>
     <context>

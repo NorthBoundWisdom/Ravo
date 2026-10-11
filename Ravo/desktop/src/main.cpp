@@ -39,6 +39,7 @@
 #include <QtLogging>
 
 #include "ravo/desktop/studio_assistant_controller.h"
+#include "ravo/desktop/studio_update_controller.h"
 #include "ravo/desktop/studio_command_controller.h"
 #include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
@@ -50,6 +51,7 @@
 #include "studio_image_providers.h"
 #include "studio_language_manager.h"
 #include "studio_startup_controller.h"
+#include "studio_command_ids.h"
 
 void qml_register_types_GeoControls();
 void qml_register_types_GeoControls_AppShell();
@@ -57,7 +59,8 @@ void qml_register_types_GeoControls_AppShell();
 namespace ravo
 {
 [[nodiscard]] bool smoke_video_playback(const QString &input);
-[[nodiscard]] bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &commands);
+[[nodiscard]] bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &commands,
+                                  StudioUpdateController &updates);
 } // namespace ravo
 
 namespace
@@ -471,6 +474,7 @@ int main(int argc, char *argv[])
     }
     QGuiApplication::setApplicationName(QStringLiteral("Ravo Studio"));
     QGuiApplication::setOrganizationName(QStringLiteral("Ravo"));
+    QGuiApplication::setApplicationVersion(ravo::StudioUpdateController::compiledVersion());
     // Every smoke entry point (including POST_BUILD and direct --smoke) must
     // isolate all desktop preferences before constructing any settings owner.
     // The directory outlives the presenter and its joined workers.
@@ -601,6 +605,25 @@ int main(int argc, char *argv[])
                                                      presenter.defaultCatalogFile().toLocalFile());
     ravo::StudioCommandController command_controller(presenter);
     ravo::StudioAssistantController assistant_controller;
+    ravo::StudioUpdateController update_controller;
+    if (!update_controller.initialize())
+    {
+        LOG_ERROR(ravo::logger(), "update preferences failed to initialize: {}",
+                  update_controller.settingsError().toStdString());
+        return 1;
+    }
+    if (!smoke)
+        QObject::connect(&startup_controller, &ravo::StudioStartupController::finished,
+                         &update_controller, &ravo::StudioUpdateController::checkAtStartup,
+                         Qt::QueuedConnection);
+    QObject::connect(&command_controller,
+                     &ravo::StudioCommandController::presentationCommandRequested,
+                     &update_controller,
+                     [&update_controller](const QString &id, const QVariant &)
+                     {
+                         if (id == QLatin1String(ravo::command::kWindowCheckUpdates))
+                             update_controller.checkManually();
+                     });
     if (!assistant_controller.initialize())
     {
         LOG_ERROR(ravo::logger(), "assistant settings failed to initialize");
@@ -633,6 +656,8 @@ int main(int argc, char *argv[])
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
                      &command_controller, &ravo::StudioCommandController::retranslate);
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
+                     &update_controller, &ravo::StudioUpdateController::retranslate);
+    QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged,
                      presenter.develop(), &ravo::StudioDevelopPresenter::retranslate);
     if (!catalog_path.isEmpty())
     {
@@ -656,6 +681,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("studioLanguage"), &language_manager);
     engine.rootContext()->setContextProperty(QStringLiteral("studioAssistant"),
                                              &assistant_controller);
+    engine.rootContext()->setContextProperty(QStringLiteral("studioUpdates"), &update_controller);
     engine.rootContext()->setContextProperty(QStringLiteral("studioWindow"), &window_geometry);
     engine.rootContext()->setContextProperty(QStringLiteral("studioLayout"), &panel_layout);
     engine.rootContext()->setContextProperty(QStringLiteral("studioDisplayPresentation"),
@@ -755,11 +781,12 @@ int main(int argc, char *argv[])
     }
     if (smoke)
     {
-        const bool loaded =
-            smoke_startup_splash(engine) && smoke_panel_layout(engine, panel_layout) &&
-            smoke_export_options(engine) && ravo::smoke_settings(engine, command_controller) &&
-            ravo::smoke_photo_merge_dialog(engine, command_controller) &&
-            ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
+        const bool loaded = smoke_startup_splash(engine) &&
+                            smoke_panel_layout(engine, panel_layout) &&
+                            smoke_export_options(engine) &&
+                            ravo::smoke_settings(engine, command_controller, update_controller) &&
+                            ravo::smoke_photo_merge_dialog(engine, command_controller) &&
+                            ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

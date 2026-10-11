@@ -1061,6 +1061,9 @@ void StudioCommandController::registerViewCommands(const command_registration::H
     add(command::kWindowAbout, Condition::kAlways, no_argument,
         [present](const QVariant &argument, const QString &)
         { present(command::kWindowAbout, argument); });
+    add(command::kWindowCheckUpdates, Condition::kAlways, no_argument,
+        [present](const QVariant &argument, const QString &)
+        { present(command::kWindowCheckUpdates, argument); });
     add(command::kWindowPalette, Condition::kAlways, no_argument,
         [this](const QVariant &, const QString &) { setPaletteOpen(true); });
     add(command::kWindowDismiss, Condition::kAlways, no_argument,

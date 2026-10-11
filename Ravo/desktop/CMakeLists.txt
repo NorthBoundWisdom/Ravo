@@ -36,6 +36,8 @@ target_sources(ravo_desktop
     src/studio_file_manager.cpp
     src/studio_file_manager.h
     src/studio_assistant_controller.cpp
+    src/studio_update_controller.cpp
+    include/ravo/desktop/studio_update_controller.h
     src/studio_language_manager.cpp
     src/studio_window_geometry.cpp
     src/studio_panel_layout.cpp
@@ -124,6 +126,7 @@ target_link_libraries(ravo_desktop
   PRIVATE Qt6::Gui Qt6::Qml Qt6::Multimedia)
 
 set_target_properties(ravo_desktop PROPERTIES AUTOMOC ON)
+target_compile_definitions(ravo_desktop PRIVATE RAVO_VERSION="${PROJECT_VERSION}")
 if(APPLE)
   target_sources(ravo_desktop PRIVATE
     src/studio_iosurface_snapshot.mm
@@ -232,6 +235,7 @@ qt_add_qml_module(ravo_studio
     src/studio_gpu_preview_item.h
   QML_FILES
     qml/Main.qml
+    qml/chrome/StudioApplicationDialogs.qml
     qml/theme/DarkThemePalette.qml
     qml/gallery/LibraryFilterBar.qml
     qml/gallery/LibrarySidePanel.qml

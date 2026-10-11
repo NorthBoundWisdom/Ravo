@@ -1,5 +1,24 @@
 # Ravo Testing Strategy
 
+`StudioUpdateTest.*` exercises the desktop release-check owner through an
+injected QNetworkAccessManager/QNetworkReply and browser opener. Tests never
+access live GitHub or launch a browser. Coverage includes strict numeric version
+comparison, formal-release and URL validation, offline/HTTP/limit/timeout/size
+failures, single-flight manual/automatic checks, cancellation, destruction and
+late replies, persisted preferences and write failures. Production QML contracts
+cover modal deferral and explicit confirmation before URL dispatch. Startup
+smoke suppresses automatic requests; localization smoke loads every manifest
+locale. Run with:
+
+```text
+cmake --build --preset mac_clang_release --target ravo_desktop_command_tests RavoCodeQuality
+build/mac_clang_release/Ravo/tests/ravo_desktop_command_tests --gtest_filter='StudioUpdateTest.*'
+cmake --build --preset mac_clang_release --target ravo_studio_localization_smoke
+```
+
+Native installed-package browser launch remains a user-run platform check;
+injected URL dispatch is not evidence that an OS browser opened.
+
 Video contracts use the generated CC0 corpus in `Ravo/tests/fixtures/video`;
 `Ravo/tools/generate_video_fixtures.py` owns its media and hash manifest.
 `VideoDecoderTest` covers H.264/AAC, HEVC HLG/PQ, display matrices, timestamps,

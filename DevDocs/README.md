@@ -37,7 +37,9 @@ The architecture and testing authorities cover:
 - Video metadata, FFmpeg decoding, SDR frame artifacts, Qt Multimedia playback,
   mapped frame colour ranges and selection-bound teardown.
 - Settings navigation, per-user language and workspace layout, current-catalog
-  automatic-backup drafts and the existing recovery task owner.
+  automatic-backup drafts and the existing recovery task owner. Desktop GitHub
+  release checks and confirmed browser handoff follow
+  [ADR-0169](adr/0169-studio-release-update-check.md).
 - Shared menus, shortcuts and controls; complete localisation; local Studio
   sessions and CLI acceptance without UI automation.
 - Three-job development CI and five-architecture Release build/test/package
@@ -84,6 +86,10 @@ qualification as passed.
 The source-root workflow keeps ignored active locks and managed checkouts
 separate from the published pinned template. Dependency repositories are
 published and verified before the parent records a new SHA.
+
+FFmpeg remains pinned to the Qt kit's admitted 7.1.5 release during dependency
+refreshes; its source-root workflow and runtime constraints are owned by
+[Dependency Workflow](Dependency_Workflow.md).
 
 The package graph produces macOS ARM64/Intel DMGs, Windows x86_64 ZIP and
 Linux x86_64/ARM64 AppImage/DEB packages. Tagged release publication requires the
