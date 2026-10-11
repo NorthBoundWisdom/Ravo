@@ -8,6 +8,8 @@
 #include "ravo/domain/catalog_repository.h"
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/develop.h"
+#include "ravo/recipe/develop_patch.h"
+#include "ravo/services/recovery_service.h"
 
 namespace ravo
 {
@@ -15,6 +17,29 @@ namespace ravo
 Result<DevelopApplyResult>
 DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
                                         const DevelopApplyProgressCallback &progress)
+{
+    return apply_selection_impl(request, progress, nullptr);
+}
+
+Result<DevelopApplyResult> DevelopService::apply_patch_selection(
+    const std::vector<std::string> &ids, const JsonValue &fields, const std::int64_t revision,
+    const CancellationToken &cancellation, const DevelopApplyProgressCallback &progress)
+{
+    if (ids.empty() || ids.size() > 256 || !fields.array_if() || fields.array_if()->empty() ||
+        fields.array_if()->size() > 256)
+        return make_error(ErrorCode::kInvalidArgument,
+                          "Automation batch requires 1 through 256 photos and fields");
+    DevelopApplyRequest request;
+    request.asset_ids = ids;
+    request.expected_revision = revision;
+    request.cancellation = cancellation;
+    return apply_selection_impl(request, progress, &fields);
+}
+
+Result<DevelopApplyResult>
+DevelopService::apply_selection_impl(const DevelopApplyRequest &request,
+                                     const DevelopApplyProgressCallback &progress,
+                                     const JsonValue *patch)
 {
     if (repository_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -29,10 +54,14 @@ DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
                            {"reason", "invalid_develop_apply_batch_size"}});
     }
 
-    DevelopParams field_probe;
-    auto valid_fields = apply_develop_selected_fields(field_probe, request.source, request.fields);
-    if (!valid_fields)
-        return valid_fields.error();
+    if (!patch)
+    {
+        DevelopParams field_probe;
+        auto valid_fields =
+            apply_develop_selected_fields(field_probe, request.source, request.fields);
+        if (!valid_fields)
+            return valid_fields.error();
+    }
 
     std::set<std::string, std::less<>> unique_assets;
     for (std::size_t index = 0; index < request.asset_ids.size(); ++index)
@@ -92,6 +121,11 @@ DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
         if (skipping)
         {
             item.status = DevelopApplyItemStatus::kSkipped;
+            if (patch)
+                item.error = make_error(request.cancellation.is_cancellation_requested() ?
+                                            ErrorCode::kCancelled :
+                                            ErrorCode::kConflict,
+                                        "Batch stopped before this photo");
             ++result.skipped;
             result.items.push_back(std::move(item));
             if (progress)
@@ -130,8 +164,19 @@ DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
                 progress(result.items.size(), request.asset_ids.size(), &result.items.back());
             continue;
         }
-        auto overlay =
-            apply_develop_selected_fields(destination.value(), request.source, request.fields);
+        const auto before = destination.value();
+        Result<void> overlay;
+        if (patch)
+        {
+            auto changed = apply_develop_patch(before, *patch);
+            if (!changed)
+                overlay = changed.error();
+            else
+                destination = std::move(changed).value();
+        }
+        else
+            overlay =
+                apply_develop_selected_fields(destination.value(), request.source, request.fields);
         if (!overlay)
         {
             item.status = DevelopApplyItemStatus::kFailed;
@@ -142,12 +187,24 @@ DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
                 progress(result.items.size(), request.asset_ids.size(), &result.items.back());
             continue;
         }
-        auto saved = save_develop_with_history(item.asset_id, destination.value());
+        RecipeSaveOptions options;
+        if (patch)
+        {
+            options.expected_revision = result.revision;
+            options.expected_base = before;
+            options.expected_source = loaded.value().asset;
+            options.cancellation = request.cancellation;
+            options.defer_recovery_publication = true;
+        }
+        auto saved = save_develop_with_history(item.asset_id, destination.value(), options);
         if (!saved)
         {
             item.status = DevelopApplyItemStatus::kFailed;
             item.error = saved.error();
             ++result.failed;
+            if (patch && (saved.error().code == ErrorCode::kConflict ||
+                          saved.error().code == ErrorCode::kCancelled))
+                skipping = true;
             result.items.push_back(std::move(item));
             if (progress)
                 progress(result.items.size(), request.asset_ids.size(), &result.items.back());
@@ -155,8 +212,15 @@ DevelopService::apply_develop_selection(const DevelopApplyRequest &request,
         }
         item.status = DevelopApplyItemStatus::kApplied;
         item.history_id = saved.value().history_id;
+        item.revision = saved.value().revision;
         result.revision = saved.value().revision;
         ++result.applied;
+        if (patch)
+        {
+            auto recovered = recovery_service_.synchronize_committed_change(item.asset_id);
+            if (!recovered)
+                item.error = recovered.error(); // committed, with an explicit recovery warning
+        }
         result.items.push_back(std::move(item));
         if (progress)
             progress(result.items.size(), request.asset_ids.size(), &result.items.back());

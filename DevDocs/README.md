@@ -58,6 +58,11 @@ atomic business commit proofs and conservative resume with member reconciliation
 RAWmakase integration gates are in [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md).
 For mask-scoped Develop,
 begin with [ADR-0158](adr/0158-mask-scoped-develop-workspace.md).
+For AI grading and native MCP, see
+[ADR-0168](adr/0168-ai-control-and-mcp.md), the
+[CLI/MCP usage and extension guide](../Ravo/README.md#ai-grading-and-mcp),
+[machine ownership](ARCHITECTURE.md#machine-automation), and
+[contract validation](TESTING.md#ai-grading-and-mcp-contracts).
 
 ## Execution documents
 

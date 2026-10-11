@@ -45,6 +45,9 @@ target_sources(ravo_desktop
     src/studio_library_resume.h
     src/studio_display_presentation.cpp
     src/studio_live_session_controller.cpp
+    src/studio_live_automation.cpp
+    src/studio_operation_store.cpp
+    src/studio_control_json.cpp
     src/studio_presenter.cpp
     src/studio_presenter_composition.cpp
     src/studio_inspect_presenter.cpp

@@ -185,6 +185,20 @@ def verify_source(path: Path, repository_root: Path) -> None:
     except OSError as error:
         raise BoundaryError(f"cannot read production source {path}: {error}") from error
     relative = path.relative_to(repository_root).as_posix()
+    if owner == "cli" and path.name.startswith("mcp_"):
+        match = re.search(r"\b(?:QLocal\w*|QTcp\w*|QUdp\w*|QNetwork\w*|QtNetwork)\b", text)
+        if match:
+            raise BoundaryError(
+                f"{relative}:{line_number(text, match.start())} bypasses MCP stdio/CLI transport ownership"
+            )
+        for match in re.finditer(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', text, re.MULTILINE):
+            include = match.group(1)
+            if (include.startswith("ravo/") and not include.startswith("ravo/foundation/")) or (
+                include.endswith((".h", ".hpp")) and not include.startswith("ravo/") and include != "mcp_internal.h"
+            ):
+                raise BoundaryError(
+                    f"{relative}:{line_number(text, match.start())} bypasses the MCP CLI/foundation boundary"
+                )
     for pattern, description in FORBIDDEN_INCLUDE_PATTERNS:
         match = pattern.search(text)
         if match:

@@ -181,3 +181,4 @@ decision bodies remain stable.
 | [0165](0165-video-library-and-playback.md) | Accepted | Independent video assets, shared FFmpeg decode, SDR presentation and Qt-owned playback |
 | [0166](0166-lightroom-data-preservation-and-develop.md) | Accepted | Immutable foreign catalog archive and compatible database Develop, copies, metadata, history/snapshots and static sets |
 | [0167](0167-foreign-conversion-checkpoints.md) | Accepted | Durable per-record conversion receipts, conservative resume and cancellable source audits |
+| [0168](0168-ai-control-and-mcp.md) | Accepted | Revision-bound read-only grading candidates, session operation receipts and thin native stdio MCP over CLI |

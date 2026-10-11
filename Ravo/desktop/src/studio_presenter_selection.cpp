@@ -77,6 +77,11 @@ void StudioPresenter::publish_selection()
     if (order_changed)
         std::stable_sort(selection_snapshot_.begin(), selection_snapshot_.end(),
                          [](const auto &a, const auto &b) { return a.row < b.row; });
+    if (const auto primary = assets_.assetById(selected_asset_id_);
+        primary && selected_ids_.contains(primary->id) && !positions.contains(primary->id))
+        selection_snapshot_.push_back({primary->id, primary->media_type, primary->import_state,
+                                       primary->version_ordinal,
+                                       static_cast<std::size_t>(std::max(0, selectedIndex()))});
     ++burst_compare_context_revision_;
     assets_.setSelectedIds(selected_ids_);
     emit selectionChanged();
@@ -84,9 +89,17 @@ void StudioPresenter::publish_selection()
 
 void StudioPresenter::activate_primary(const QString &asset_id, const bool reload_preview)
 {
+    if (!asset_id.isEmpty() && !assets_.assetById(asset_id))
+    {
+        resolvePrimaryAsset(asset_id, reload_preview);
+        return;
+    }
     const bool same = selected_asset_id_ == asset_id;
     selected_asset_id_ = asset_id;
     assets_.retainPrimary(asset_id);
+    const auto row = assets_.indexOf(asset_id);
+    if (row >= 0)
+        primary_row_ = std::pair{library_query_generation_, row};
     if (!reload_preview && same && !inspect_.previewUrl().isEmpty())
     {
         publish_selection();

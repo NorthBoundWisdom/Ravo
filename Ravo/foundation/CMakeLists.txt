@@ -8,6 +8,7 @@ target_sources(ravo_foundation
     src/error.cpp
     src/executor.cpp
     src/json.cpp
+    src/json_number.cpp
     src/log.cpp
     src/parse_number.cpp)
 

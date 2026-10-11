@@ -30,6 +30,7 @@ struct RecipeSaveOptions
     std::optional<DevelopParams> expected_base{};
     std::optional<AssetDescriptor> expected_source{};
     std::optional<std::int64_t> expected_history_head{};
+    CancellationToken cancellation{};
 };
 
 struct RecipeSaveResult
@@ -62,6 +63,7 @@ struct DevelopApplyItemResult
     DevelopApplyItemStatus status = DevelopApplyItemStatus::kFailed;
     std::optional<std::int64_t> history_id;
     std::optional<TaskError> error;
+    std::optional<std::int64_t> revision;
 };
 
 struct DevelopApplyResult

@@ -161,64 +161,15 @@ Result<JsonValue> run_catalog_probe_command(const EngineFacade &engine, CatalogS
             return encoded.error();
         }
         QtRasterDecoder raster_decoder;
-        ImageArtifactExpectation expectation;
-        expectation.mime_type = "image/png";
-        expectation.width = previewed.value().width;
-        expectation.height = previewed.value().height;
-        // Bind encoded identity through the color owner fingerprint, not by
-        // assuming builtin sRGB and embedded sRGB ICC descriptors are the same.
-        // engine.encode_png keeps builtin sRGB as the sRGB-chunk identity; other
-        // owned ICC payloads decode as embedded_icc with the same ICC bytes.
-        const auto &preview_profile = previewed.value().color_profile;
-        std::string expected_fingerprint;
-        if (preview_profile.kind == ColorProfileKind::kBuiltin &&
-            preview_profile.identifier == "srgb")
-        {
-            ColorProfileState expected_profile;
-            expected_profile.kind = ColorProfileKind::kBuiltin;
-            expected_profile.model = ColorModel::kRgb;
-            expected_profile.identifier = "srgb";
-            expected_fingerprint = color_profile_fingerprint(expected_profile);
-            expectation.color_profile = "srgb";
-            expectation.color_profile_fingerprint = expected_fingerprint;
-        }
-        else if (!preview_profile.icc_bytes.empty())
-        {
-            ColorProfileState expected_profile;
-            expected_profile.kind = ColorProfileKind::kIcc;
-            expected_profile.model = ColorModel::kRgb;
-            expected_profile.identifier = "embedded_icc";
-            expected_profile.icc_bytes = preview_profile.icc_bytes;
-            expected_fingerprint = color_profile_fingerprint(expected_profile);
-            expectation.color_profile = "embedded_icc";
-            expectation.color_profile_fingerprint = expected_fingerprint;
-        }
-        auto verified =
-            verify_encoded_image_artifact(raster_decoder, encoded.value(), expectation, {});
-        if (!verified)
-        {
-            return verified.error();
-        }
-        const auto artifact = std::move(verified).value();
+        auto artifact = describe_png_artifact(raster_decoder, encoded.value(), image.width,
+                                              image.height, image.color_profile, flags.output);
+        if (!artifact)
+            return artifact.error();
         auto written = publish_bytes_artifact_no_replace(flags.output, encoded.value());
         if (!written)
-        {
             return written.error();
-        }
         payload.emplace("output", std::string(flags.output));
-        payload.emplace("artifact",
-                        JsonValue::Object{
-                            {"type", artifact.type},
-                            {"version", JsonValue::number(std::to_string(artifact.version))},
-                            {"path", std::string(flags.output)},
-                            {"mime_type", artifact.mime_type},
-                            {"width", JsonValue::number(std::to_string(artifact.width))},
-                            {"height", JsonValue::number(std::to_string(artifact.height))},
-                            {"byte_count", JsonValue::number(std::to_string(artifact.byte_count))},
-                            {"color_profile", artifact.color_profile},
-                            {"color_profile_fingerprint", artifact.color_profile_fingerprint},
-                            {"content_sha256", artifact.content_sha256},
-                        });
+        payload.emplace("artifact", std::move(artifact).value());
     }
     return JsonValue{std::move(payload)};
 }

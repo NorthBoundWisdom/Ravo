@@ -424,6 +424,14 @@ void StudioDevelopPresenter::apply_recipe_history(const std::vector<RecipeHistor
     }
 }
 
+bool StudioDevelopPresenter::historyLoading() const
+{
+    return state_.develop_loaded_ &&
+           ((state_.recipe_history_entries_.empty() && state_.loaded_recipe_history_head_ != 0) ||
+            (!state_.recipe_history_entries_.empty() &&
+             state_.recipe_history_entries_.front().id != state_.loaded_recipe_history_head_));
+}
+
 void StudioDevelopPresenter::reload_recipe_history()
 {
     if (selected_asset_id_.isEmpty())

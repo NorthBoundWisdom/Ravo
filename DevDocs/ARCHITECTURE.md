@@ -2511,6 +2511,7 @@ the closed `--set` inventory (`list_develop_set_fields`) so CLI
 `develop-fields` / `catalog fields` cannot drift from
 `apply_develop_field_strict`. Canonical-mask `--set` names remain prefix-based.
 
+<a id="machine-automation"></a>
 CLI is the required machine-automation and acceptance client. Explicit
 catalog/asset commands remain authoritative for stored state. Selection-relative
 automation uses `ravo-studio-control/v1`: `ravo_control` discovers live
@@ -2526,10 +2527,58 @@ renders the snapshot's exact recipe through the non-persistent preview path,
 rechecks selection and recipe revision, then atomically publishes a no-replace
 PNG with MIME, dimensions, profile, SHA-256, and caller-owned lifecycle. Local
 descriptors and sockets disappear with their Studio owner; unreachable crash
-residue is ignored. MCP may later project the same snapshots, commands, and
-immutable image results, but cannot become a second state, renderer,
-permission, or business-policy owner (ADR-0090). Process lists, logs,
+residue is ignored. Native `ravo mcp` projects the same CLI snapshots, commands,
+and immutable image results (ADR-0168). It owns stdio framing, bounded CLI
+subprocesses and owned image-resource bytes; it owns no state, renderer,
+permission, or business policy. Process lists, logs,
 accessibility state, and screenshots remain non-authoritative.
+
+Selection resolution participates in machine `busy` and rejects edits in every
+browse mode. A retained primary AssetRecord and a generation-bound query rank
+remain independent of resident display pages. Async primary resolution fences
+catalog, query, selection generation and cancellation before publication.
+Selection projection v2 pages at most 512 IDs with total/offset/has_more; its
+selection revision identifies the complete set, not just the displayed page.
+Session revision follows command-relevant state; preview identity has its own
+revision so an unchanged recipe's completed image does not stale a candidate.
+
+`studio evaluate` applies `apply_develop_patch` in Recipe to the exact current
+recipe, including a pending draft, without changing it. Shared service rendering
+verifies MIME, dimensions, profile and hash, rechecks live/catalog revisions and
+stored recipe/preview records, and publishes a no-replace artifact. Its v1
+candidate contains the exact binding, field patch, local scope and base/target
+recipe SHA-256. Commit rechecks all revisions, active scope and both hashes.
+
+`StudioOperationStore` belongs to one GUI-thread live controller. A reserved ID
+binds one exact request; duplicate requests return the existing receipt before
+checking current state, while changed content is a conflict. At most 128 inactive
+or active receipts exist; only inactive ones may be evicted. Unknown/evicted IDs
+cannot start a command. Cancel requests update an owned token, checked before
+the transaction, after SQLite write-lock acquisition and immediately before
+its commit boundary. Cancellation at that boundary rolls back recipe, history
+and revision together; after it, the committed result wins. The Develop worker
+reports the actual commit result
+before late-selection rejection, so a committed recipe stays committed even
+when its preview is cancelled. Local mask drafts are reported as `staged`, not
+saved. History restore routes the existing command owner. Batch patches run on
+the existing catalog executor, apply each photo's own recipe with rolling
+revision/source preconditions, and retain per-photo history/revision and recovery
+warnings. Partial success is explicit and never rolls back earlier photos.
+Closing Studio cancels operations and joins that executor before presenter
+members are destroyed. Receipts expire with the session; they do not promise
+crash recovery. A lost/expired receipt means unknown outcome requiring explicit
+recipe/history reconciliation.
+
+MCP supports the 2025-11-25 initialization handshake and 2026-07-28 per-request
+metadata/discovery explicitly. Its only first-party includes are foundation and
+private MCP helpers, enforced by the dependency boundary checker. It launches
+the current executable's CLI with argv and private bounded JSON files, keeps
+at most eight jobs, and propagates cancellation to `studio operation cancel`
+before stopping write clients. EOF joins the reader and releases owned children
+and temporary files. Image resources expose only issued opaque URIs: immutable
+verified bytes are bounded to 16 MiB each, 64 entries and 64 MiB total. Eviction
+or server exit invalidates them; arbitrary file URIs are rejected. MCP contains
+no image decoder, image cache persistence or alternate mutation path.
 Each connected CLI request completes a bounded local-socket disconnect before
 returning; an unsettled handle is aborted. Windows may report a still-live named
 pipe as server-not-found or connection-refused while the prior instance is

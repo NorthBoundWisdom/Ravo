@@ -57,6 +57,19 @@ Result<CatalogSnapshot> LibraryService::snapshot() const
     return snapshot;
 }
 
+Result<AssetRecord> LibraryService::find_asset(const std::string_view asset_id) const
+{
+    if (!repository_)
+        return make_error(ErrorCode::kIo, "Catalog session is closed");
+    auto asset = repository_->find_asset_by_id(asset_id);
+    if (!asset)
+        return asset.error();
+    if (!asset.value())
+        return make_error(ErrorCode::kNotFound, "Photo was not found",
+                          {{"asset_id", std::string(asset_id)}});
+    return std::move(*asset.value());
+}
+
 Result<std::vector<AssetRecord>> LibraryService::list_assets() const
 {
     return list_assets(LibraryQuery{}, true);

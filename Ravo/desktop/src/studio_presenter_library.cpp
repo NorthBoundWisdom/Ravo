@@ -133,6 +133,85 @@ void StudioPresenter::resolveLibrarySelection(const int first, const int last,
     }
 }
 
+void StudioPresenter::resolvePrimaryAsset(const QString &asset_id, const bool reload_preview)
+{
+    selected_asset_id_ = asset_id;
+    primary_row_.reset();
+    develop_presenter_->selectionInvalidated();
+    inspect_.clear_displayed_preview();
+    inspect_.setPreviewLoading(true);
+    publish_selection();
+    selection_resolution_cancel_ = CancellationSource{};
+    const auto cancellation = selection_resolution_cancel_.token();
+    const auto generation = selection_generation_;
+    const auto listing = library_query_generation_;
+    const auto catalog = catalog_path_;
+    const auto revision = observed_catalog_revision_;
+    auto locate = currentPageRequest();
+    locate.around_asset_id = utf8_from_qstring(asset_id);
+    locate.limit = 1;
+    locate.selection_only = true;
+    locate.cancellation = cancellation;
+    selection_resolution_pending_ = true;
+    emit busyChanged();
+    const bool queued = executor_.post(
+        [this, asset_id, reload_preview, cancellation, generation, listing, catalog, revision,
+         locate]
+        {
+            Result<AssetRecord> asset = make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::optional<int> row;
+            if (auto active = cancellation.check(); !active)
+                asset = active.error();
+            else if (service_)
+            {
+                asset = service_->library().find_asset(utf8_from_qstring(asset_id));
+                if (asset)
+                {
+                    auto page = service_->library().list_assets_page(locate);
+                    if (page)
+                        row = static_cast<int>(page.value().offset);
+                    else if (page.error().code != ErrorCode::kNotFound)
+                        asset = page.error();
+                    auto state = service_->library().snapshot();
+                    if (!state)
+                        asset = state.error();
+                    else if (state.value().revision != revision)
+                        asset = make_error(ErrorCode::kConflict, "Library changed during selection",
+                                           {{"reason", "stale_catalog_revision"}});
+                }
+            }
+            QMetaObject::invokeMethod(
+                this,
+                [this, asset_id, reload_preview, cancellation, generation, listing, catalog, row,
+                 asset = std::move(asset)]() mutable
+                {
+                    if (cancellation.is_cancellation_requested() ||
+                        generation != selection_generation_ ||
+                        listing != library_query_generation_ || catalog != catalog_path_ ||
+                        selected_asset_id_ != asset_id)
+                        return;
+                    cancelSelectionResolution();
+                    if (!asset)
+                    {
+                        inspect_.setPreviewLoading(false);
+                        setError(qstring_from_utf8(asset.error().message));
+                        return;
+                    }
+                    assets_.retainPrimaryRecord(std::move(asset).value());
+                    if (row)
+                        primary_row_ = std::pair{listing, *row};
+                    activate_primary(asset_id, reload_preview);
+                },
+                Qt::QueuedConnection);
+        });
+    if (!queued)
+    {
+        cancelSelectionResolution();
+        inspect_.setPreviewLoading(false);
+        setError(QStringLiteral("Catalog selection worker is unavailable."));
+    }
+}
+
 void StudioPresenter::selectLibraryRow(const int row, const QString &mode, const bool open_loupe)
 {
     if (catalog_path_.isEmpty() || busy_ || import_workspace_->importPageOpen())

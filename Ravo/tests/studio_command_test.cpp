@@ -670,7 +670,7 @@ TEST(StudioLiveControlTest, CliReadsSelectionRejectsStaleMutationAndPublishesLat
     const auto *artifact = developed_data.value().find("artifact");
     ASSERT_NE(artifact, nullptr);
     ASSERT_NE(artifact->object_if(), nullptr);
-    const auto *hash = artifact->find("content_hash");
+    const auto *hash = artifact->find("content_sha256");
     ASSERT_NE(hash, nullptr);
     ASSERT_NE(hash->string_if(), nullptr);
     QFile output_file(output);

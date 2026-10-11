@@ -19,7 +19,9 @@ target_sources(ravo_cli
     src/application_catalog_cull.cpp
     src/application_catalog_ingest.cpp
     src/application_catalog_facets.cpp
-    src/application_studio.cpp)
+    src/application_studio.cpp
+    src/application_studio_automation.cpp)
+target_sources(ravo_cli PRIVATE src/mcp_server.cpp src/mcp_tools.cpp)
 
 target_include_directories(ravo_cli
   PUBLIC

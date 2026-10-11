@@ -1,5 +1,6 @@
 #include "ravo/cli/application.h"
 #include "application_internal.h"
+#include "mcp_internal.h"
 
 #include <algorithm>
 #include <array>
@@ -277,6 +278,13 @@ int CliApplication::run(const std::span<const std::string_view> arguments) const
     }
     const auto &positional = parsed.value().positional;
     const bool json = parsed.value().json;
+    if (positional.front() == "mcp")
+    {
+        if (json || positional.size() != 1)
+            return emit(make_error(ErrorCode::kInvalidArgument, "Usage: ravo mcp (stdio JSON-RPC)"),
+                        json);
+        return run_mcp_server(stdout_stream_, stderr_stream_);
+    }
 
     if (positional.size() == 1 && positional.front() == "--version")
     {

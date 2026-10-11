@@ -256,6 +256,9 @@ public:
         std::chrono::steady_clock::time_point intent_started_at{};
         std::optional<AssetDescriptor> expected_source;
         std::optional<std::int64_t> expected_history_head;
+        std::string control_operation_id{};
+        CancellationToken control_cancellation{};
+        std::optional<std::int64_t> control_catalog_revision{};
     };
     struct State
     {
@@ -539,6 +542,7 @@ public:
     void load_develop_for_selection();
     void apply_recipe_history(const std::vector<RecipeHistoryEntry> &entries);
     void reload_recipe_history();
+    [[nodiscard]] bool historyLoading() const;
     void sync_active_history();
     [[nodiscard]] DevelopParams baseline_develop() const;
     [[nodiscard]] DevelopParams develop_from_history_entry(const RecipeHistoryEntry &entry) const;
@@ -555,6 +559,10 @@ public:
                         std::optional<std::string> history_coalesce_key = {});
     void preview_develop(DevelopParams params);
     void break_history_coalescing();
+    [[nodiscard]] bool controlSaveQueued(std::string_view id) const
+    {
+        return last_control_save_id_ == id;
+    }
     void enqueue_preview();
     void request_comparison_before();
     [[nodiscard]] double selected_source_aspect() const;
@@ -628,9 +636,12 @@ signals:
     void interactivePreviewPublished(qulonglong revision, qlonglong intentToImageMicroseconds);
     void errorOccurred(QString error);
     void statusOccurred(QString status);
+    void controlCommitFinished(QString operation_id, bool committed, qlonglong catalog_revision,
+                               qlonglong history_id, QString error_code, QString error_message);
 
 private:
     friend class StudioPresenter;
+    friend class StudioCommandController;
     friend class testing::StudioPipelineTestControl;
     struct Host
     {
@@ -679,6 +690,10 @@ private:
     QTimer local_overlay_resume_timer_;
     bool local_overlay_suppressed_ = false;
     Host host_;
+    std::string control_operation_id_;
+    std::string last_control_save_id_;
+    CancellationToken control_cancellation_;
+    std::optional<std::int64_t> control_catalog_revision_;
     bool stopped_ = false;
     std::uint64_t catalog_session_generation_ = 0;
     std::uint64_t recipe_load_generation_ = 0;

@@ -985,18 +985,17 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
     // the prior client handle has completed disconnect. Bound that cleanup on
     // every post-connect return so discovery's ping can be followed immediately
     // by a state or mutation request without a transient not-found result.
-    const LocalSocketCloseGuard close_guard(socket, timeout_ms);
+    const LocalSocketCloseGuard close_guard(
+        socket, std::max(1, timeout_ms - static_cast<int>(connect_timer.elapsed())));
     if (socket.write(outgoing) != outgoing.size())
     {
         return make_error(
             ErrorCode::kIo, "Cannot write the Studio live-control request",
             {{"session_id", descriptor.session_id}, {"reason", utf8(socket.errorString())}});
     }
-    QElapsedTimer write_timer;
-    write_timer.start();
     while (socket.bytesToWrite() > 0)
     {
-        const int remaining = timeout_ms - static_cast<int>(write_timer.elapsed());
+        const int remaining = timeout_ms - static_cast<int>(connect_timer.elapsed());
         if (remaining <= 0 || (!socket.waitForBytesWritten(remaining) && socket.bytesToWrite() > 0))
         {
             return make_error(
@@ -1006,8 +1005,6 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
     }
 
     QByteArray incoming;
-    QElapsedTimer timer;
-    timer.start();
     while (incoming.indexOf('\n') < 0)
     {
         incoming.append(socket.readAll());
@@ -1021,7 +1018,7 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
         {
             break;
         }
-        const int remaining = timeout_ms - static_cast<int>(timer.elapsed());
+        const int remaining = timeout_ms - static_cast<int>(connect_timer.elapsed());
         if (remaining <= 0 || !socket.waitForReadyRead(remaining))
         {
             if (socket.state() == QLocalSocket::UnconnectedState &&

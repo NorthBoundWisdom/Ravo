@@ -1,5 +1,12 @@
 # Ravo Migration Policy
 
+2026-10-11: [ADR-0168](adr/0168-ai-control-and-mcp.md) admits native local stdio
+MCP for the requested AI grading workflow. CLI remains the acceptance surface;
+read-only candidates, mask/history intents and per-photo batches use the existing
+Recipe, desktop and service owners. Session receipts describe actual commits
+and expire explicitly. No network server, AI inference runtime, alternate
+renderer, catalog schema or original-image mutation is introduced.
+
 2026-10-10: ADR-0167's schema 21 extension binds actual business revisions to
 conversion commit proofs and reconciles pending selected collection members.
 Unproven photo-stage completion still requires explicit resolution; no global

@@ -30,6 +30,7 @@ target_sources(ravo_recipe
     src/recipe.cpp
     src/retouch.cpp
     src/develop.cpp
+    src/develop_patch.cpp
     src/develop_assign.cpp
     src/develop_instances.cpp
     src/develop_channel_mixer.cpp

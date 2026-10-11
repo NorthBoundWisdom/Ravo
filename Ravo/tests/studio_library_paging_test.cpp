@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "studio_test_support.h"
+#include "studio_library_test_support.h"
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/desktop/studio_command_controller.h"
@@ -61,46 +62,6 @@ using namespace studio_test_support;
 // This is setup, not the paging latency contract: selection waits below retain
 // their ordinary timeout and all unloaded-row/selection assertions stay intact.
 constexpr int kCatalogOpenTimeoutMs = 60000;
-void make_paged_catalog(const QTemporaryDir &root, const int count = 205,
-                        const bool include_unloaded_video = false)
-{
-    auto repository =
-        SqliteCatalogRepository::create(root.filePath("library.sqlite").toStdString());
-    ASSERT_TRUE(repository);
-    QImage image(16, 12, QImage::Format_RGB888);
-    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-    for (int i = 0; i < count; ++i)
-    {
-        const auto file = root.filePath(QString("photo-%1.png").arg(i));
-        image.fill(QColor(i % 256, i / 256, 160));
-        ASSERT_TRUE(image.save(file, "PNG"));
-        auto location = normalize_local_input(file.toStdString());
-        ASSERT_TRUE(location);
-        auto identity = read_file_identity(location.value().path);
-        ASSERT_TRUE(identity);
-        AssetRecord asset;
-        asset.id = "ast_page_" + std::to_string(i);
-        asset.normalized_uri = location.value().uri;
-        asset.media_type = "image/png";
-        if (include_unloaded_video && i == 500)
-        {
-            asset.media_type = "video/mp4";
-            VideoInfo video;
-            video.container = "mp4";
-            video.codec = "h264";
-            video.width = 16;
-            video.height = 12;
-            asset.video = video;
-        }
-        asset.width = 16;
-        asset.height = 12;
-        asset.size_bytes = identity.value().size_bytes;
-        asset.mtime_unix_ms = identity.value().mtime_unix_ms;
-        asset.content_fingerprint = make_content_fingerprint(identity.value());
-        asset.created_unix_ms = 1000 - i;
-        ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
-    }
-}
 } // namespace
 TEST(StudioLibraryPaging, NextAcrossUnloadedPagePreservesSelectionUntilResolved)
 {

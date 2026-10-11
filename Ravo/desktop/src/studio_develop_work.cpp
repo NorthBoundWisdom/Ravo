@@ -268,6 +268,11 @@ void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool pus
     emit previewChanged();
     const auto request_revision =
         state_.develop_preview_owner_.supersede("develop_save_superseded");
+    if (state_.pending_save_ && !state_.pending_save_->control_operation_id.empty())
+        emit controlCommitFinished(
+            qstring_from_utf8(state_.pending_save_->control_operation_id), false, 0, 0,
+            QStringLiteral("cancelled"),
+            QStringLiteral("Develop request was superseded before dispatch"));
     state_.pending_save_ = PendingDevelopWork{
         .save = true,
         .interactive = crop_guides || overlay || needs_first_preview,
@@ -292,6 +297,10 @@ void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool pus
         .expected_history_head =
             discard_after ? std::optional<std::int64_t>{history_head_before} : std::nullopt,
     };
+    state_.pending_save_->control_operation_id = control_operation_id_;
+    last_control_save_id_ = control_operation_id_;
+    state_.pending_save_->control_cancellation = control_cancellation_;
+    state_.pending_save_->control_catalog_revision = control_catalog_revision_;
     state_.pending_preview_.reset();
     kick_develop_work();
 }
@@ -588,10 +597,11 @@ void StudioDevelopPresenter::kick_develop_work()
                             .discard_history_after_seq = job.discard_history_after_seq,
                             .coalesce_history_id = job.coalesce_history_id,
                             .defer_recovery_publication = true,
-                            .expected_revision = {},
+                            .expected_revision = job.control_catalog_revision,
                             .expected_base = job.previous,
                             .expected_source = job.expected_source,
                             .expected_history_head = job.expected_history_head,
+                            .cancellation = job.control_cancellation,
                         });
                     save_ok = static_cast<bool>(saved);
                 }
@@ -609,7 +619,8 @@ void StudioDevelopPresenter::kick_develop_work()
                     request.ignore_straighten = job.ignore_straighten;
                     request.persist_preview_record =
                         job.comparison_before ? false : !job.interactive;
-                    request.cancellation = cancellation;
+                    request.cancellation =
+                        CancellationToken::combine(cancellation, job.control_cancellation);
                     request.prefer_cached_settled_preview = job.prefer_cached_settled_preview;
                     // Pure interactive frames publish the Engine-owned native
                     // display surface. Snapshot its display RGB8 on this executor
@@ -641,6 +652,14 @@ void StudioDevelopPresenter::kick_develop_work()
                 {
                     state_.develop_job_in_flight_ = false;
                     state_.develop_interactive_job_in_flight_ = false;
+                    if (job.save && !job.control_operation_id.empty())
+                        emit controlCommitFinished(
+                            qstring_from_utf8(job.control_operation_id), bool(saved),
+                            saved ? saved.value().revision : 0,
+                            saved ? saved.value().history_head : 0,
+                            saved ? QString{} :
+                                    qstring_from_utf8(error_code_name(saved.error().code)),
+                            saved ? QString{} : qstring_from_utf8(saved.error().message));
                     const bool selected_matches =
                         session_generation == catalog_session_generation_ &&
                         load_generation == recipe_load_generation_ &&

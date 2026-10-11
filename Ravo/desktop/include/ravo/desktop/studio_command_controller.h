@@ -1,6 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
+#include <cstdint>
+#include <string_view>
 #include <string>
 #include <vector>
 
@@ -12,6 +15,8 @@
 #include <QVariantMap>
 
 #include "ravo/foundation/error.h"
+#include "ravo/foundation/json.h"
+#include "ravo/foundation/cancellation.h"
 #include "ravo/desktop/studio_backup_settings.h"
 
 // studio_command_registration.h is desktop-src private; forward the helpers
@@ -91,8 +96,19 @@ public:
     // Machine-control entry point. It shares the command controller's runtime
     // availability policy and commits one ordered, strictly validated batch.
     [[nodiscard]] Result<bool> applyDevelopFields(const std::vector<StudioDevelopField> &fields);
-    [[nodiscard]] Result<bool> applyLocalAdjustment(const QString &action,
-                                                    const QVariantMap &arguments);
+    [[nodiscard]] Result<bool> applyDevelopPatch(const JsonValue &fields,
+                                                 std::string_view local_id = {},
+                                                 std::string operation_id = {},
+                                                 CancellationToken cancellation = {},
+                                                 std::optional<std::int64_t> catalog_revision = {});
+    [[nodiscard]] Result<bool> restoreDevelopHistory(std::int64_t history_id,
+                                                     std::string operation_id,
+                                                     CancellationToken cancellation,
+                                                     std::optional<std::int64_t> catalog_revision);
+    [[nodiscard]] Result<bool>
+    applyLocalAdjustment(const QString &action, const QVariantMap &arguments,
+                         std::string operation_id = {}, CancellationToken cancellation = {},
+                         std::optional<std::int64_t> catalog_revision = {});
     Q_INVOKABLE QVariantMap localAdjustment(const QString &action, const QVariantMap &arguments);
 
     [[nodiscard]] static QStringList validateBuiltinDefinitions();

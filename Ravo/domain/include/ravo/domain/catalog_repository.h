@@ -171,7 +171,8 @@ public:
     // append. coalesce_history_id replaces that ordinary row only while it remains the latest
     // row for this asset; otherwise the new state appends without overwriting intervening work.
     // The repository must leave the previous recipe and history visible when any part of the
-    // transaction fails.
+    // transaction fails. Cancellation is checked after lock acquisition and at
+    // the commit boundary; after that boundary the committed result wins.
     [[nodiscard]] virtual Result<RecipeCommitResult>
     commit_recipe(std::string_view asset_id, std::int64_t recipe_schema_version,
                   std::optional<std::string_view> recipe_json, std::string_view history_json,

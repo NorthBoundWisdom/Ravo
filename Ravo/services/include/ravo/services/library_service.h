@@ -30,6 +30,7 @@ public:
     LibraryService &operator=(LibraryService &&) = delete;
 
     [[nodiscard]] Result<CatalogSnapshot> snapshot() const;
+    [[nodiscard]] Result<AssetRecord> find_asset(std::string_view asset_id) const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets() const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query) const;
     [[nodiscard]] Result<std::vector<AssetRecord>> list_assets(const LibraryQuery &query,

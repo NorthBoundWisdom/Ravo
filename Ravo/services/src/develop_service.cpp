@@ -126,6 +126,8 @@ Result<RecipeSaveResult> DevelopService::save_recipe_with_history(const std::str
                                                                   const Recipe &recipe,
                                                                   const RecipeSaveOptions options)
 {
+    if (auto active = options.cancellation.check(); !active)
+        return active.error();
     if (repository_ == nullptr || engine_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
@@ -251,11 +253,13 @@ Result<RecipeSaveResult> DevelopService::save_recipe_with_history(const std::str
     // Keep an owned, non-null empty string for the explicit baseline history entry. A default
     // string_view has a null data pointer, which Qt Sql correctly binds as SQL NULL.
     const std::string history_json = recipe_json.value_or(std::string{});
+    if (auto active = options.cancellation.check(); !active)
+        return active.error();
     const auto committed = repository_->commit_recipe(
         asset_id, stored.schema_version, recipe_json_view, history_json, options.history_write,
         options.discard_history_after_seq, options.coalesce_history_id,
         RecipeCommitPrecondition{options.expected_revision, expected_generation,
-                                 options.expected_history_head});
+                                 options.expected_history_head, options.cancellation});
     if (!committed)
     {
         return committed.error();

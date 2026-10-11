@@ -1,6 +1,8 @@
 # ADR-0090: Versioned local control for the live Studio session
 
 - Status: Accepted
+- Extended by: [ADR-0168](0168-ai-control-and-mcp.md) for evaluation candidates,
+  bounded operation receipts and native stdio projection.
 - Date: 2026-08-30
 - Extends: [ADR-0003](0003-versioned-machine-contract.md),
   [ADR-0011](0011-atomic-develop-publication.md),

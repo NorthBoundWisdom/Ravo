@@ -816,6 +816,40 @@ reconnection by the requested timeout. Explicit-session subprocesses resolve a
 validated descriptor once and use the requested method as their liveness proof
 (ADR-0090).
 
+### AI grading and MCP contracts
+
+`StudioAutomationRegression` pins pending-selection busy/rejection, retained
+off-page primary metadata, rank after sort replacement, strict preview recipe
+fences and post-dispatch timeout outcome context. `DevelopPatchTest` and the
+foundation contracts pin numeric precision, text fields, transactional strict
+patches and combined cancellation ownership. `CatalogServiceTest.Automation*`
+and `CancelledSaveNeverPublishesRecipeOrHistory` cover independent batch commits,
+cancellation after the first photo, competing revisions and cancelled saves.
+`AutomationRecipeCancellationWhileWaitingForWriterLockCannotCommit` holds a real
+SQLite write lock on another connection, cancels the waiting owner and verifies
+that recipe, history and catalog revision remain unchanged after lock release.
+`StudioOperationStoreTest` covers exact replay, content conflicts, bounded
+eviction, cancellation and partial-progress phase semantics.
+
+`StudioMcpProtocolTest` starts the actual `ravo mcp` executable and covers both
+declared MCP versions, schemas, unknown fields/URIs, malformed/oversized lines
+and continued operation. `StudioMcpTest` runs against a synthetic real Studio
+command owner and SQLite catalog: exact read-only trial neutrality, original
+hash/recipe/history/preview preservation, immutable resource hashes, exactly-once
+candidate replay, stale rejection, cancellation before commit and after commit,
+mask/local trial and drawn geometry, history restore, selected batch receipts and
+EOF and Studio-close cancellation/resource teardown. No UI automation or screenshots are used.
+
+```sh
+cmake --build --preset mac_clang_debug --target ravo_unit_tests ravo_catalog_tests ravo_desktop_command_tests RavoCodeQuality
+ctest --test-dir build/mac_clang_debug --output-on-failure -R 'StudioAutomationRegression|StudioOperationStoreTest|StudioMcp|DevelopPatchTest|AutomationBatch|CancelledSaveNever|CombinedToken|RealNumbers'
+```
+
+Use the corresponding host preset on Windows/Linux. Public header and scheduling
+changes also require the complete Ravo suite. Synthetic macOS contracts do not
+establish Windows named-pipe behavior, private RAW throughput or external MCP
+host interoperability.
+
 Focused engine references pin `-1 EV` to an exact one-stop linear reduction,
 the basic-adjustments contrast/saturation/vibrance equations, D50 Lab output,
 the Color Contrast per-axis float affine/clamp order, and the non-jumping hidden

@@ -20,6 +20,10 @@ class CancellationToken
 {
 public:
     CancellationToken() = default;
+    // Immutable union of two owner lifetimes; retains both states. If both
+    // cancel, the first argument supplies the reported reason.
+    [[nodiscard]] static CancellationToken combine(const CancellationToken &first,
+                                                   const CancellationToken &second);
 
     [[nodiscard]] bool is_cancellation_requested() const noexcept;
     [[nodiscard]] std::string reason() const;

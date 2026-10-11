@@ -9,6 +9,7 @@ struct LocalMaskPoint
     double x = 0;
     double y = 0;
 };
+[[nodiscard]] bool local_mask_drawable(MaskKind kind) noexcept;
 [[nodiscard]] Result<void> add_local_mask_component(DevelopParams &local, std::int64_t kind,
                                                     std::int64_t combine);
 [[nodiscard]] Result<void> author_local_mask_gesture(DevelopParams &local,

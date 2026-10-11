@@ -24,134 +24,15 @@
 #include "ravo/recipe/recipe.h"
 
 #include "studio_qt.h"
+#include "studio_operation_store.h"
+#include "studio_control_json.h"
 
 namespace ravo
 {
 namespace
 {
 
-[[nodiscard]] Result<const JsonValue::Object *> require_object(const JsonValue &value,
-                                                               const std::string_view location)
-{
-    const auto *object = value.object_if();
-    if (object == nullptr)
-    {
-        return make_error(ErrorCode::kValidation, "Live Studio value must be an object",
-                          {{"location", std::string(location)}});
-    }
-    return object;
-}
-
-[[nodiscard]] Result<void> reject_unknown(const JsonValue::Object &object,
-                                          const std::initializer_list<std::string_view> allowed,
-                                          const std::string_view location)
-{
-    for (const auto &[key, value] : object)
-    {
-        static_cast<void>(value);
-        if (std::find(allowed.begin(), allowed.end(), key) == allowed.end())
-        {
-            return make_error(ErrorCode::kValidation, "Unknown live Studio request field",
-                              {{"field", key}, {"location", std::string(location)}});
-        }
-    }
-    return {};
-}
-
-[[nodiscard]] Result<std::string> string_field(const JsonValue::Object &object,
-                                               const std::string_view key,
-                                               const std::size_t maximum = 4096U)
-{
-    const auto found = object.find(key);
-    if (found == object.end() || found->second.string_if() == nullptr ||
-        found->second.string_if()->empty() || found->second.string_if()->size() > maximum)
-    {
-        return make_error(ErrorCode::kValidation, "Live Studio string field is invalid",
-                          {{"field", std::string(key)}});
-    }
-    return *found->second.string_if();
-}
-
-template <typename Integer>
-[[nodiscard]] Result<Integer> integer_field(const JsonValue::Object &object,
-                                            const std::string_view key)
-{
-    const auto found = object.find(key);
-    if (found == object.end() || found->second.number_if() == nullptr)
-    {
-        return make_error(ErrorCode::kValidation, "Live Studio integer field is missing",
-                          {{"field", std::string(key)}});
-    }
-    const auto &text = found->second.number_if()->text;
-    Integer result{};
-    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), result);
-    if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size())
-    {
-        return make_error(ErrorCode::kValidation, "Live Studio integer field is invalid",
-                          {{"field", std::string(key)}});
-    }
-    return result;
-}
-
-[[nodiscard]] Result<double> number_value(const JsonValue &value, const std::string_view name)
-{
-    const auto *number = value.number_if();
-    if (number == nullptr)
-    {
-        return make_error(ErrorCode::kValidation, "Live Develop value must be numeric",
-                          {{"name", std::string(name)}});
-    }
-    double parsed = 0.;
-    if (!parse_ascii_double(number->text, parsed))
-    {
-        return make_error(ErrorCode::kValidation, "Live Develop value must be finite",
-                          {{"name", std::string(name)}});
-    }
-    return parsed;
-}
-
-[[nodiscard]] Result<std::vector<StudioDevelopField>>
-develop_fields_from_json(const JsonValue &value)
-{
-    const auto *array = value.array_if();
-    if (array == nullptr || array->empty() || array->size() > 256U)
-    {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Live Develop fields must contain 1 through 256 entries");
-    }
-    std::vector<StudioDevelopField> result;
-    result.reserve(array->size());
-    std::set<std::string, std::less<>> names;
-    for (std::size_t index = 0; index < array->size(); ++index)
-    {
-        auto object = require_object((*array)[index], "params.fields[]");
-        if (!object)
-            return object.error();
-        auto known = reject_unknown(*object.value(), {"name", "value"}, "params.fields[]");
-        if (!known)
-            return known.error();
-        auto name = string_field(*object.value(), "name", 256U);
-        if (!name)
-            return name.error();
-        const auto value_found = object.value()->find("value");
-        if (value_found == object.value()->end())
-        {
-            return make_error(ErrorCode::kValidation, "Live Develop value is missing",
-                              {{"name", name.value()}});
-        }
-        auto number = number_value(value_found->second, name.value());
-        if (!number)
-            return number.error();
-        if (!names.insert(name.value()).second)
-        {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "Live Develop field was specified more than once",
-                              {{"name", name.value()}});
-        }
-        result.push_back({std::move(name).value(), number.value()});
-    }
-    return result;
-}
+using namespace studio_control_internal;
 
 [[nodiscard]] std::string operation_key(const JsonValue &value)
 {
@@ -239,10 +120,23 @@ StudioLiveSessionController::StudioLiveSessionController(StudioPresenter &presen
     : QObject(parent)
     , presenter_(presenter)
     , commands_(commands)
+    , operations_(std::make_unique<StudioOperationStore>())
 {
 }
 
-StudioLiveSessionController::~StudioLiveSessionController() = default;
+StudioLiveSessionController::~StudioLiveSessionController()
+{
+    operations_->cancel_all();
+    if (presenter_alive_)
+    {
+        // Batch closures borrow this controller; single Develop jobs belong to
+        // the presenter and retain their cancellation token independently.
+        if (batch_active_)
+            presenter_.executor_.wait_idle();
+        if (batch_active_ || !single_active_id_.empty())
+            presenter_.setBusy(false);
+    }
+}
 
 Result<std::unique_ptr<StudioLiveSessionController>>
 StudioLiveSessionController::create(StudioPresenter &presenter, StudioCommandController &commands,
@@ -258,6 +152,15 @@ StudioLiveSessionController::create(StudioPresenter &presenter, StudioCommandCon
 
 Result<void> StudioLiveSessionController::start()
 {
+    connect(&presenter_, &StudioPresenter::aboutToShutdown, this,
+            [this]
+            {
+                server_.reset();
+                operations_->cancel_all();
+                // Presenter cancels all of its task owners and joins the executor in
+                // its destructor body, before any referenced member is destroyed.
+                presenter_alive_ = false;
+            });
     descriptor_.session_id = utf8_from_qstring(QUuid::createUuid().toString(QUuid::WithoutBraces));
     descriptor_.process_id = static_cast<std::uint64_t>(QCoreApplication::applicationPid());
     descriptor_.executable_path = canonical_path(QCoreApplication::applicationFilePath());
@@ -289,6 +192,20 @@ Result<void> StudioLiveSessionController::start()
     connect(commands_.backupSettings(), &StudioBackupSettings::changed, this, changed);
     refresh();
 
+    connect(presenter_.develop(), &StudioDevelopPresenter::controlCommitFinished, this,
+            [this](const QString &id, bool committed, qlonglong revision, qlonglong history,
+                   const QString &code, const QString &message)
+            {
+                operations_->finish(utf8_from_qstring(id), committed, revision, history,
+                                    utf8_from_qstring(code), utf8_from_qstring(message));
+                if (single_active_id_ == utf8_from_qstring(id))
+                {
+                    single_active_id_.clear();
+                    presenter_.setBusy(false);
+                }
+                refresh();
+            });
+
     auto server = LocalControlServer::start(descriptor_, [this](const LiveControlRequest &request)
                                             { return handle(request); });
     if (!server)
@@ -309,37 +226,13 @@ const std::filesystem::path &StudioLiveSessionController::descriptorPath() const
 
 void StudioLiveSessionController::refresh()
 {
+    if (!presenter_alive_)
+        return;
     std::string selection = utf8_from_qstring(presenter_.selected_asset_id_);
     for (const auto &id : presenter_.selected_asset_ids())
     {
         selection.push_back('\n');
         selection.append(id);
-    }
-    // Playback timestamps/pixels are volatile observations, not new control
-    // intents. Keep state revisions usable while a video is advancing, and
-    // still invalidate every selection, catalog, mode or control-state change.
-    if (presenter_.video()->available())
-    {
-        auto video = *presenter_.video()->jsonSnapshot().object_if();
-        video.erase("position_ms");
-        const auto identity = serialize_json(JsonValue::Object{
-            {"video", JsonValue{std::move(video)}},
-            {"selection", selection},
-            {"catalog", utf8_from_qstring(presenter_.catalog_path_)},
-            {"catalog_revision",
-             JsonValue::number(std::to_string(presenter_.observed_catalog_revision_))},
-            {"mode", utf8_from_qstring(presenter_.browse_mode_)},
-            {"busy", presenter_.busy_}});
-        if (identity != video_control_identity_)
-        {
-            ++session_revision_;
-            video_control_identity_ = identity;
-        }
-    }
-    else
-    {
-        ++session_revision_;
-        video_control_identity_.clear();
     }
     if (selection != selection_identity_)
     {
@@ -404,6 +297,41 @@ void StudioLiveSessionController::refresh()
     baseline_recipe_json_ = std::move(baseline);
     recipe_error_ = std::move(failure);
 
+    // Control revisions describe mutation preconditions. Frame publication and
+    // playback timestamps have their own revisions and must not stale an
+    // otherwise unchanged candidate while an immutable artifact is encoded.
+    auto video = *presenter_.video()->jsonSnapshot().object_if();
+    video.erase("position_ms");
+    const auto identity = serialize_json(JsonValue::Object{
+        {"catalog", utf8_from_qstring(presenter_.catalog_path_)},
+        {"catalog_revision",
+         JsonValue::number(std::to_string(presenter_.observed_catalog_revision_))},
+        {"selection", selection_identity_},
+        {"mode", utf8_from_qstring(presenter_.browse_mode_)},
+        {"busy", presenter_.busy() || presenter_.imports()->importWorkActive() ||
+                     presenter_.develop()->historyLoading() ||
+                     presenter_.develop()->state().develop_job_in_flight_ ||
+                     presenter_.develop()->state().pending_save_.has_value() ||
+                     presenter_.develop()->state().pending_preview_.has_value()},
+        {"loaded", presenter_.develop()->state().develop_loaded_},
+        {"recipe", JsonValue::number(std::to_string(recipe_revision_))},
+        {"saved_recipe", JsonValue::number(std::to_string(saved_recipe_revision_))},
+        {"history_cursor",
+         JsonValue::number(std::to_string(presenter_.develop()->state().active_history_id_))},
+        {"history_sequence",
+         JsonValue::number(std::to_string(presenter_.develop()->state().active_history_seq_))},
+        {"local_id", utf8_from_qstring(presenter_.develop()->activeLocalId())},
+        {"gesture", utf8_from_qstring(presenter_.develop()->state().mask_gesture_token_)},
+        {"modal", commands_.modalOpen()},
+        {"settings", commands_.settingsOpen()},
+        {"import_open", presenter_.imports()->importPageOpen()},
+        {"video", std::move(video)}});
+    if (identity != video_control_identity_)
+    {
+        ++session_revision_;
+        video_control_identity_ = identity;
+    }
+
     const std::string preview = std::to_string(presenter_.inspect()->frameRevision()) + "\n" +
                                 utf8_from_qstring(presenter_.inspect()->pixelSha256()) + "\n" +
                                 std::to_string(presenter_.inspect()->previewLoading() ? 1 : 0) +
@@ -416,7 +344,8 @@ void StudioLiveSessionController::refresh()
     }
 }
 
-JsonValue StudioLiveSessionController::snapshot() const
+JsonValue StudioLiveSessionController::snapshot(const std::size_t selection_offset,
+                                                const std::size_t selection_limit) const
 {
     JsonValue::Object catalog{{"open", presenter_.catalogOpen()},
                               {"path", utf8_from_qstring(presenter_.catalog_path_)},
@@ -424,8 +353,19 @@ JsonValue StudioLiveSessionController::snapshot() const
                                                presenter_.observed_catalog_revision_, 0)))}};
 
     const auto selected_ids = presenter_.selected_asset_ids();
+    const auto first = std::min(selection_offset, selected_ids.size());
+    const auto count = std::min({selection_limit, std::size_t{512}, selected_ids.size() - first});
+    std::vector<std::string> projected(selected_ids.begin() + static_cast<std::ptrdiff_t>(first),
+                                       selected_ids.begin() +
+                                           static_cast<std::ptrdiff_t>(first + count));
     JsonValue::Object selection{
-        {"asset_ids", string_array(selected_ids)},
+        {"asset_ids", string_array(projected)},
+        {"total", JsonValue::number(std::to_string(selected_ids.size()))},
+        {"offset", JsonValue::number(std::to_string(first))},
+        {"truncated", count != selected_ids.size()},
+        {"has_more", first + count < selected_ids.size()},
+        {"resolving", presenter_.selectionResolving()},
+        {"schema_version", JsonValue::number("2")},
         {"primary_asset_id", utf8_from_qstring(presenter_.selected_asset_id_)},
         {"revision", JsonValue::number(std::to_string(selection_revision_))},
     };
@@ -486,6 +426,17 @@ JsonValue StudioLiveSessionController::snapshot() const
     const bool preview_ready = !presenter_.inspect()->pixelSha256().isEmpty() &&
                                presenter_.inspect()->frameWidth() > 0U &&
                                presenter_.inspect()->frameHeight() > 0U;
+    JsonValue::Array mask_handles;
+    for (const auto &value : presenter_.develop()->localMaskHandles())
+    {
+        const auto handle = value.toMap();
+        mask_handles.emplace_back(JsonValue::Object{
+            {"id", utf8_from_qstring(handle.value("id").toString())},
+            {"x", JsonValue::number(
+                      QByteArray::number(handle.value("x").toDouble(), 'g', 17).toStdString())},
+            {"y", JsonValue::number(
+                      QByteArray::number(handle.value("y").toDouble(), 'g', 17).toStdString())}});
+    }
     JsonValue::Object preview{
         {"color_profile", utf8_from_qstring(presenter_.inspect()->frameColorProfile())},
         {"height", JsonValue::number(std::to_string(presenter_.inspect()->frameHeight()))},
@@ -515,7 +466,8 @@ JsonValue StudioLiveSessionController::snapshot() const
 
     return JsonValue::Object{
         {"browse_mode", utf8_from_qstring(presenter_.browse_mode_)},
-        {"busy", presenter_.busy_ || presenter_.import_workspace_->importWorkActive() ||
+        {"busy", presenter_.busy() || presenter_.import_workspace_->importWorkActive() ||
+                     presenter_.develop()->historyLoading() ||
                      presenter_.develop()->state().develop_job_in_flight_ ||
                      presenter_.develop()->state().pending_save_.has_value() ||
                      presenter_.develop()->state().pending_preview_.has_value()},
@@ -551,8 +503,21 @@ JsonValue StudioLiveSessionController::snapshot() const
              {"overlay_requested", presenter_.develop()->maskOverlayVisible()},
              {"overlay_active", presenter_.develop()->maskOverlayActive()},
              {"gesture_token",
-              utf8_from_qstring(presenter_.develop()->state().mask_gesture_token_)}}},
+              utf8_from_qstring(presenter_.develop()->state().mask_gesture_token_)},
+             {"coordinate_space", "normalized_developed_image"},
+             {"handles", std::move(mask_handles)}}},
         {"selection", std::move(selection)},
+        {"selection_resolving", presenter_.selectionResolving()},
+        {"binding",
+         JsonValue::Object{
+             {"session_id", descriptor_.session_id},
+             {"asset_id", utf8_from_qstring(presenter_.selected_asset_id_)},
+             {"expected_session_revision", JsonValue::number(std::to_string(session_revision_))},
+             {"expected_selection_revision",
+              JsonValue::number(std::to_string(selection_revision_))},
+             {"expected_recipe_revision", JsonValue::number(std::to_string(recipe_revision_))},
+             {"expected_catalog_revision", JsonValue::number(std::to_string(std::max<std::int64_t>(
+                                               0, presenter_.observed_catalog_revision_)))}}},
         {"session_id", descriptor_.session_id},
         {"status", utf8_from_qstring(presenter_.status_text_)},
         {"type", "ravo.studio.session"},
@@ -564,11 +529,35 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
 {
     if (request.method == "state")
     {
-        if (request.params.object_if() == nullptr || !request.params.object_if()->empty())
+        auto params = require_object(request.params, "params");
+        if (!params)
+            return params.error();
+        auto known =
+            reject_unknown(*params.value(), {"selection_offset", "selection_limit"}, "params");
+        if (!known)
+            return known.error();
+        std::uint64_t offset = 0, limit = 512;
+        if (params.value()->contains("selection_offset"))
+        {
+            auto value = integer_field<std::uint64_t>(*params.value(), "selection_offset");
+            if (!value)
+                return value.error();
+            offset = value.value();
+        }
+        if (params.value()->contains("selection_limit"))
+        {
+            auto value = integer_field<std::uint64_t>(*params.value(), "selection_limit");
+            if (!value)
+                return value.error();
+            limit = value.value();
+        }
+        if (limit > 512 || offset > static_cast<std::uint64_t>(SIZE_MAX))
             return make_error(ErrorCode::kInvalidArgument,
-                              "Studio state request does not accept parameters");
-        return snapshot();
+                              "Selection projection is outside its bound");
+        return snapshot(static_cast<std::size_t>(offset), static_cast<std::size_t>(limit));
     }
+    if (request.method == "operation" || request.method == "commit" || request.method == "history")
+        return handleAutomation(request);
     if (request.method == "video")
     {
         auto params = require_object(request.params, "params");
@@ -695,10 +684,10 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
     auto params = require_object(request.params, "params");
     if (!params)
         return params.error();
-    auto known = reject_unknown(
-        *params.value(),
-        {"asset_id", "expected_selection_revision", "expected_session_revision", "fields"},
-        "params");
+    auto known = reject_unknown(*params.value(),
+                                {"asset_id", "expected_selection_revision",
+                                 "expected_session_revision", "fields", "operation_id"},
+                                "params");
     if (!known)
         return known.error();
     auto asset_id = string_field(*params.value(), "asset_id", 256U);
@@ -715,9 +704,8 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
         return expected_selection.error();
     if (fields_value == params.value()->end())
         return make_error(ErrorCode::kInvalidArgument, "Studio Develop fields are missing");
-    auto fields = develop_fields_from_json(fields_value->second);
-    if (!fields)
-        return fields.error();
+    if (!fields_value->second.array_if())
+        return make_error(ErrorCode::kInvalidArgument, "Develop fields must be an array");
 
     if (expected_session.value() != session_revision_)
     {
@@ -740,7 +728,7 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
                            {"expected", asset_id.value()},
                            {"actual", utf8_from_qstring(presenter_.selected_asset_id_)}});
     }
-    if (presenter_.busy_ || presenter_.import_workspace_->importWorkActive() ||
+    if (presenter_.busy() || presenter_.import_workspace_->importWorkActive() ||
         presenter_.develop()->state().develop_job_in_flight_ ||
         presenter_.develop()->state().pending_save_ ||
         presenter_.develop()->state().pending_preview_ ||
@@ -749,22 +737,65 @@ Result<JsonValue> StudioLiveSessionController::handle(const LiveControlRequest &
         return make_error(ErrorCode::kConflict, "Studio Develop state is busy",
                           {{"reason", "busy"}});
     }
-    auto applied = commands_.applyDevelopFields(fields.value());
+    std::string operation_id;
+    if (params.value()->contains("operation_id"))
+    {
+        auto value = string_field(*params.value(), "operation_id", 200);
+        if (!value)
+            return value.error();
+        operation_id = value.value();
+    }
+    else
+    {
+        auto reserved = operations_->reserve(descriptor_.session_id);
+        if (!reserved)
+            return reserved.error();
+        operation_id = *reserved.value().find("operation_id")->string_if();
+    }
+    auto begun = operations_->begin(operation_id, request.params);
+    if (!begun)
+        return begun.error();
+    if (!begun.value())
+    {
+        auto receipt = operations_->get(operation_id);
+        auto object = *snapshot().object_if();
+        object.emplace("operation", receipt.value());
+        object.emplace("mutation", JsonValue::Object{{"operation_id", operation_id}});
+        return JsonValue{std::move(object)};
+    }
+    auto token = operations_->token(operation_id);
+    if (!token)
+        return token.error();
+    auto applied =
+        commands_.applyDevelopPatch(fields_value->second, {}, operation_id, token.value(),
+                                    presenter_.observed_catalog_revision_);
     if (!applied)
-        return applied.error();
+    {
+        operations_->finish(operation_id, false, 0, 0,
+                            std::string(error_code_name(applied.error().code)),
+                            applied.error().message);
+        auto error = applied.error();
+        error.context.insert_or_assign("operation_id", operation_id);
+        error.context.insert_or_assign("mutation_applied", "false");
+        return error;
+    }
+    if (applied.value() && presenter_.develop()->controlSaveQueued(operation_id))
+    {
+        single_active_id_ = operation_id;
+        presenter_.setBusy(true);
+    }
+    else
+        operations_->finish(operation_id, true, presenter_.observed_catalog_revision_,
+                            presenter_.develop()->state().loaded_recipe_history_head_);
 
     auto state = snapshot();
     auto object = *state.object_if();
-    JsonValue::Array applied_fields;
-    for (const auto &field : fields.value())
-    {
-        applied_fields.push_back(JsonValue::Object{
-            {"name", field.name}, {"value", JsonValue::number(std::to_string(field.value))}});
-    }
+    object.emplace("operation", operations_->get(operation_id).value());
     object.emplace("mutation",
                    JsonValue::Object{
                        {"applied", applied.value()},
-                       {"fields", std::move(applied_fields)},
+                       {"fields", fields_value->second},
+                       {"operation_id", operation_id},
                        {"recipe_revision", JsonValue::number(std::to_string(recipe_revision_))}});
     return JsonValue{std::move(object)};
 }

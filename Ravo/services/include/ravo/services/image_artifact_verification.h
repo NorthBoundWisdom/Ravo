@@ -9,6 +9,8 @@
 #include "ravo/domain/raster_decoder.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/error.h"
+#include "ravo/foundation/json.h"
+#include "ravo/foundation/color.h"
 
 namespace ravo
 {
@@ -47,5 +49,13 @@ struct ImageArtifactExpectation
 [[nodiscard]] Result<VerifiedImageArtifact> verify_encoded_image_artifact(
     const RasterDecoder &decoder, const std::vector<std::uint8_t> &encoded,
     const ImageArtifactExpectation &expected, const CancellationToken &cancellation = {});
+
+// Canonical versioned JSON for a PNG encoded by the Engine. Verifies actual
+// bytes/profile identity through the shared raster owner; does not publish.
+// path is borrowed for this call and copied into the returned JSON.
+[[nodiscard]] Result<JsonValue>
+describe_png_artifact(const RasterDecoder &decoder, const std::vector<std::uint8_t> &encoded,
+                      std::uint32_t width, std::uint32_t height, const ColorProfileState &profile,
+                      std::string_view path, const CancellationToken &cancellation = {});
 
 } // namespace ravo

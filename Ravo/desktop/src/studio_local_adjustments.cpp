@@ -365,6 +365,11 @@ Result<bool> StudioDevelopPresenter::applyLocalAdjustmentCommand(const QString &
         const auto kind = arguments.value(QStringLiteral("kind")).toLongLong(&ok);
         if (!ok || static_cast<double>(kind) != arguments.value(QStringLiteral("kind")).toDouble())
             return failure("invalid_mask_kind");
+        const auto mask_kind = develop_mask_kind_from_index(kind);
+        if (!mask_kind || (*mask_kind != MaskKind::kParametric && !local_mask_drawable(*mask_kind)))
+            return make_error(ErrorCode::kUnsupported,
+                              "This mask kind cannot be created through Studio",
+                              {{"reason", "unsupported_local_mask_creation"}});
         const QString fresh =
             QStringLiteral("local-") + QUuid::createUuid().toString(QUuid::WithoutBraces);
         auto created = create_local_adjustment(next, utf8_from_qstring(fresh), kind);

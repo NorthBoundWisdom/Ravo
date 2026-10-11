@@ -62,6 +62,8 @@ struct RecipeCommitPrecondition
     std::optional<std::int64_t> catalog_revision;
     std::optional<std::int64_t> asset_generation;
     std::optional<std::int64_t> history_head;
+    // Checked after acquiring the write lock and immediately before commit.
+    CancellationToken cancellation{};
 };
 
 inline constexpr std::size_t kTagMaxLength = 128;

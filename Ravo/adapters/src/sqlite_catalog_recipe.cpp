@@ -108,6 +108,8 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
     const std::optional<std::int64_t> coalesce_history_id,
     const RecipeCommitPrecondition precondition)
 {
+    if (auto active = precondition.cancellation.check(); !active)
+        return active.error();
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
@@ -128,6 +130,8 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
     {
         return map_sql_error(begin, "begin_recipe_transaction");
     }
+    if (auto active = precondition.cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
 
     QSqlQuery guard(impl_->database);
     guard.prepare(QStringLiteral(
@@ -256,6 +260,8 @@ Result<RecipeCommitResult> SqliteCatalogRepository::commit_recipe(
         return impl_->abort_transaction(map_sql_error(history_head, "read_recipe_history_head"));
     const auto head = history_head.next() ? history_head.value(0).toLongLong() : 0;
     history_head.finish();
+    if (auto active = precondition.cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     if (!impl_->database.commit())
     {
         return impl_->abort_transaction(

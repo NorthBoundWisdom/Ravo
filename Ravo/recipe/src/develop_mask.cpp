@@ -1199,6 +1199,11 @@ void enable_target_operation(DevelopParams &params, const DevelopMaskTarget targ
 
 } // namespace
 
+std::optional<MaskKind> develop_mask_kind_from_index(const std::int64_t index) noexcept
+{
+    return mask_kind_from_index(index);
+}
+
 std::string_view develop_mask_target_name(const DevelopMaskTarget target) noexcept
 {
     return mask_target_info(target).name;

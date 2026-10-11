@@ -1,6 +1,6 @@
 # ADR-0080: Studio observes live catalog revision instead of wrapping CLI in MCP
 
-- Status: Accepted
+- Status: Accepted; optional MCP packaging extended by [ADR-0168](0168-ai-control-and-mcp.md)
 - Date: 2026-08-29
 - Extends: [ADR-0003](0003-versioned-machine-contract.md),
   [ADR-0007](0007-first-usable-catalog-viewer.md),
@@ -33,7 +33,8 @@ returning a cached revision, so a second connection's bump was invisible.
   explicit errors; the previous applied revision is left unchanged so the
   next tick retries.
 - MCP around `ravo` remains later optional packaging. It is not the Studio
-  control plane.
+  control plane. ADR-0168 admits that packaging as a thin native stdio adapter
+  over the shared revision-bound CLI contract; catalog observation remains here.
 
 ## Consequences
 

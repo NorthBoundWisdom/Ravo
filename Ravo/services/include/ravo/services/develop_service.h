@@ -50,6 +50,10 @@ public:
     [[nodiscard]] Result<DevelopApplyResult>
     apply_develop_selection(const DevelopApplyRequest &request,
                             const DevelopApplyProgressCallback &progress = {});
+    [[nodiscard]] Result<DevelopApplyResult>
+    apply_patch_selection(const std::vector<std::string> &asset_ids, const JsonValue &fields,
+                          std::int64_t expected_revision, const CancellationToken &cancellation,
+                          const DevelopApplyProgressCallback &progress = {});
     [[nodiscard]] Result<AssetRecord> reset_recipe(std::string_view asset_id);
     [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const;
@@ -69,6 +73,9 @@ public:
                          const CancellationToken &cancellation);
 
 private:
+    [[nodiscard]] Result<DevelopApplyResult>
+    apply_selection_impl(const DevelopApplyRequest &, const DevelopApplyProgressCallback &,
+                         const JsonValue *patch);
     // recipe is borrowed only for this synchronous call; null preserves the
     // existing current-state/empty-baseline snapshot contract.
     [[nodiscard]] Result<AssetRecord> create_recipe_snapshot_impl(std::string_view asset_id,

@@ -98,6 +98,8 @@ struct DevelopMaskEditorState
 };
 
 [[nodiscard]] std::string_view develop_mask_target_name(DevelopMaskTarget target) noexcept;
+// Uses the same stable numeric mapping as strict Develop mask fields.
+[[nodiscard]] std::optional<MaskKind> develop_mask_kind_from_index(std::int64_t index) noexcept;
 [[nodiscard]] std::string_view
 develop_mask_attachment_status_name(DevelopMaskAttachmentStatus status) noexcept;
 [[nodiscard]] bool is_develop_mask_field(std::string_view field) noexcept;

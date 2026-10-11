@@ -14,6 +14,9 @@
 #include <QVector>
 
 #include "ravo/desktop/studio_presenter.h"
+#include "ravo/recipe/develop_patch.h"
+#include <QScopedValueRollback>
+#include <climits>
 #include "ravo/recipe/develop.h"
 #include "studio_qt.h"
 
@@ -550,11 +553,23 @@ QVariantMap StudioCommandController::executeCommand(const QString &command_id,
 Result<bool>
 StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField> &fields)
 {
-    if (fields.empty() || fields.size() > 256U)
+    JsonValue::Array patch;
+    for (const auto &field : fields)
     {
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Live Develop mutation requires 1 through 256 fields");
+        auto value = json_real(field.value);
+        if (!value)
+            return value.error();
+        patch.push_back(
+            JsonValue::Object{{"name", field.name}, {"value", std::move(value).value()}});
     }
+    return applyDevelopPatch(JsonValue{std::move(patch)});
+}
+
+Result<bool>
+StudioCommandController::applyDevelopPatch(const JsonValue &fields, const std::string_view local_id,
+                                           std::string operation_id, CancellationToken cancellation,
+                                           const std::optional<std::int64_t> catalog_revision)
+{
     if (modal_open_)
     {
         return make_error(ErrorCode::kConflict,
@@ -576,8 +591,8 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
         return make_error(ErrorCode::kConflict, state.reason.toUtf8().toStdString(),
                           {{"reason", "command_unavailable"}});
     }
-    if (!presenter_.develop()->state().develop_loaded_ || presenter_.busy_ ||
-        presenter_.develop()->state().mask_gesture_before_ ||
+    if (!presenter_.develop()->state().develop_loaded_ || presenter_.develop()->historyLoading() ||
+        presenter_.busy() || presenter_.develop()->state().mask_gesture_before_ ||
         presenter_.develop()->state().local_creation_before_ ||
         presenter_.develop()->state().develop_job_in_flight_ ||
         presenter_.develop()->state().pending_save_ ||
@@ -587,42 +602,31 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
                           {{"reason", "busy"}});
     }
 
-    DevelopParams next = presenter_.develop()->state().develop_;
-    std::set<std::string, std::less<>> names;
-    for (const auto &field : fields)
-    {
-        if (field.name.empty() || field.name.size() > 256U || !std::isfinite(field.value))
-        {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "Live Develop field name or value is invalid",
-                              {{"name", field.name}});
-        }
-        if (!names.insert(field.name).second)
-        {
-            return make_error(ErrorCode::kInvalidArgument,
-                              "Live Develop field was specified more than once",
-                              {{"name", field.name}});
-        }
-        auto applied = apply_develop_field_strict(next, field.name, field.value);
-        if (!applied)
-        {
-            auto error = applied.error();
-            error.context.insert_or_assign("reason", "invalid_develop_field");
-            return error;
-        }
-    }
+    if ((!local_id.empty() &&
+         presenter_.develop()->activeLocalId() != qstring_from_utf8(local_id)) ||
+        (local_id.empty() && presenter_.develop()->localEditing()))
+        return make_error(ErrorCode::kConflict, "Develop editing scope changed",
+                          {{"reason", "stale_editing_scope"}});
+    auto next = apply_develop_patch(presenter_.develop()->state().develop_, fields, local_id);
+    if (!next)
+        return next.error();
+    auto &owner = *presenter_.develop();
+    QScopedValueRollback operation(owner.control_operation_id_, std::move(operation_id));
+    QScopedValueRollback token(owner.control_cancellation_, std::move(cancellation));
+    QScopedValueRollback revision(owner.control_catalog_revision_, catalog_revision);
     if (enter_develop)
     {
         presenter_.openDevelop();
     }
-    return presenter_.develop()->mutate_develop(std::move(next),
+    return presenter_.develop()->mutate_develop(std::move(next).value(),
                                                 StudioDevelopPresenter::DevelopEdit::Commit);
 }
 
-Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action,
-                                                           const QVariantMap &arguments)
+Result<bool> StudioCommandController::applyLocalAdjustment(
+    const QString &action, const QVariantMap &arguments, std::string operation_id,
+    CancellationToken cancellation, const std::optional<std::int64_t> catalog_revision)
 {
-    if (presenter_.imports()->importPageOpen())
+    if (presenter_.busy() || presenter_.imports()->importPageOpen())
         return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
                           {{"reason", "command_unavailable"}});
     const auto state =
@@ -630,7 +634,38 @@ Result<bool> StudioCommandController::applyLocalAdjustment(const QString &action
     if (modal_open_ || !state.enabled)
         return make_error(ErrorCode::kConflict, "Local adjustment command is unavailable",
                           {{"reason", "command_unavailable"}});
-    return presenter_.develop()->applyLocalAdjustmentCommand(action, arguments);
+    auto &owner = *presenter_.develop();
+    QScopedValueRollback operation(owner.control_operation_id_, std::move(operation_id));
+    QScopedValueRollback token(owner.control_cancellation_, std::move(cancellation));
+    QScopedValueRollback revision(owner.control_catalog_revision_, catalog_revision);
+    return owner.applyLocalAdjustmentCommand(action, arguments);
+}
+
+Result<bool> StudioCommandController::restoreDevelopHistory(
+    const std::int64_t history_id, std::string operation_id, CancellationToken cancellation,
+    const std::optional<std::int64_t> catalog_revision)
+{
+    const auto state =
+        resolve_state(presenter_, Condition::kReadySelection, settings_open_, QString{});
+    if (modal_open_ || !state.enabled || presenter_.busy() ||
+        presenter_.develop()->historyLoading() || !presenter_.develop()->state().develop_loaded_ ||
+        presenter_.develop()->state().mask_gesture_before_ ||
+        presenter_.develop()->state().local_creation_before_ ||
+        presenter_.develop()->state().develop_job_in_flight_ ||
+        presenter_.develop()->state().pending_save_ || history_id < 0 || history_id > INT_MAX)
+        return make_error(ErrorCode::kConflict, "History restore command is unavailable",
+                          {{"reason", "command_unavailable"}});
+    const auto &entries = presenter_.develop()->state().recipe_history_entries_;
+    if (history_id != 0 && std::none_of(entries.begin(), entries.end(),
+                                        [&](const auto &entry) { return entry.id == history_id; }))
+        return make_error(ErrorCode::kNotFound, "Recipe history entry does not exist");
+    auto &owner = *presenter_.develop();
+    QScopedValueRollback operation(owner.control_operation_id_, std::move(operation_id));
+    QScopedValueRollback token(owner.control_cancellation_, std::move(cancellation));
+    QScopedValueRollback revision(owner.control_catalog_revision_, catalog_revision);
+    const auto before = owner.state().develop_;
+    owner.restoreHistory(static_cast<int>(history_id));
+    return owner.state().develop_ != before || owner.state().pending_save_.has_value();
 }
 
 QVariantMap StudioCommandController::localAdjustment(const QString &action,

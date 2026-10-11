@@ -294,6 +294,17 @@ ravo studio develop [--session-id <id>] [--asset-id <id>] \
 ravo studio preview [--session-id <id>] [--asset-id <id>] \
   [--expect-session-revision N] [--expect-selection-revision N] \
   --output <file.png> [--max-edge N] --json
+ravo studio capabilities --json
+ravo studio evaluate --session-id <id> --request <binding-and-fields.json> \
+  --output <unique.png> [--max-edge 1..1600] --json
+ravo studio operation --session-id <id> --action reserve --json
+ravo studio commit --session-id <id> --operation-id <reserved-id> \
+  --request <candidate-or-command.json> [--wait true|false] --json
+ravo studio operation --session-id <id> --action get|cancel \
+  --operation-id <reserved-id> [--wait true|false] --json
+ravo studio history --session-id <id> --asset-id <id> \
+  --expect-selection-revision N [--offset N] [--limit 1..200] --json
+ravo mcp
 ```
 
 `catalog mask` exposes local-group create/set/rename/duplicate/enable/invert/delete
@@ -472,6 +483,115 @@ CatalogService/Engine path and return a no-replace caller-owned artifact with
 MIME type, dimensions, profile, and SHA-256. Multiple matching windows require
 an explicit session ID. Process logs, open files, cache activity, and window
 screenshots remain non-authoritative (ADR-0090).
+
+## AI grading and MCP
+
+`ravo mcp` runs a native stdio MCP server in the existing executable. Configure
+an MCP host to launch the current checkout's built or installed `ravo` with
+`["mcp"]`; do not add `--json`. For hosts using `mcpServers` configuration:
+
+```json
+{"mcpServers":{"ravo":{"command":"/absolute/path/to/ravo","args":["mcp"]}}}
+```
+
+The adapter supports MCP 2025-11-25 initialization and 2026-07-28 per-request
+metadata/discovery. Stdout contains only newline JSON-RPC. It exposes 13 tools:
+session discovery, bounded Studio state, field capabilities, exact preview,
+candidate evaluation/commit, operation reserve/get/cancel, history list/restore,
+mask actions and selected-photo batch patches. Each tool advertises a closed
+input schema and the `ravo.mcp.tool_result` v1 output envelope. Image tools
+return the same verified PNG as inline image content and an opaque resource URI.
+Only issued URIs are readable; resources expire after bounded eviction or server
+exit (64 images/64 MiB, 16 MiB each). No network listener or extra runtime is needed.
+
+An AI client should use this sequence:
+
+1. Call `ravo.sessions.list`, choose an explicit session, then read
+   `ravo.studio.state`. Respect `busy`, `selection.resolving` and `editing_scope`.
+   Use `state.binding` verbatim; it contains session/asset identity and session,
+   selection, recipe and catalog revisions. Selection pages contain at most
+   512 IDs; fetch additional pages with offset/limit and verify the selection
+   revision remains unchanged before a batch.
+2. Read `ravo.develop.fields` and `ravo.preview.read`. Fields use Recipe's strict
+   native units and bounds (for example exposure is EV); text values remain
+   strings. Do not send slider positions or infer applicability from a field's
+   name. Read current/saved recipes and history before a persistent edit.
+3. Call `ravo.develop.evaluate` with that binding and an ordered field array,
+   inspect its image, and compare alternatives. Evaluation changes no live draft,
+   stored recipe, history, preview record or original image. It returns a
+   `ravo.develop.candidate` v1 with the exact base/target recipe hashes.
+4. Reserve an operation ID with `ravo.operations.reserve`, then call
+   `ravo.develop.commit` with the chosen candidate and that ID. Inspect the
+   receipt and read state/history afterwards. Stale state fails; obtain a fresh
+   state and evaluate again instead of silently changing the candidate's binding.
+5. Preserve the operation ID across transport failures. Query
+   `ravo.operations.get`; replaying the identical request with the same ID returns
+   its existing receipt, while changed content is rejected. Never retry an
+   unknown write using a new ID automatically. `cancel` requests cancellation
+   before commit; an already committed transaction remains committed.
+
+The equivalent CLI evaluation request is the state binding plus fields:
+
+```json
+{
+  "session_id":"chosen-session", "asset_id":"chosen-asset",
+  "expected_session_revision":12, "expected_selection_revision":4,
+  "expected_recipe_revision":8, "expected_catalog_revision":27,
+  "fields":[{"name":"exposure","value":0.25}]
+}
+```
+
+Use the actual observed values. `studio evaluate` also accepts inline `--asset-id`,
+`--expect-session-revision`, `--expect-selection-revision`,
+`--expect-recipe-revision`, `--expect-catalog-revision`, repeated `--set` and
+`--set-text` flags; do not mix them with `--request`. The output's `candidate`
+object is the next commit request file. Both image paths are atomic no-replace
+artifacts described by `ravo.image_artifact` v1: MIME, dimensions, profile identity
+and fingerprint, byte count, content SHA-256 and explicit lifecycle. CLI files
+are caller-owned and should be removed when no longer needed.
+
+Local edits require the active `editing_scope.local_id` in evaluate. For masks,
+`ravo.mask.apply` forwards the existing C++ command actions: `create` takes a
+numeric kind marked `create_action` in `mask_kinds`; `select`, `duplicate`, `delete`, `invert` use `id`;
+`rename` adds `name`, `enable` adds a boolean `enabled`, and `component` adds
+`kind` and `combine` (the strict `localMaskChildOperator` inventory defines its
+bounds). `set` uses an ID and strict numeric field object; evaluation supports
+ordered numeric/text patches. `draw` takes `enabled`, and `done` takes `{}`.
+Drawing kinds stage a draft until placed; `phase: staged` does not mean saved.
+For `gesture_begin`, send `id`, `asset`, normalized developed-image `x/y` in
+`[0,1]` and `handle` (`draw` or an advertised handle). Re-read state for its
+`gesture_token`; `gesture_update`/`gesture_end` use `token`, `id`, `asset`, `x/y`.
+`gesture_cancel` uses the same target/token without coordinates. Re-read binding
+after each staged action. `done` cancels an unplaced creation draft.
+
+History restore uses a history ID from `ravo.history.list` (zero means baseline)
+and a fresh binding. `ravo.develop.batch` takes up to 256 explicit confirmed
+selected IDs and one global field patch; each photo starts with its own saved
+recipe. Inspect all per-photo history/revision/error results. A cancelled or
+conflicting batch may be `partially_committed`; earlier commits remain saved.
+Recovery-publication warnings on applied photos do not imply an unsaved recipe.
+
+Receipts are bounded to 128 entries per Studio session; only inactive entries
+can expire. They survive selection changes, but not window close/restart.
+Unknown/expired IDs cannot start writes. If the session or receipt disappears,
+the outcome is unknown: reconcile the explicit catalog recipe/history before
+deciding what to do. Closing MCP stdin cancels its work and releases children,
+temporary artifacts and image resources. Closing Studio cancels queued work and
+joins its existing executor. No original-image bytes are modified.
+
+Further MCP development must begin with a versioned shared C++ state/command
+contract and real CLI/service tests. Put image algorithms in Engine, recipe
+field semantics in Recipe, persistence/batch orchestration in services and
+ephemeral selection/draft/gesture policy in desktop C++. Add CLI JSON first,
+then only schema/argv/resource projection in `cli/src/mcp_*`. Those units may
+include foundation and private MCP helpers only; the boundary checker rejects
+business-layer includes. Keep cancellation tied to the real commit point and
+retain partial outcomes. Extend the actual stdio subprocess tests for new tools,
+including stale requests, duplicate IDs, cancellation, output conflict and EOF.
+Do not introduce MCP-only SQL, cache, renderer, mutation or UI automation.
+Ownership and limits are specified in
+[ADR-0168](../DevDocs/adr/0168-ai-control-and-mcp.md) and
+[Architecture](../DevDocs/ARCHITECTURE.md#machine-automation).
 
 ## Source ownership and further reading
 

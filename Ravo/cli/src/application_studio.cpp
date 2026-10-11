@@ -1,5 +1,8 @@
 #include "ravo/cli/application.h"
 #include "application_internal.h"
+#include "studio_client_internal.h"
+#include "ravo/adapters/qt_raster_decoder.h"
+#include "ravo/services/image_artifact_verification.h"
 
 #include <algorithm>
 #include <array>
@@ -44,37 +47,119 @@
 
 namespace ravo::cli_internal
 {
-struct StudioCliArguments
-{
-    std::string_view session_id;
-    std::string_view workspace_root;
-    std::string_view asset_id;
-    std::optional<std::uint64_t> expected_session_revision;
-    std::optional<std::uint64_t> expected_selection_revision;
-    std::optional<std::uint64_t> expected_recipe_revision;
-    std::string_view mask_action;
-    std::string_view mask_arguments;
-    std::string_view video_value;
-    std::optional<std::uint64_t> expected_video_generation;
-    std::vector<std::pair<std::string, double>> develop_sets;
-    std::string_view output;
-    std::optional<std::uint32_t> max_edge;
-    int timeout_ms = 120000;
-};
 [[nodiscard]] Result<StudioCliArguments>
 parse_studio_flags(const std::span<const std::string_view> positional)
 {
     StudioCliArguments result;
+    std::set<std::string_view> allowed{"--session-id", "--workspace-root", "--timeout-ms"};
+    const auto command = positional[1];
+    if (command == "state" || command == "history")
+    {
+        allowed.insert("--offset");
+        allowed.insert("--limit");
+    }
+    if (command == "operation")
+    {
+        allowed.insert("--action");
+        allowed.insert("--operation-id");
+        allowed.insert("--wait");
+    }
+    if (command == "commit")
+    {
+        allowed.insert("--request");
+        allowed.insert("--operation-id");
+        allowed.insert("--wait");
+    }
+    if (command == "develop" || command == "preview" || command == "evaluate" ||
+        command == "mask" || command == "video" || command == "history")
+    {
+        allowed.insert("--asset-id");
+        allowed.insert("--expect-session-revision");
+        allowed.insert("--expect-selection-revision");
+    }
+    if (command == "develop" || command == "preview" || command == "evaluate" ||
+        command == "mask" || command == "history")
+        allowed.insert("--expect-recipe-revision");
+    if (command == "develop" || command == "preview" || command == "evaluate")
+    {
+        allowed.insert("--expect-catalog-revision");
+        allowed.insert("--output");
+        allowed.insert("--max-edge");
+    }
+    if (command == "history")
+        allowed.insert("--expect-catalog-revision");
+    if (command == "develop" || command == "evaluate")
+    {
+        allowed.insert("--set");
+        allowed.insert("--set-text");
+    }
+    if (command == "evaluate")
+    {
+        allowed.insert("--request");
+        allowed.insert("--local-id");
+    }
+    if (command == "develop")
+        allowed.insert("--operation-id");
+    if (command == "mask" || command == "video")
+        allowed.insert("--action");
+    if (command == "mask")
+        allowed.insert("--arguments");
+    if (command == "video")
+    {
+        allowed.insert("--value");
+        allowed.insert("--expect-video-generation");
+    }
+    std::set<std::string_view> seen;
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         const auto option = positional[index];
+        if (!allowed.contains(option))
+            return make_error(ErrorCode::kInvalidArgument, "Unknown Studio option",
+                              {{"option", std::string(option)}});
+        if (option != "--set" && option != "--set-text" && !seen.insert(option).second)
+            return make_error(ErrorCode::kInvalidArgument, "Studio option was specified twice",
+                              {{"option", std::string(option)}});
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Studio option requires a value",
                               {{"option", std::string(option)}});
         }
         const auto value = positional[++index];
-        if (option == "--expect-video-generation")
+        if (option == "--request" || option == "--operation-id" || option == "--local-id")
+        {
+            auto &slot = option == "--request"      ? result.request_file :
+                         option == "--operation-id" ? result.operation_id :
+                                                      result.local_id;
+            if (!slot.empty())
+                return make_error(ErrorCode::kInvalidArgument, "Studio option specified twice");
+            slot = value;
+        }
+        else if (option == "--wait")
+        {
+            if (value != "true" && value != "false")
+                return make_error(ErrorCode::kInvalidArgument, "--wait requires true or false");
+            result.wait = value == "true";
+        }
+        else if (option == "--offset" || option == "--limit")
+        {
+            auto &slot = option == "--offset" ? result.offset : result.limit;
+            if (slot)
+                return make_error(ErrorCode::kInvalidArgument, "Page option specified twice");
+            auto parsed = parse_uint64_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            slot = parsed.value();
+        }
+        else if (option == "--expect-catalog-revision")
+        {
+            if (result.expected_catalog_revision)
+                return make_error(ErrorCode::kInvalidArgument, "Catalog revision specified twice");
+            auto parsed = parse_uint64_flag(value, option);
+            if (!parsed || parsed.value() > INT64_MAX)
+                return make_error(ErrorCode::kInvalidArgument, "Catalog revision is invalid");
+            result.expected_catalog_revision = static_cast<std::int64_t>(parsed.value());
+        }
+        else if (option == "--expect-video-generation")
         {
             if (result.expected_video_generation)
                 return make_error(ErrorCode::kInvalidArgument, "Video generation specified twice");
@@ -146,23 +231,35 @@ parse_studio_flags(const std::span<const std::string_view> positional)
                 return parsed.error();
             result.expected_selection_revision = parsed.value();
         }
-        else if (option == "--set")
+        else if (option == "--set" || option == "--set-text")
         {
             const auto owned = std::string(value);
             const auto split = owned.find('=');
-            if (split == std::string::npos || split == 0 || split + 1 == owned.size())
+            if (split == std::string::npos || split == 0 ||
+                (option == "--set" && split + 1 == owned.size()))
                 return make_error(ErrorCode::kInvalidArgument, "--set requires name=value",
                                   {{"value", owned}});
-            auto parsed = parse_double_flag(owned.substr(split + 1), option);
-            if (!parsed)
-                return parsed.error();
-            if (std::find_if(
-                    result.develop_sets.begin(), result.develop_sets.end(), [&](const auto &item)
-                    { return item.first == owned.substr(0, split); }) != result.develop_sets.end())
+            if (std::find_if(result.fields.begin(), result.fields.end(),
+                             [&](const auto &item)
+                             {
+                                 return *item.find("name")->string_if() == owned.substr(0, split);
+                             }) != result.fields.end())
                 return make_error(ErrorCode::kInvalidArgument,
                                   "Studio Develop field was specified twice",
                                   {{"name", owned.substr(0, split)}});
-            result.develop_sets.emplace_back(owned.substr(0, split), parsed.value());
+            JsonValue field_value{owned.substr(split + 1)};
+            if (option == "--set")
+            {
+                auto parsed = parse_double_flag(owned.substr(split + 1), option);
+                if (!parsed)
+                    return parsed.error();
+                auto json = json_real(parsed.value());
+                if (!json)
+                    return json.error();
+                field_value = std::move(json).value();
+            }
+            result.fields.push_back(JsonValue::Object{{"name", owned.substr(0, split)},
+                                                      {"value", std::move(field_value)}});
         }
         else if (option == "--output")
         {
@@ -258,23 +355,6 @@ parse_studio_flags(const std::span<const std::string_view> positional)
     return value;
 }
 
-struct ObservedStudioState
-{
-    JsonValue json;
-    std::string session_id;
-    std::uint64_t session_revision = 0;
-    std::string asset_id;
-    std::uint64_t selection_revision = 0;
-    std::uint64_t recipe_revision = 0;
-    std::string recipe_state;
-    std::string current_recipe_json;
-    std::string preview_state;
-    bool preview_matches_recipe = false;
-    bool busy = false;
-    std::string catalog_path;
-    std::string error_text;
-};
-
 [[nodiscard]] Result<ObservedStudioState> observed_studio_state(JsonValue value)
 {
     auto root = studio_object(value, "session");
@@ -350,6 +430,13 @@ struct ObservedStudioState
     result.preview_matches_recipe = *matches->second.boolean_if();
     result.busy = *busy->second.boolean_if();
     result.catalog_path = std::move(catalog_path).value();
+    auto catalog_revision = studio_uint64(*catalog.value(), "revision", "catalog");
+    if (!catalog_revision || catalog_revision.value() > INT64_MAX)
+        return make_error(ErrorCode::kValidation, "Catalog revision is invalid");
+    result.catalog_revision = static_cast<std::int64_t>(catalog_revision.value());
+    if (const auto *mutation = result.json.find("mutation"))
+        if (const auto *id = mutation->find("operation_id"); id && id->string_if())
+            result.operation_id = *id->string_if();
     result.error_text = std::move(error_text).value();
     return result;
 }
@@ -450,10 +537,15 @@ struct ObservedStudioState
 }
 
 [[nodiscard]] Result<ObservedStudioState> read_studio_state(const LiveSessionDescriptor &session,
-                                                            const int timeout_ms)
+                                                            const int timeout_ms,
+                                                            const std::size_t offset,
+                                                            const std::size_t limit)
 {
-    auto response = LocalControlClient::request(session, "state", JsonValue::Object{},
-                                                std::min(timeout_ms, 5000));
+    auto response = LocalControlClient::request(
+        session, "state",
+        JsonValue::Object{{"selection_offset", JsonValue::number(std::to_string(offset))},
+                          {"selection_limit", JsonValue::number(std::to_string(limit))}},
+        std::min(timeout_ms, 5000));
     if (!response)
         return response.error();
     return observed_studio_state(std::move(response).value());
@@ -463,14 +555,28 @@ struct ObservedStudioState
 wait_for_studio_state(const LiveSessionDescriptor &session, const std::string_view asset_id,
                       const std::optional<std::string_view> expected_recipe,
                       const bool require_saved, const bool require_matching_preview,
-                      const int timeout_ms)
+                      const int timeout_ms, const std::optional<std::uint64_t> expected_selection,
+                      const std::optional<std::uint64_t> expected_recipe_revision)
 {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
     while (true)
     {
-        auto state = read_studio_state(session, timeout_ms);
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   deadline - std::chrono::steady_clock::now())
+                                   .count();
+        if (remaining <= 0)
+            return make_error(
+                ErrorCode::kCancelled, "Timed out waiting for Studio to settle",
+                {{"asset_id", std::string(asset_id)}, {"timeout_ms", std::to_string(timeout_ms)}});
+        auto state =
+            read_studio_state(session, static_cast<int>(std::min<std::int64_t>(remaining, 5000)));
         if (!state)
             return state.error();
+        if ((expected_selection && state.value().selection_revision != *expected_selection) ||
+            (expected_recipe_revision &&
+             state.value().recipe_revision != *expected_recipe_revision))
+            return make_error(ErrorCode::kConflict, "Studio binding changed while waiting",
+                              {{"reason", "stale_preview"}});
         if (state.value().asset_id != asset_id)
             return make_error(ErrorCode::kConflict, "Studio selection changed while waiting",
                               {{"reason", "selection_changed"},
@@ -502,15 +608,17 @@ wait_for_studio_state(const LiveSessionDescriptor &session, const std::string_vi
             return make_error(
                 ErrorCode::kCancelled, "Timed out waiting for Studio to settle",
                 {{"asset_id", std::string(asset_id)}, {"timeout_ms", std::to_string(timeout_ms)}});
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(std::min<std::int64_t>(remaining, 25)));
     }
 }
 
 [[nodiscard]] Result<JsonValue>
 render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &session,
                        const ObservedStudioState &observed, const std::string_view output,
-                       const std::uint32_t max_edge, const int timeout_ms)
+                       const std::uint32_t max_edge, const int timeout_ms, const Recipe *trial)
 {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
     if (observed.asset_id.empty() || observed.catalog_path.empty() ||
         observed.current_recipe_json.empty())
         return make_error(ErrorCode::kConflict, "Studio has no selected editable photo",
@@ -526,7 +634,7 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
         return make_error(ErrorCode::kConflict, "Output path already exists",
                           {{"path", std::string(output)}});
 
-    auto recipe = parse_recipe_json(observed.current_recipe_json);
+    auto recipe = trial ? Result<Recipe>{*trial} : parse_recipe_json(observed.current_recipe_json);
     if (!recipe)
         return recipe.error();
     if (recipe.value().asset.id != observed.asset_id)
@@ -538,6 +646,21 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
     auto service = open_catalog_session(engine, observed.catalog_path, false);
     if (!service)
         return service.error();
+    auto before = service.value()->library().snapshot();
+    if (!before)
+        return before.error();
+    if (before.value().revision != observed.catalog_revision)
+        return make_error(ErrorCode::kConflict, "Catalog changed before preview",
+                          {{"reason", "stale_preview"}});
+    auto stored_before = service.value()->develop().load_recipe(observed.asset_id);
+    auto history_before = service.value()->develop().list_recipe_history(observed.asset_id);
+    auto previews_before = service.value()->library().list_previews_for_assets({observed.asset_id});
+    if (!stored_before)
+        return stored_before.error();
+    if (!history_before)
+        return history_before.error();
+    if (!previews_before)
+        return previews_before.error();
     PreviewRequest request;
     request.asset_id = observed.asset_id;
     request.max_edge = max_edge;
@@ -545,8 +668,7 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
     request.persist_preview_record = false;
     request.request_revision = observed.recipe_revision;
     request.correlation_id = "cli-live-studio-preview";
-    auto cancellation = CancellationSource::with_deadline(std::chrono::steady_clock::now() +
-                                                          std::chrono::milliseconds(timeout_ms));
+    auto cancellation = CancellationSource::with_deadline(deadline);
     request.cancellation = cancellation.token();
     auto preview = service.value()->preview().request_preview(request, params.value());
     if (!preview)
@@ -554,17 +676,6 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
     if (!preview.value().cache_path.empty() || preview.value().rgb.empty())
         return make_error(ErrorCode::kIo,
                           "Live Studio preview did not return immutable memory pixels");
-
-    auto current = read_studio_state(session, timeout_ms);
-    if (!current)
-        return current.error();
-    if (current.value().asset_id != observed.asset_id ||
-        current.value().selection_revision != observed.selection_revision ||
-        current.value().recipe_revision != observed.recipe_revision ||
-        current.value().current_recipe_json != observed.current_recipe_json)
-        return make_error(ErrorCode::kConflict,
-                          "Studio selection or recipe changed before preview publication",
-                          {{"reason", "stale_preview"}, {"asset_id", observed.asset_id}});
 
     auto statistics = probe_statistics_json(preview.value());
     if (!statistics)
@@ -577,30 +688,75 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
     auto encoded = engine.encode_png(image);
     if (!encoded)
         return encoded.error();
-    auto written = write_file_bytes_atomically(output, encoded.value());
+    QtRasterDecoder decoder;
+    auto artifact = describe_png_artifact(decoder, encoded.value(), image.width, image.height,
+                                          image.color_profile, output, cancellation.token());
+    if (!artifact)
+        return artifact.error();
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               deadline - std::chrono::steady_clock::now())
+                               .count();
+    if (auto active = cancellation.token().check(); !active)
+        return active.error();
+    auto current =
+        read_studio_state(session, static_cast<int>(std::max<std::int64_t>(1, remaining)));
+    if (!current)
+        return current.error();
+    if (current.value().session_revision != observed.session_revision ||
+        current.value().asset_id != observed.asset_id ||
+        current.value().selection_revision != observed.selection_revision ||
+        current.value().recipe_revision != observed.recipe_revision ||
+        current.value().catalog_revision != observed.catalog_revision ||
+        current.value().current_recipe_json != observed.current_recipe_json)
+        return make_error(ErrorCode::kConflict, "Studio changed before preview publication",
+                          {{"reason", "stale_preview"}});
+    auto stored_after = service.value()->develop().load_recipe(observed.asset_id);
+    auto history_after = service.value()->develop().list_recipe_history(observed.asset_id);
+    auto previews_after = service.value()->library().list_previews_for_assets({observed.asset_id});
+    auto after = service.value()->library().snapshot();
+    if (!stored_after)
+        return stored_after.error();
+    if (!history_after)
+        return history_after.error();
+    if (!previews_after)
+        return previews_after.error();
+    if (!after)
+        return after.error();
+    auto stored_a = serialize_recipe(stored_before.value());
+    auto stored_b = serialize_recipe(stored_after.value());
+    if (!stored_a)
+        return stored_a.error();
+    if (!stored_b)
+        return stored_b.error();
+    const auto &history_a = history_before.value(), &history_b = history_after.value();
+    const bool history_unchanged = history_a.size() == history_b.size() &&
+                                   std::equal(history_a.begin(), history_a.end(), history_b.begin(),
+                                              [](const auto &a, const auto &b)
+                                              {
+                                                  return a.id == b.id && a.asset_id == b.asset_id &&
+                                                         a.seq == b.seq && a.kind == b.kind &&
+                                                         a.label == b.label &&
+                                                         a.recipe_json == b.recipe_json &&
+                                                         a.created_unix_ms == b.created_unix_ms;
+                                              });
+    if (!history_unchanged || stored_a.value() != stored_b.value() ||
+        previews_before.value() != previews_after.value() ||
+        before.value().revision != after.value().revision)
+        return make_error(ErrorCode::kConflict, "Catalog changed during read-only evaluation",
+                          {{"reason", "stale_preview"}});
+    auto written = publish_bytes_artifact_no_replace(output, encoded.value(), cancellation.token());
     if (!written)
         return written.error();
-    const QByteArrayView bytes(reinterpret_cast<const char *>(encoded.value().data()),
-                               static_cast<qsizetype>(encoded.value().size()));
-    const auto digest = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex();
     return JsonValue{JsonValue::Object{
-        {"artifact",
-         JsonValue::Object{
-             {"bytes", JsonValue::number(std::to_string(encoded.value().size()))},
-             {"color_profile", preview.value().color_profile.identifier},
-             {"content_hash", digest.toStdString()},
-             {"hash_algorithm", "sha256"},
-             {"height", JsonValue::number(std::to_string(preview.value().height))},
-             {"lifecycle", "caller_owned"},
-             {"mime_type", "image/png"},
-             {"path", std::string(output)},
-             {"width", JsonValue::number(std::to_string(preview.value().width))},
-         }},
+        {"artifact", std::move(artifact).value()},
         {"asset_id", observed.asset_id},
         {"recipe_revision", JsonValue::number(std::to_string(observed.recipe_revision))},
         {"selection_revision", JsonValue::number(std::to_string(observed.selection_revision))},
         {"session_id", observed.session_id},
         {"statistics", std::move(statistics).value()},
+        {"recipe_unchanged", true},
+        {"history_unchanged", true},
+        {"preview_records_unchanged", true},
     }};
 }
 
@@ -608,12 +764,21 @@ render_studio_artifact(const EngineFacade &engine, const LiveSessionDescriptor &
 run_studio_command(const EngineFacade &engine, const std::span<const std::string_view> positional)
 {
     if (positional.size() < 2)
-        return make_error(ErrorCode::kInvalidArgument,
-                          "Usage: ravo studio <sessions|state|develop|preview|video> [options]");
+        return make_error(
+            ErrorCode::kInvalidArgument,
+            "Usage: ravo studio <sessions|state|capabilities|develop|preview|evaluate|commit|operation|history|mask|video> [options]");
     const auto subcommand = positional[1];
+    if (subcommand != "sessions" && subcommand != "state" && subcommand != "develop" &&
+        subcommand != "preview" && subcommand != "video" && subcommand != "mask" &&
+        subcommand != "evaluate" && subcommand != "commit" && subcommand != "operation" &&
+        subcommand != "history" && subcommand != "capabilities")
+        return make_error(ErrorCode::kInvalidArgument, "Unknown Studio subcommand");
     auto flags = parse_studio_flags(positional);
     if (!flags)
         return flags.error();
+    if (subcommand == "evaluate" || subcommand == "commit" || subcommand == "operation" ||
+        subcommand == "history" || subcommand == "capabilities")
+        return run_studio_automation(engine, subcommand, flags.value());
     if (subcommand != "video" &&
         (!flags.value().video_value.empty() || flags.value().expected_video_generation))
         return make_error(ErrorCode::kInvalidArgument, "Video options require studio video");
@@ -623,7 +788,7 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
         if (!flags.value().session_id.empty() || !flags.value().asset_id.empty() ||
             !flags.value().mask_action.empty() || !flags.value().mask_arguments.empty() ||
             flags.value().expected_recipe_revision || flags.value().expected_session_revision ||
-            flags.value().expected_selection_revision || !flags.value().develop_sets.empty() ||
+            flags.value().expected_selection_revision || !flags.value().fields.empty() ||
             !flags.value().output.empty() || flags.value().max_edge)
             return make_error(ErrorCode::kInvalidArgument,
                               "studio sessions accepts only --workspace-root and --timeout-ms");
@@ -676,7 +841,7 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
         if (video.asset_id.empty() || video.mask_action.empty() ||
             !video.expected_session_revision || !video.expected_selection_revision ||
             !video.expected_video_generation || video.expected_recipe_revision ||
-            !video.mask_arguments.empty() || !video.develop_sets.empty() || !video.output.empty() ||
+            !video.mask_arguments.empty() || !video.fields.empty() || !video.output.empty() ||
             video.max_edge)
             return make_error(
                 ErrorCode::kInvalidArgument,
@@ -708,7 +873,7 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
         const auto &mask = flags.value();
         if (mask.asset_id.empty() || mask.mask_action.empty() || mask.mask_arguments.empty() ||
             !mask.expected_session_revision || !mask.expected_selection_revision ||
-            !mask.expected_recipe_revision || !mask.develop_sets.empty() || !mask.output.empty() ||
+            !mask.expected_recipe_revision || !mask.fields.empty() || !mask.output.empty() ||
             mask.max_edge)
             return make_error(
                 ErrorCode::kInvalidArgument,
@@ -735,22 +900,27 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
             mask.timeout_ms);
     }
     if (!flags.value().mask_action.empty() || !flags.value().mask_arguments.empty() ||
-        flags.value().expected_recipe_revision)
+        (flags.value().expected_recipe_revision && subcommand != "preview" &&
+         subcommand != "develop"))
         return make_error(ErrorCode::kInvalidArgument, "Mask options require studio mask");
     if (subcommand == "state")
     {
         if (!flags.value().asset_id.empty() || flags.value().expected_session_revision ||
-            flags.value().expected_selection_revision || !flags.value().develop_sets.empty() ||
+            flags.value().expected_selection_revision || !flags.value().fields.empty() ||
             !flags.value().output.empty() || flags.value().max_edge)
             return make_error(ErrorCode::kInvalidArgument,
                               "studio state accepts only session/workspace and timeout options");
-        auto state = read_studio_state(session.value(), flags.value().timeout_ms);
+        if (flags.value().limit.value_or(512) > 512 || flags.value().offset.value_or(0) > SIZE_MAX)
+            return make_error(ErrorCode::kInvalidArgument, "Selection page is outside its bound");
+        auto state = read_studio_state(session.value(), flags.value().timeout_ms,
+                                       static_cast<std::size_t>(flags.value().offset.value_or(0)),
+                                       static_cast<std::size_t>(flags.value().limit.value_or(512)));
         return state ? Result<JsonValue>{std::move(state).value().json} :
                        Result<JsonValue>{state.error()};
     }
     if (subcommand == "develop")
     {
-        if (flags.value().develop_sets.empty())
+        if (flags.value().fields.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "studio develop requires at least one --set name=value");
         if (!flags.value().output.empty() && !ends_with_png(flags.value().output))
@@ -769,6 +939,12 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
         auto initial = read_studio_state(session.value(), flags.value().timeout_ms);
         if (!initial)
             return initial.error();
+        if ((flags.value().expected_recipe_revision &&
+             *flags.value().expected_recipe_revision != initial.value().recipe_revision) ||
+            (flags.value().expected_catalog_revision &&
+             *flags.value().expected_catalog_revision != initial.value().catalog_revision))
+            return make_error(ErrorCode::kConflict, "Studio recipe/catalog revision is stale",
+                              {{"reason", "stale_binding"}});
         const std::string asset_id = flags.value().asset_id.empty() ?
                                          initial.value().asset_id :
                                          std::string(flags.value().asset_id);
@@ -777,23 +953,43 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
                               {{"reason", "no_selection"}});
         if (initial.value().busy || initial.value().current_recipe_json.empty())
         {
-            auto idle = wait_for_studio_state(session.value(), asset_id, std::nullopt, false, false,
-                                              flags.value().timeout_ms);
+            auto idle = wait_for_studio_state(
+                session.value(), asset_id, std::nullopt, false, false, flags.value().timeout_ms,
+                flags.value().expected_selection_revision, flags.value().expected_recipe_revision);
             if (!idle)
                 return idle.error();
             initial = std::move(idle);
         }
+        if ((flags.value().expected_recipe_revision &&
+             *flags.value().expected_recipe_revision != initial.value().recipe_revision) ||
+            (flags.value().expected_catalog_revision &&
+             *flags.value().expected_catalog_revision != initial.value().catalog_revision))
+            return make_error(ErrorCode::kConflict,
+                              "Studio recipe/catalog revision changed while waiting",
+                              {{"reason", "stale_binding"}});
         const auto observed_selection_revision = initial.value().selection_revision;
         const std::string observed_recipe = initial.value().current_recipe_json;
         const bool strict_expectation = flags.value().expected_session_revision.has_value() ||
-                                        flags.value().expected_selection_revision.has_value();
+                                        flags.value().expected_selection_revision.has_value() ||
+                                        flags.value().expected_recipe_revision.has_value() ||
+                                        flags.value().expected_catalog_revision.has_value();
         std::optional<ObservedStudioState> mutated;
+        std::string operation_id(flags.value().operation_id);
+        if (operation_id.empty())
+        {
+            auto reserved = LocalControlClient::request(session.value(), "operation",
+                                                        JsonValue::Object{{"action", "reserve"}},
+                                                        std::min(flags.value().timeout_ms, 5000));
+            if (!reserved)
+                return reserved.error();
+            if (!reserved.value().find("operation_id") ||
+                !reserved.value().find("operation_id")->string_if())
+                return make_error(ErrorCode::kValidation, "Operation reservation is invalid");
+            operation_id = *reserved.value().find("operation_id")->string_if();
+        }
         for (int attempt = 0; attempt < 4; ++attempt)
         {
-            JsonValue::Array fields;
-            for (const auto &[name, value] : flags.value().develop_sets)
-                fields.push_back(JsonValue::Object{
-                    {"name", name}, {"value", JsonValue::number(std::to_string(value))}});
+            JsonValue::Array fields = flags.value().fields;
             const auto expected_session =
                 flags.value().expected_session_revision.value_or(initial.value().session_revision);
             const auto expected_selection = flags.value().expected_selection_revision.value_or(
@@ -807,6 +1003,7 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
                     {"expected_session_revision",
                      JsonValue::number(std::to_string(expected_session))},
                     {"fields", std::move(fields)},
+                    {"operation_id", operation_id},
                 },
                 std::min(flags.value().timeout_ms, 5000));
             if (response)
@@ -821,7 +1018,12 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
             const bool stale_session =
                 reason != response.error().context.end() && reason->second == "stale_session";
             if (strict_expectation || !stale_session || attempt == 3)
-                return response.error();
+            {
+                auto error = response.error();
+                error.context.insert_or_assign("operation_id", operation_id);
+                error.context.try_emplace("mutation_applied", "unknown");
+                return error;
+            }
             auto refreshed = read_studio_state(session.value(), flags.value().timeout_ms);
             if (!refreshed)
                 return refreshed.error();
@@ -843,9 +1045,30 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
             return make_error(ErrorCode::kInternal, "Studio Develop retry ended without a result");
         const std::string target_recipe = mutated->current_recipe_json;
         auto settled = wait_for_studio_state(session.value(), asset_id, target_recipe, true, true,
-                                             flags.value().timeout_ms);
+                                             flags.value().timeout_ms, observed_selection_revision);
         if (!settled)
-            return settled.error();
+        {
+            auto error = settled.error();
+            error.context.insert_or_assign("operation_id", operation_id);
+            error.context.insert_or_assign("mutation_applied", "unknown");
+            auto receipt = LocalControlClient::request(
+                session.value(), "operation",
+                JsonValue::Object{{"action", "get"}, {"operation_id", operation_id}}, 1000);
+            if (receipt)
+            {
+                if (const auto *committed = receipt.value().find("mutation_applied");
+                    committed && committed->boolean_if())
+                    error.context.insert_or_assign("mutation_applied",
+                                                   *committed->boolean_if() ? "true" : "false");
+                if (const auto *revision = receipt.value().find("catalog_revision");
+                    revision && revision->number_if())
+                    error.context.insert_or_assign("catalog_revision", revision->number_if()->text);
+                if (const auto *head = receipt.value().find("history_head");
+                    head && head->number_if())
+                    error.context.insert_or_assign("history_head", head->number_if()->text);
+            }
+            return error;
+        }
         if (!flags.value().output.empty())
         {
             auto artifact = render_studio_artifact(
@@ -862,11 +1085,17 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
             }
             return artifact;
         }
-        return settled.value().json;
+        auto payload = *settled.value().json.object_if();
+        auto receipt = LocalControlClient::request(
+            session.value(), "operation",
+            JsonValue::Object{{"action", "get"}, {"operation_id", operation_id}}, 1000);
+        if (receipt)
+            payload.emplace("operation", receipt.value());
+        return JsonValue{std::move(payload)};
     }
     if (subcommand == "preview")
     {
-        if (!flags.value().develop_sets.empty())
+        if (!flags.value().fields.empty())
             return make_error(ErrorCode::kInvalidArgument,
                               "studio preview does not accept --set; use studio develop");
         if (flags.value().output.empty())
@@ -895,10 +1124,27 @@ run_studio_command(const EngineFacade &engine, const std::span<const std::string
             *flags.value().expected_selection_revision != initial.value().selection_revision)
             return make_error(ErrorCode::kConflict, "Studio selection revision is stale",
                               {{"reason", "stale_selection"}});
-        auto ready = wait_for_studio_state(session.value(), asset_id, std::nullopt, false, false,
-                                           flags.value().timeout_ms);
+        if (initial.value().current_recipe_json.empty())
+            return make_error(ErrorCode::kConflict, "Studio recipe is not ready",
+                              {{"reason", "busy"}});
+        if ((flags.value().expected_recipe_revision &&
+             *flags.value().expected_recipe_revision != initial.value().recipe_revision) ||
+            (flags.value().expected_catalog_revision &&
+             *flags.value().expected_catalog_revision != initial.value().catalog_revision))
+            return make_error(ErrorCode::kConflict, "Studio recipe/catalog revision is stale",
+                              {{"reason", "stale_binding"}});
+        auto ready = wait_for_studio_state(
+            session.value(), asset_id, initial.value().current_recipe_json, false, false,
+            flags.value().timeout_ms, initial.value().selection_revision,
+            initial.value().recipe_revision);
         if (!ready)
             return ready.error();
+        if ((flags.value().expected_session_revision &&
+             *flags.value().expected_session_revision != ready.value().session_revision) ||
+            (flags.value().expected_catalog_revision &&
+             *flags.value().expected_catalog_revision != ready.value().catalog_revision))
+            return make_error(ErrorCode::kConflict, "Studio binding changed while waiting",
+                              {{"reason", "stale_binding"}});
         return render_studio_artifact(engine, session.value(), ready.value(), flags.value().output,
                                       flags.value().max_edge.value_or(kDefaultPreviewMaxEdge),
                                       flags.value().timeout_ms);

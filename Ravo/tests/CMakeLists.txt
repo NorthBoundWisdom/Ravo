@@ -24,6 +24,7 @@ add_executable(ravo_unit_tests
   cancellation_generation_test.cpp
   recipe_test.cpp
   recipe_develop_test.cpp
+  develop_patch_test.cpp
   recipe_style_test.cpp
   local_adjustment_scope_test.cpp
   local_adjustment_multi_instance_test.cpp)
@@ -148,6 +149,7 @@ add_executable(ravo_catalog_tests
   catalog_recipe_test.cpp
   catalog_develop_test.cpp
   catalog_develop_batch_test.cpp
+  catalog_automation_test.cpp
   catalog_ai_proposal_test.cpp
   catalog_ai_suggestion_test.cpp
   display_presentation_test.cpp
@@ -441,6 +443,11 @@ gtest_discover_tests(ravo_original_copy_cli_tests
 add_executable(ravo_desktop_command_tests
   studio_video_test.cpp
   studio_library_paging_test.cpp
+  studio_library_test_support.cpp
+  studio_automation_regression_test.cpp
+  mcp_test_support.cpp
+  studio_mcp_test.cpp
+  studio_operation_store_test.cpp
   studio_photo_merge_test.cpp
   studio_qml_test_support.cpp
   studio_test_support.cpp

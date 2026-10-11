@@ -33,6 +33,12 @@ Result<Mask *> selected_leaf(DevelopParams &local)
 }
 } // namespace
 
+bool local_mask_drawable(const MaskKind kind) noexcept
+{
+    return kind == MaskKind::kLinearGradient || kind == MaskKind::kCircle ||
+           kind == MaskKind::kEllipse || kind == MaskKind::kPath || kind == MaskKind::kBrush;
+}
+
 Result<void> add_local_mask_component(DevelopParams &local, const std::int64_t kind,
                                       const std::int64_t combine)
 {
@@ -93,7 +99,7 @@ Result<void> author_local_mask_gesture(DevelopParams &local,
         return selected.error();
     Mask &mask = *selected.value();
     const bool supported_handle =
-        handle == "draw" ||
+        (handle == "draw" && local_mask_drawable(mask.kind)) ||
         ((mask.kind == MaskKind::kCircle || mask.kind == MaskKind::kEllipse ||
           mask.kind == MaskKind::kLinearGradient) &&
          handle == "center") ||

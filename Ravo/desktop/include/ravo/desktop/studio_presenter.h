@@ -62,6 +62,7 @@ namespace testing
 class StudioImportTestControl;
 class StudioPipelineTestControl;
 class StudioLibraryTestControl;
+class StudioAutomationTestControl;
 class StudioThumbnailTestControl;
 } // namespace testing
 
@@ -436,6 +437,7 @@ public:
     Q_INVOKABLE void loadNextLibraryPage();
     void pollCatalogRevision();
 signals:
+    void aboutToShutdown();
     void catalogChanged();
     void busyChanged();
     void statusChanged();
@@ -460,6 +462,7 @@ private:
     friend class testing::StudioImportTestControl;
     friend class testing::StudioPipelineTestControl;
     friend class testing::StudioLibraryTestControl;
+    friend class testing::StudioAutomationTestControl;
     friend class testing::StudioThumbnailTestControl;
     friend class StudioLiveSessionController;
 
@@ -492,6 +495,7 @@ private:
     void cancelSelectionResolution();
     void resolveLibrarySelection(int first, int last, const QString &primary,
                                  const QString &anchor = {});
+    void resolvePrimaryAsset(const QString &asset_id, bool reload_preview);
     [[nodiscard]] LibraryPageRequest currentPageRequest() const;
     void start_catalog_revision_watch(std::int64_t revision);
     void resetThumbnailDemand();
@@ -611,6 +615,7 @@ private:
     QString status_text_{QStringLiteral("Create or open a library to import photos.")};
     QString error_text_;
     QString selected_asset_id_;
+    std::optional<std::pair<std::uint64_t, int>> primary_row_;
     QString selection_anchor_id_;
     std::unordered_set<std::string> selected_ids_;
     std::vector<LibrarySelectionAsset> selection_snapshot_;

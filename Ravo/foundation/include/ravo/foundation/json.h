@@ -60,5 +60,6 @@ private:
 
 [[nodiscard]] Result<JsonValue> parse_json(std::string_view text);
 [[nodiscard]] std::string serialize_json(const JsonValue &value);
+[[nodiscard]] Result<JsonValue> json_real(double value);
 
 } // namespace ravo

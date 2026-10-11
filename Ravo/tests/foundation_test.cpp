@@ -1,6 +1,7 @@
 #include <chrono>
 #include <clocale>
 #include <future>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,40 @@ TEST(JsonTest, RejectsDuplicateKeysWithPositionContext)
     EXPECT_EQ(parsed.error().code, ErrorCode::kValidation);
     EXPECT_TRUE(parsed.error().context.contains("line"));
     EXPECT_TRUE(parsed.error().context.contains("column"));
+}
+
+TEST(JsonTest, RealNumbersRoundTripWithoutLosingPrecisionAndRejectNonfiniteValues)
+{
+    for (const double value : {0.12345678912345678, -0.000000123456789, 1.234567891234567e100})
+    {
+        auto encoded = json_real(value);
+        ASSERT_TRUE(encoded);
+        auto decoded = parse_json(serialize_json(encoded.value()));
+        ASSERT_TRUE(decoded);
+        double actual = 0;
+        ASSERT_TRUE(parse_ascii_double(decoded.value().number_if()->text, actual));
+        EXPECT_EQ(actual, value);
+    }
+    EXPECT_FALSE(json_real(std::numeric_limits<double>::infinity()));
+    EXPECT_FALSE(json_real(std::numeric_limits<double>::quiet_NaN()));
+}
+
+TEST(CancellationTest, CombinedTokenOwnsBothSourcesAndUsesFirstReasonPriority)
+{
+    CancellationSource first, second;
+    auto combined = CancellationToken::combine(first.token(), second.token());
+    EXPECT_FALSE(combined.is_cancellation_requested());
+    ASSERT_TRUE(second.cancel("operation_cancelled"));
+    EXPECT_TRUE(combined.is_cancellation_requested());
+    EXPECT_EQ(combined.reason(), "operation_cancelled");
+    ASSERT_TRUE(first.cancel("selection_changed"));
+    EXPECT_EQ(combined.reason(), "selection_changed");
+    auto empty = CancellationToken::combine({}, second.token());
+    EXPECT_EQ(empty.reason(), "operation_cancelled");
+    const auto expired = CancellationSource::with_deadline(std::chrono::steady_clock::now() -
+                                                           std::chrono::seconds(1));
+    auto deadline = CancellationToken::combine({}, expired.token());
+    EXPECT_FALSE(deadline.check());
 }
 
 TEST(CancellationTest, FirstCancellationWinsAndTokensKeepTheReason)

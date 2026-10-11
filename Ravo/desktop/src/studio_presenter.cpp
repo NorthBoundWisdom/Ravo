@@ -174,6 +174,7 @@ CatalogListing load_catalog_listing(CatalogService *service, const LibraryQuery 
 
 StudioPresenter::~StudioPresenter()
 {
+    emit aboutToShutdown();
     if (video_presenter_)
         video_presenter_->shutdown();
     persistLibraryPosition();
@@ -344,10 +345,8 @@ int StudioPresenter::selectedIndex() const
     const auto resident = assets_.indexOf(selected_asset_id_);
     if (resident >= 0)
         return resident;
-    const auto found = std::find_if(selection_snapshot_.begin(), selection_snapshot_.end(),
-                                    [this](const auto &asset)
-                                    { return asset.id == utf8_from_qstring(selected_asset_id_); });
-    return found == selection_snapshot_.end() ? -1 : static_cast<int>(found->row);
+    return primary_row_ && primary_row_->first == library_query_generation_ ? primary_row_->second :
+                                                                              -1;
 }
 
 int StudioPresenter::selectedCount() const noexcept
@@ -1203,6 +1202,7 @@ void StudioPresenter::pollCatalogRevision()
                         return;
                     }
                     const QString previous_selection = selected_asset_id_;
+                    observed_catalog_revision_ = snapshot.value().revision;
                     applyFolders(std::move(listing.folders).value());
                     if (listing.capture_facets && listing.location_facets)
                         library_.apply(std::move(listing.capture_facets).value(),

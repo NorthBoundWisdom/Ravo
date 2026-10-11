@@ -141,4 +141,50 @@ Result<VerifiedImageArtifact> verify_encoded_image_artifact(
     return report;
 }
 
+Result<JsonValue> describe_png_artifact(const RasterDecoder &decoder,
+                                        const std::vector<std::uint8_t> &encoded,
+                                        const std::uint32_t width, const std::uint32_t height,
+                                        const ColorProfileState &profile,
+                                        const std::string_view path,
+                                        const CancellationToken &cancellation)
+{
+    ImageArtifactExpectation expected;
+    expected.width = width;
+    expected.height = height;
+    ColorProfileState normalized;
+    if (profile.kind == ColorProfileKind::kBuiltin && profile.identifier == "srgb")
+    {
+        normalized.kind = ColorProfileKind::kBuiltin;
+        normalized.model = ColorModel::kRgb;
+        normalized.identifier = "srgb";
+        expected.color_profile = "srgb";
+        expected.color_profile_fingerprint = color_profile_fingerprint(normalized);
+    }
+    else if (!profile.icc_bytes.empty())
+    {
+        normalized.kind = ColorProfileKind::kIcc;
+        normalized.model = ColorModel::kRgb;
+        normalized.identifier = "embedded_icc";
+        normalized.icc_bytes = profile.icc_bytes;
+        expected.color_profile = "embedded_icc";
+        expected.color_profile_fingerprint = color_profile_fingerprint(normalized);
+    }
+    auto verified = verify_encoded_image_artifact(decoder, encoded, expected, cancellation);
+    if (!verified)
+        return verified.error();
+    const auto &artifact = verified.value();
+    return JsonValue{
+        JsonValue::Object{{"type", artifact.type},
+                          {"version", JsonValue::number(std::to_string(artifact.version))},
+                          {"path", std::string(path)},
+                          {"mime_type", artifact.mime_type},
+                          {"width", JsonValue::number(std::to_string(artifact.width))},
+                          {"height", JsonValue::number(std::to_string(artifact.height))},
+                          {"byte_count", JsonValue::number(std::to_string(artifact.byte_count))},
+                          {"color_profile", artifact.color_profile},
+                          {"color_profile_fingerprint", artifact.color_profile_fingerprint},
+                          {"content_sha256", artifact.content_sha256},
+                          {"lifecycle", "caller_owned"}}};
+}
+
 } // namespace ravo
