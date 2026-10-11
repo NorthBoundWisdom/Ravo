@@ -62,6 +62,13 @@ avutil 59, swscale 8 and swresample 5 there; the decoder checks exact 7.1.5 API
 versions at runtime. There is no host FFmpeg search or ffmpeg/ffprobe executable
 dependency. Only the fixture generator uses a developer tool to regenerate media.
 
+The FFmpeg source pin remains the `n7.1.5` release commit during generic
+dependency refreshes; `master` is not compatible with this runtime contract.
+The Ravo source-root workflow only materializes FFmpeg; Ravo's CMake graph owns
+its configuration headers instead of building a standalone CMake SDK. A
+runtime/header upgrade requires a coordinated Qt kit, package and video-contract
+change.
+
 Official Windows Qt kits supply FFmpeg DLLs without MSVC import libraries.
 The CMake owner uses MSVC `dumpbin` and `lib` to derive build-owned import
 metadata from the exact selected DLL exports. A DLL hash, target architecture
