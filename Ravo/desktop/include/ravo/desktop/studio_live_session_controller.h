@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 
 #include <QObject>
 
@@ -11,6 +12,7 @@
 #include "ravo/foundation/error.h"
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/json.h"
+#include "ravo/services/asset_annotation.h"
 
 namespace ravo
 {
@@ -18,7 +20,6 @@ namespace ravo
 class StudioCommandController;
 class StudioPresenter;
 class StudioOperationStore;
-struct AssetAnnotationEdit;
 
 class StudioLiveSessionController final : public QObject
 {
@@ -42,10 +43,10 @@ private:
     void refresh();
     [[nodiscard]] Result<JsonValue> handle(const LiveControlRequest &request);
     [[nodiscard]] Result<JsonValue> handleAutomation(const LiveControlRequest &request);
-    [[nodiscard]] Result<JsonValue> beginAnnotationOperation(std::string operation_id,
-                                                             std::string asset_id,
-                                                             AssetAnnotationEdit edit,
-                                                             std::int64_t expected_revision);
+    [[nodiscard]] Result<JsonValue>
+    beginAnnotationOperation(std::string operation_id, std::string asset_id,
+                             std::variant<AssetAnnotationEdit, JsonValue> edit,
+                             std::int64_t expected_revision);
 
     StudioPresenter &presenter_;
     StudioCommandController &commands_;

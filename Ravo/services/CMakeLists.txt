@@ -36,6 +36,7 @@ target_sources(ravo_services
     src/develop_service.cpp
     src/metadata_service.cpp
     src/asset_annotation.cpp
+    src/asset_annotation_batch.cpp
     src/import_service.cpp
     src/ingest_service.cpp
     src/recovery_service.cpp

@@ -1,4 +1,5 @@
 #include "ravo/desktop/studio_live_session_controller.h"
+#include "ravo/services/asset_annotation_batch.h"
 
 #include <algorithm>
 #include <set>
@@ -205,6 +206,8 @@ Result<JsonValue> StudioLiveSessionController::handleAutomation(const LiveContro
         allowed.insert("target_asset_id");
     else if (kind.value() == "annotation")
         allowed.insert("annotation");
+    else if (kind.value() == "annotation_batch")
+        allowed.insert("items");
     else
         return reject(make_error(ErrorCode::kInvalidArgument, "Unknown automation command kind"));
     for (const auto &[key, value] : object)
@@ -242,7 +245,8 @@ Result<JsonValue> StudioLiveSessionController::handleAutomation(const LiveContro
     if (presenter_.busy() || presenter_.imports()->importPageOpen() || commands_.modalOpen() ||
         presenter_.develop()->historyLoading() || commands_.settingsOpen() ||
         (!presenter_.develop()->state().develop_loaded_ &&
-         !((kind.value() == "select" || kind.value() == "annotation") &&
+         !((kind.value() == "select" || kind.value() == "annotation" ||
+            kind.value() == "annotation_batch") &&
            presenter_.selectedMediaType().startsWith(QLatin1String("video/")))) ||
         presenter_.develop()->state().develop_job_in_flight_ ||
         presenter_.develop()->state().pending_save_ ||
@@ -253,6 +257,21 @@ Result<JsonValue> StudioLiveSessionController::handleAutomation(const LiveContro
     if (!token)
         return reject(token.error());
     const auto cancellation = token.value();
+    if (kind.value() == "annotation_batch")
+    {
+        const auto *items = request.params.find("items");
+        if (!items)
+            return reject(make_error(ErrorCode::kInvalidArgument, "Annotation items are required"));
+        auto parsed = parse_asset_annotation_batch(*items);
+        if (!parsed)
+            return reject(parsed.error());
+        // The existing command owner enforces saved global edits and availability.
+        for (const auto &item : *items->array_if())
+            if (auto ready = commands_.prepareAssetAnnotation(*item.find("annotation")); !ready)
+                return reject(ready.error());
+        auto started = beginAnnotationOperation(id.value(), asset.value(), *items, catalog.value());
+        return started ? started : reject(started.error());
+    }
     if (kind.value() == "annotation")
     {
         const auto *payload = request.params.find("annotation");

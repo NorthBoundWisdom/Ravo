@@ -203,6 +203,14 @@ stale/draft/unknown-field rejection, competing clients, changed selection, EOF
 and close/join. Direct desktop annotation intents must reject pending page
 selection. A recovery-port exception after commit must retain an unknown outcome,
 and a multi-selection must not widen a primary-only annotation target.
+Batch annotation contracts additionally cover mixed per-item edits, full
+preflight neutrality, exact target sets, aggregate readback bounds, post-commit
+cancellation, competing revisions and unknown publication. Real CLI/MCP cases
+exercise all three batch tools, distinct unselected targets, immutable recipes/
+history, exact replay after partial failure, the error envelope's retained receipt,
+selection cancellation, EOF and close/join. The partial-failure case uses an
+isolated SQLite trigger to fail only the second real transaction; removing the
+fault must not permit an identical operation ID to replay undispatched work.
 `StudioOperationStoreTest.Unresolved*` preserves unknown/known-commit
 facts without inventing a revision or restarting the write.
 

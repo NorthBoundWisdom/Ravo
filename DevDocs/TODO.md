@@ -23,7 +23,9 @@ correctness reference.
 
 ## Queue discipline
 
-The user-requested code retirement takes precedence over new feature adoption.
+The current user-authorized AI control tranche extends LC-03 through ADR-0184;
+it reuses existing owners without admitting new inference models. The code
+retirement queue remains tracked below rather than implicitly closed by it.
 [TODO_CODE_RETIREMENT.md](TODO_CODE_RETIREMENT.md) owns the ordered removals and
 validation gates; [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md)
 protects stored edits and durability while retiring unused roots and stubs.

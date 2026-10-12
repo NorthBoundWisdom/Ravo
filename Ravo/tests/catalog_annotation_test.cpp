@@ -1,5 +1,6 @@
 #include "catalog_test_support.h"
 #include "ravo/services/asset_annotation.h"
+#include "ravo/services/asset_annotation_batch.h"
 #include "ravo/adapters/filesystem_recovery_store.h"
 #include "ravo/adapters/filesystem_preview_cache.h"
 #include "ravo/adapters/qt_raster_decoder.h"
@@ -28,6 +29,10 @@ JsonValue example(const int kind)
     if (kind == 1)
         return edit("metadata", JsonValue::Object{{"title", "Chosen"}, {"creator", "Ravo"}});
     return edit("keywords", JsonValue::Array{"People|Alice", "Travel|Japan"});
+}
+JsonValue batch_item(const std::string &id, const char *kind, JsonValue fields)
+{
+    return JsonValue::Object{{"asset_id", id}, {"annotation", edit(kind, std::move(fields))}};
 }
 class ControlledRecoveryPublish final : public RecoveryStore
 {
@@ -76,6 +81,13 @@ private:
 
 TEST(AssetAnnotationContract, StrictVersionFieldsTypesAndBoundedState)
 {
+    const auto metadata_schema = asset_annotation_fields_schema(AssetAnnotationKind::kMetadata);
+    EXPECT_EQ(
+        metadata_schema.find("properties")->find("title")->find("maxLength")->number_if()->text,
+        std::to_string(kMetadataFieldMaxLength));
+    const auto keyword_schema = asset_annotation_fields_schema(AssetAnnotationKind::kKeywords);
+    EXPECT_EQ(keyword_schema.find("items")->find("maxLength")->number_if()->text,
+              std::to_string(kKeywordPathMaxLength));
     for (const auto &payload : std::vector<JsonValue>{
              edit("review", JsonValue::Object{}),
              edit("review", JsonValue::Object{{"rating", JsonValue::number("6")}}),
@@ -388,5 +400,283 @@ TEST_F(CatalogServiceTest, AnnotationPortExceptionReportsUnknownInsteadOfFalseRo
     EXPECT_EQ(result.error().context.at("reason"), "annotation_execution_exception");
     EXPECT_EQ(sqlite_repository->snapshot().value().revision, revision + 1);
     EXPECT_EQ(service->library().find_asset(id).value().metadata.title, "Chosen");
+}
+TEST(AssetAnnotationBatchContract, RejectsMalformedDuplicateAndOverBudgetItems)
+{
+    const auto valid =
+        batch_item("asset", "review", JsonValue::Object{{"rating", JsonValue::number("3")}});
+    EXPECT_TRUE(parse_asset_annotation_batch(JsonValue::Array{valid}));
+    EXPECT_FALSE(parse_asset_annotation_batch(JsonValue::Array{}));
+    EXPECT_FALSE(parse_asset_annotation_batch(JsonValue::Array{valid, valid}));
+    EXPECT_FALSE(parse_asset_annotation_batch(JsonValue::Array(33, valid)));
+    EXPECT_FALSE(parse_asset_annotation_batch(JsonValue::Array{
+        batch_item("asset", "metadata", JsonValue::Object{{"original_path", "forbidden"}})}));
+    EXPECT_FALSE(parse_asset_annotation_batch(JsonValue::Array{
+        batch_item("asset", "metadata", JsonValue::Object{{"title", std::string(65536, 'x')}})}));
+    auto extra = *valid.object_if();
+    extra.emplace("selection", true);
+    EXPECT_FALSE(parse_asset_annotation_batch(JsonValue::Array{extra}));
+}
+
+TEST(AssetAnnotationBatchContract, BoundsDiagnosticsWithoutChangingConfirmedCommitFacts)
+{
+    AssetAnnotationBatchResult result;
+    result.initial_revision = 10;
+    result.revision = 11;
+    result.committed_count = 1;
+    TaskError failure = make_error(ErrorCode::kIo, std::string(9000, '\x01'),
+                                   {{"reason", std::string(5000, '\x02')},
+                                    {"catalog_committed", "true"},
+                                    {"committed_revision", "11"},
+                                    {"mutation_applied", "unknown"}});
+    AssetAnnotationResult committed;
+    committed.asset_id = "first";
+    committed.revision = 11;
+    committed.warnings.push_back(failure);
+    result.items.push_back({"first", AssetAnnotationBatchStatus::kCommitted, committed, {}});
+    result.items.push_back({"second", AssetAnnotationBatchStatus::kFailed, {}, failure});
+    auto json = asset_annotation_batch_result_json(result);
+    EXPECT_EQ(*json.find("outcome")->string_if(), "partial");
+    EXPECT_EQ(json.find("committed_count")->number_if()->text, "1");
+    const auto &items = *json.find("items")->array_if();
+    const auto &warning = items[0].find("warnings")->array_if()->front();
+    EXPECT_LE(serialize_json(warning).size(), 4096U);
+    EXPECT_TRUE(*warning.find("diagnostics_truncated")->boolean_if());
+    EXPECT_EQ(*warning.find("context")->find("catalog_committed")->string_if(), "true");
+    EXPECT_LE(serialize_json(*items[1].find("error")).size(), 4096U);
+    EXPECT_EQ(*items[0].find("status")->string_if(), "committed");
+}
+
+TEST_F(CatalogServiceTest, AnnotationBatchReadsAndCommitsMixedExplicitTargetsWithoutRecipeChanges)
+{
+    ASSERT_TRUE(open_service(true));
+    const auto hash = file_sha256(png_fixture_path());
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto first = imported.value().asset->id;
+    auto second = service->library().create_asset_version(first);
+    auto third = service->library().create_asset_version(first);
+    ASSERT_TRUE(second);
+    ASSERT_TRUE(third);
+    const std::vector<std::string> ids{first, second.value().version.id, third.value().version.id};
+    std::vector<std::string> recipes;
+    std::vector<std::size_t> history;
+    for (const auto &id : ids)
+    {
+        recipes.push_back(serialize_recipe(service->develop().load_recipe(id).value()).value());
+        history.push_back(sqlite_repository->list_recipe_history(id).value().size());
+    }
+    const auto revision = service->library().snapshot().value().revision;
+    auto before = read_asset_annotations(*service, ids, revision);
+    ASSERT_TRUE(before);
+    ASSERT_EQ(before.value().find("assets")->array_if()->size(), 3U);
+    JsonValue items = JsonValue::Array{
+        batch_item(ids[0], "review", JsonValue::Object{{"rating", JsonValue::number("5")}}),
+        batch_item(ids[1], "metadata",
+                   JsonValue::Object{{"title", "Second"}, {"description", nullptr}}),
+        batch_item(ids[2], "keywords", JsonValue::Array{"Travel|Japan"})};
+    auto result = apply_asset_annotation_batch(*service, items, revision);
+    ASSERT_TRUE(result) << result.error().message;
+    EXPECT_EQ(result.value().committed_count, 3U);
+    EXPECT_EQ(result.value().revision, revision + 3);
+    EXPECT_FALSE(result.value().unknown);
+    EXPECT_EQ(*asset_annotation_batch_result_json(result.value()).find("outcome")->string_if(),
+              "completed");
+    EXPECT_FALSE(read_asset_annotations(*service, ids, revision));
+    EXPECT_FALSE(apply_asset_annotation_batch(*service, items, revision));
+    auto after = read_asset_annotations(*service, ids, result.value().revision);
+    ASSERT_TRUE(after);
+    EXPECT_EQ(service->library().find_asset(ids[0]).value().review.rating, 5);
+    EXPECT_EQ(service->library().find_asset(ids[1]).value().metadata.title, "Second");
+    EXPECT_EQ(service->library().find_asset(ids[2]).value().tags.size(), 1U);
+    for (std::size_t index = 0; index < ids.size(); ++index)
+    {
+        EXPECT_EQ(serialize_recipe(service->develop().load_recipe(ids[index]).value()).value(),
+                  recipes[index]);
+        EXPECT_EQ(sqlite_repository->list_recipe_history(ids[index]).value().size(),
+                  history[index]);
+    }
+    EXPECT_EQ(file_sha256(png_fixture_path()), hash);
+}
+
+TEST_F(CatalogServiceTest, AnnotationBatchPreflightsEveryTargetAndPayloadBeforeWriting)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto id = imported.value().asset->id;
+    const auto revision = service->library().snapshot().value().revision;
+    auto first = batch_item(id, "metadata", JsonValue::Object{{"title", "Must not write"}});
+    for (const auto &items : std::vector<JsonValue>{
+             JsonValue::Array{first,
+                              batch_item("missing", "review",
+                                         JsonValue::Object{{"rating", JsonValue::number("3")}})},
+             JsonValue::Array{first, first},
+             JsonValue::Array{
+                 first, batch_item("other", "metadata", JsonValue::Object{{"invalid", "x"}})}})
+        EXPECT_FALSE(apply_asset_annotation_batch(*service, items, revision));
+    CancellationSource stop;
+    ASSERT_TRUE(stop.cancel("before_batch"));
+    EXPECT_FALSE(
+        apply_asset_annotation_batch(*service, JsonValue::Array{first}, revision, stop.token()));
+    EXPECT_EQ(service->library().snapshot().value().revision, revision);
+    EXPECT_FALSE(service->library().find_asset(id).value().metadata.title);
+}
+
+TEST_F(CatalogServiceTest, AnnotationBatchLateCancelKeepsCommittedWarningAndStopsRemainingItems)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto first = imported.value().asset->id;
+    auto second = service->library().create_asset_version(first);
+    auto third = service->library().create_asset_version(first);
+    ASSERT_TRUE(second);
+    ASSERT_TRUE(third);
+    CancellationSource cancellation;
+    auto repository = SqliteCatalogRepository::open(database_path);
+    auto cache = FilesystemPreviewCache::create((root / "batch-cancel-cache").string());
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database_path);
+    ASSERT_TRUE(repository);
+    ASSERT_TRUE(cache);
+    ASSERT_TRUE(recovery);
+    CatalogService isolated(engine, std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::make_unique<ControlledRecoveryPublish>(
+                                std::move(recovery).value(), [&]
+                                { static_cast<void>(cancellation.cancel("after_first_commit")); }));
+    const auto revision = isolated.library().snapshot().value().revision;
+    JsonValue items =
+        JsonValue::Array{batch_item(first, "metadata", JsonValue::Object{{"title", "Committed"}}),
+                         batch_item(second.value().version.id, "metadata",
+                                    JsonValue::Object{{"title", "Cancelled"}}),
+                         batch_item(third.value().version.id, "metadata",
+                                    JsonValue::Object{{"title", "Not started"}})};
+    auto result = apply_asset_annotation_batch(isolated, items, revision, cancellation.token());
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.value().committed_count, 1U);
+    EXPECT_EQ(result.value().items[0].status, AssetAnnotationBatchStatus::kCommitted);
+    ASSERT_TRUE(result.value().items[0].result);
+    EXPECT_FALSE(result.value().items[0].result->warnings.empty());
+    EXPECT_EQ(result.value().items[1].status, AssetAnnotationBatchStatus::kCancelled);
+    EXPECT_EQ(result.value().items[2].status, AssetAnnotationBatchStatus::kNotStarted);
+    EXPECT_EQ(service->library().find_asset(first).value().metadata.title, "Committed");
+    EXPECT_FALSE(service->library().find_asset(second.value().version.id).value().metadata.title);
+    EXPECT_FALSE(service->library().find_asset(third.value().version.id).value().metadata.title);
+}
+
+TEST_F(CatalogServiceTest, AnnotationBatchCompetingWriterStopsWithoutRetargeting)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto first = imported.value().asset->id;
+    auto second = service->library().create_asset_version(first);
+    ASSERT_TRUE(second);
+    auto repository = SqliteCatalogRepository::open(database_path);
+    auto cache = FilesystemPreviewCache::create((root / "batch-race-cache").string());
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database_path);
+    ASSERT_TRUE(repository);
+    ASSERT_TRUE(cache);
+    ASSERT_TRUE(recovery);
+    CatalogService isolated(
+        engine, std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
+        std::move(cache).value(),
+        std::make_unique<ControlledRecoveryPublish>(
+            std::move(recovery).value(),
+            [&] { EXPECT_TRUE(service->library().set_rating(second.value().version.id, 3)); }));
+    const auto revision = isolated.library().snapshot().value().revision;
+    auto result = apply_asset_annotation_batch(
+        isolated,
+        JsonValue::Array{batch_item(first, "metadata", JsonValue::Object{{"title", "First"}}),
+                         batch_item(second.value().version.id, "metadata",
+                                    JsonValue::Object{{"title", "Must not write"}})},
+        revision);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result.value().committed_count, 1U);
+    ASSERT_TRUE(result.value().items[1].error);
+    EXPECT_EQ(result.value().items[1].error->code, ErrorCode::kConflict);
+    EXPECT_FALSE(service->library().find_asset(second.value().version.id).value().metadata.title);
+    EXPECT_EQ(service->library().find_asset(second.value().version.id).value().review.rating, 3);
+}
+
+TEST_F(CatalogServiceTest, AnnotationBatchUnknownCommitStopsAndRequiresReconciliation)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto first = imported.value().asset->id;
+    auto second = service->library().create_asset_version(first);
+    ASSERT_TRUE(second);
+    auto repository = SqliteCatalogRepository::open(database_path);
+    auto cache = FilesystemPreviewCache::create((root / "batch-unknown-cache").string());
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(database_path);
+    ASSERT_TRUE(repository);
+    ASSERT_TRUE(cache);
+    ASSERT_TRUE(recovery);
+    bool injected = false;
+    CatalogService isolated(engine, std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::make_unique<ControlledRecoveryPublish>(
+                                std::move(recovery).value(),
+                                [&]
+                                {
+                                    if (!injected)
+                                    {
+                                        injected = true;
+                                        throw std::runtime_error("unknown batch publication");
+                                    }
+                                }));
+    const auto revision = isolated.library().snapshot().value().revision;
+    auto result = apply_asset_annotation_batch(
+        isolated,
+        JsonValue::Array{batch_item(first, "metadata", JsonValue::Object{{"title", "Durable"}}),
+                         batch_item(second.value().version.id, "metadata",
+                                    JsonValue::Object{{"title", "Undispatched"}})},
+        revision);
+    ASSERT_TRUE(result);
+    EXPECT_TRUE(result.value().unknown);
+    EXPECT_EQ(result.value().items[0].status, AssetAnnotationBatchStatus::kUnknown);
+    EXPECT_EQ(result.value().items[1].status, AssetAnnotationBatchStatus::kNotStarted);
+    EXPECT_EQ(*asset_annotation_batch_result_json(result.value()).find("outcome")->string_if(),
+              "unknown");
+    EXPECT_EQ(service->library().find_asset(first).value().metadata.title, "Durable");
+    EXPECT_FALSE(service->library().find_asset(second.value().version.id).value().metadata.title);
+}
+
+TEST_F(CatalogServiceTest, AnnotationReadbackBoundsAggregateStateAndRejectsStaleOrCancelledReads)
+{
+    ASSERT_TRUE(open_service(true));
+    auto imported = service->import().import_one(png_fixture_path(), {});
+    ASSERT_TRUE(imported);
+    const auto first = imported.value().asset->id;
+    std::vector<std::string> ids{first};
+    for (std::size_t index = 1; index < 32; ++index)
+    {
+        auto version = service->library().create_asset_version(first);
+        ASSERT_TRUE(version);
+        ids.push_back(version.value().version.id);
+    }
+    WritableMetadataPatch patch;
+    patch.update_description = true;
+    patch.description = std::string(2000, 'x');
+    ASSERT_TRUE(service->metadata().set_writable_metadata_selection(ids, patch));
+    std::vector<std::string> tags;
+    for (int index = 0; index < 600; ++index)
+        tags.push_back("tag" + std::to_string(index) + std::string(55, 'x'));
+    ASSERT_TRUE(service->metadata().set_tags_selection(ids, tags));
+    const auto revision = service->library().snapshot().value().revision;
+    auto states = read_asset_annotations(*service, ids, revision);
+    ASSERT_TRUE(states);
+    EXPECT_LT(serialize_json(states.value()).size(), 1024U * 1024U);
+    const auto &assets = *states.value().find("assets")->array_if();
+    EXPECT_TRUE(*assets.front().find("available")->boolean_if());
+    EXPECT_FALSE(*assets.back().find("available")->boolean_if());
+    CancellationSource stop;
+    ASSERT_TRUE(stop.cancel("read_cancelled"));
+    EXPECT_FALSE(read_asset_annotations(*service, ids, revision, stop.token()));
+    EXPECT_FALSE(read_asset_annotations(*service, {first, first}, revision));
+    EXPECT_FALSE(read_asset_annotations(*service, ids, revision - 1));
+    EXPECT_EQ(service->library().snapshot().value().revision, revision);
 }
 } // namespace ravo

@@ -216,6 +216,42 @@ const std::vector<Tool> &tools()
                   {"wait", wait}},
                  {"binding", "fields", "asset_ids"}),
              false}};
+        result.push_back(
+            {"ravo.annotations.read",
+             "Read rating, flags, writable metadata and hierarchical keywords for 1-32 explicit catalog assets at one expected revision. Read these states before a batch. Unavailable projections are explicit, never empty facts.",
+             object_schema(
+                 {{"catalog", text_schema(4096)},
+                  {"expected_revision", integer_schema(0, 9007199254740991ULL)},
+                  {"asset_ids",
+                   JsonValue::Object{{"type", "array"},
+                                     {"items", text_schema(256)},
+                                     {"minItems", JsonValue::number("1")},
+                                     {"maxItems", *annotations.find("batch")->find("max_items")}}}},
+                 {"catalog", "expected_revision", "asset_ids"})});
+        for (const auto kind : {"review", "metadata", "keywords"})
+        {
+            const auto values = std::string_view(kind) == "keywords" ? "keywords" : "fields";
+            const auto name = std::string_view(kind) == "review"   ? "ravo.review.apply_batch" :
+                              std::string_view(kind) == "metadata" ? "ravo.metadata.patch_batch" :
+                                                                     "ravo.keywords.replace_batch";
+            result.push_back(
+                {name,
+                 "Apply per-item edits to 1-32 explicit unique assets after annotations.read. Total payload is 64 KiB. Preflight all targets, then commit independently in order; stop on first error/cancel and inspect every item. Requires saved global binding. Preserve operation_id and reconcile unknown outcomes; no original/XMP/history writes.",
+                 object_schema(
+                     {{"binding", binding_schema()},
+                      {"items",
+                       JsonValue::Object{
+                           {"type", "array"},
+                           {"minItems", JsonValue::number("1")},
+                           {"maxItems", *annotations.find("batch")->find("max_items")},
+                           {"items", object_schema({{"asset_id", text_schema(256)},
+                                                    {values, *annotation_kinds.find(kind)}},
+                                                   {"asset_id", values})}}},
+                      {"operation_id", text_schema(200)},
+                      {"wait", wait}},
+                     {"binding", "items"}),
+                 false});
+        }
         // The deadline is a transport bound, never a business-state override.
         for (auto &tool : result)
         {
@@ -414,7 +450,15 @@ Result<McpInvocation> mcp_invocation(const std::string_view name, const JsonValu
     result.session_id = binding ? text(*binding, "session_id").toStdString() :
                                   text(arguments, "session_id").toStdString();
     result.operation_id = text(arguments, "operation_id").toStdString();
-    if (name == "ravo.catalog.query")
+    if (name == "ravo.annotations.read")
+    {
+        result.arguments = {"catalog",    "annotations",
+                            "--catalog",  text(arguments, "catalog"),
+                            "--revision", text(arguments, "expected_revision")};
+        for (const auto &id : *arguments.find("asset_ids")->array_if())
+            result.arguments << "--asset-id" << QString::fromStdString(*id.string_if());
+    }
+    else if (name == "ravo.catalog.query")
     {
         result.arguments = {
             "catalog",
@@ -506,8 +550,25 @@ Result<McpInvocation> mcp_invocation(const std::string_view name, const JsonValu
         else
         {
             auto body = *binding->object_if();
-            if (name == "ravo.review.apply" || name == "ravo.metadata.patch" ||
-                name == "ravo.keywords.replace")
+            if (name == "ravo.review.apply_batch" || name == "ravo.metadata.patch_batch" ||
+                name == "ravo.keywords.replace_batch")
+            {
+                const auto kind = name == "ravo.review.apply_batch"   ? "review" :
+                                  name == "ravo.metadata.patch_batch" ? "metadata" :
+                                                                        "keywords";
+                const auto values = name == "ravo.keywords.replace_batch" ? "keywords" : "fields";
+                JsonValue::Array items;
+                for (const auto &item : *arguments.find("items")->array_if())
+                    items.push_back(JsonValue::Object{
+                        {"asset_id", *item.find("asset_id")},
+                        {"annotation", JsonValue::Object{{"version", JsonValue::number("1")},
+                                                         {"kind", kind},
+                                                         {"fields", *item.find(values)}}}});
+                body.emplace("kind", "annotation_batch");
+                body.emplace("items", std::move(items));
+            }
+            else if (name == "ravo.review.apply" || name == "ravo.metadata.patch" ||
+                     name == "ravo.keywords.replace")
             {
                 const auto kind = name == "ravo.review.apply"   ? "review" :
                                   name == "ravo.metadata.patch" ? "metadata" :
@@ -557,7 +618,7 @@ Result<McpInvocation> mcp_invocation(const std::string_view name, const JsonValu
                                                           QStringLiteral("960"));
     if (!result.session_id.empty())
         result.arguments << "--session-id" << QString::fromStdString(result.session_id);
-    if (name != "ravo.catalog.query")
+    if (name != "ravo.catalog.query" && name != "ravo.annotations.read")
         result.arguments << "--timeout-ms" << QString::number(result.timeout_ms);
     result.arguments << "--json";
     return result;

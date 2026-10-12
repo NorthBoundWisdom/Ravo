@@ -490,7 +490,7 @@ an MCP host to launch the current checkout's built or installed `ravo` with
 ```
 
 The adapter supports MCP 2025-11-25 initialization and 2026-07-28 per-request
-metadata/discovery. Stdout contains only newline JSON-RPC. It exposes 18 tools:
+metadata/discovery. Stdout contains only newline JSON-RPC. It exposes 22 tools:
 session discovery, bounded Studio state, field capabilities, exact preview,
 candidate evaluation/commit, operation reserve/get/cancel, history list/restore,
 mask actions, selected-photo batch patches, bounded catalog query and explicit
@@ -556,8 +556,8 @@ schemas from `studio capabilities` / `ravo.develop.fields` under `annotations`:
 These commands require saved global edits and an idle binding, support photos
 and video metadata, and never write originals, adjacent XMP or Develop history.
 They affect only the binding's primary asset, including with a multi-selection.
-Each command is atomic; separate tool calls are separate transactions. Keyword
-tree management and explicit bulk annotation are not part of this contract.
+Each single-asset command is atomic; separate tool calls are separate transactions.
+Keyword tree management is not part of this contract.
 Annotation payloads are bounded to 64 KiB. State projection is bounded to 1 MiB;
 `available:false` means unavailable, not an empty keyword set or cleared metadata.
 
@@ -576,6 +576,41 @@ if readback is unavailable, reconcile through explicit catalog query before
 another edit. `unknown` requires explicit reconciliation and must never be
 replayed with a new operation ID. Repeat the identical ID/request only to read
 its recorded outcome ([ADR-0180](../DevDocs/adr/0180-revision-bound-catalog-annotations.md)).
+
+For explicit bulk edits, first call `ravo.annotations.read` with `catalog`,
+`expected_revision` and 1–32 unique `asset_ids`. It returns
+`ravo.asset.annotations-read/v1` with each target's rating/flags, writable metadata
+and hierarchical keywords. The aggregate projection stays below 1 MiB; an
+`available:false` entry must not be interpreted as empty metadata. Stale revisions
+fail rather than mixing snapshots. CLI exposes the same read with
+`catalog annotations --catalog <path> --asset-id <id> --asset-id <id> --revision <n> --json`.
+
+Then use a fresh Studio binding and one of these tools:
+
+| MCP tool | Per-item payload |
+| --- | --- |
+| `ravo.review.apply_batch` | `asset_id` and `fields` containing that target's review patch |
+| `ravo.metadata.patch_batch` | `asset_id` and `fields` containing that target's metadata patch |
+| `ravo.keywords.replace_batch` | `asset_id` and its complete `keywords` replacement array |
+
+The `items` array contains 1–32 unique explicit targets; targets need not be the
+current selection. Total canonical annotation payload is capped at 64 KiB.
+Metadata strings are limited to 4096 UTF-8 bytes; keyword paths to 512 bytes
+with at most 128 bytes per name, as declared by the shared schemas.
+All edits and target existence are preflighted before the first write. Commits
+then run independently in order and stop at the first failure/cancel/conflict.
+`ravo.asset.annotation-batch-result/v1` reports `committed`, `failed`, `cancelled`,
+`unknown` and `not_started` items, confirmed revisions and recovery warnings.
+`committed_count` counts confirmed commits; unknown items require readback and
+may already have changed state. A receipt phase of `committed` can contain a
+`partial` result: inspect every item. MCP marks partial/failed/cancelled/unknown
+outcomes as tool errors and retains the complete receipt under `error.receipt`.
+Preserve the operation ID and never replay
+unknown work with a new ID. Selection/window changes cancel pending work while
+retaining already committed items. Originals, adjacent XMP and Develop history
+remain unchanged. CLI uses `studio commit` with `kind:"annotation_batch"` and
+`items:[{"asset_id":"...","annotation":{"version":1,"kind":"metadata","fields":{"title":"..."}}}]`
+([ADR-0184](../DevDocs/adr/0184-bounded-ai-batch-annotations.md)).
 
 The equivalent catalog query is `ravo catalog list --catalog <path> --limit 100
 --offset 0 --revision <observed-revision> --json`. It returns

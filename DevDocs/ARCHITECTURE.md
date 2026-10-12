@@ -2207,6 +2207,20 @@ Late UI results cannot overwrite a changed binding. Annotation state is bounded
 to 1 MiB with explicit unavailable projection; original/recipe/history ownership
 does not change. Direct desktop annotation intents also reject pending page selection.
 
+Explicit annotation batches and readback are shared Services use cases
+([ADR-0184](adr/0184-bounded-ai-batch-annotations.md)). Readback fences an explicit
+catalog revision before/after 1–32 target reads and reserves space for unavailable
+projections within an aggregate 1 MiB bound. Batch parsing admits at most 32
+unique targets and 64 KiB, then preflights every target. Existing per-asset
+transactions run sequentially with the last confirmed revision and stop on the
+first failure/cancel/unknown; there is no global atomicity claim. Result summaries
+retain confirmed commits, warnings and undispatched targets without retaining
+full annotation states in operation receipts. Desktop reuses the single-annotation
+executor/cancellation lifecycle and updates the primary projection only for its
+matching explicit target. CLI exposes readback and the same commit request;
+MCP projects three typed batch tools. Partial/unknown tool errors retain their
+receipts, so transport failure cannot erase already committed items.
+
 Application UI font resolution belongs to the desktop-private `studio_ui_font`
 helper. Studio main owns application font installation and language-change
 updates; desktop tests initialize the same policy once before loading QML.

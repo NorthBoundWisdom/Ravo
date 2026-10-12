@@ -40,6 +40,7 @@
 #include "ravo/recipe/style.h"
 #include "ravo/services/catalog_service.h"
 #include "ravo/services/artifact_publication.h"
+#include "ravo/services/asset_annotation_batch.h"
 
 namespace ravo::cli_internal
 {
@@ -49,6 +50,7 @@ Result<JsonValue> run_catalog_video_command(const EngineFacade &, CatalogService
 namespace
 {
 constexpr auto kCatalogCommands = std::to_array<std::string_view>({
+    "annotations",
     "backup",
     "backup-policy",
     "backup-restore",
@@ -376,7 +378,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "editor-prepare-working-copy, or editor-reopen-working-copy");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
         !develop_apply_command && !keyword_command && !editor_command && !cull_command &&
-        subcommand != "import-plan" && subcommand != "hdr-merge" && subcommand != "panorama")
+        subcommand != "import-plan" && subcommand != "hdr-merge" && subcommand != "panorama" &&
+        subcommand != "annotations")
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
                           "keyword, tag, develop-apply, or editor "
@@ -1127,6 +1130,16 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                               {"materialized_rows",
                                JsonValue::number(std::to_string(page.value().materialized_rows))},
                               {"assets", std::move(rows)}}};
+    }
+    if (subcommand == "annotations")
+    {
+        if (!flags.value().expected_revision)
+            return make_error(ErrorCode::kInvalidArgument,
+                              "catalog annotations requires --revision");
+        std::vector<std::string> ids;
+        for (const auto id : flags.value().asset_ids)
+            ids.emplace_back(id);
+        return read_asset_annotations(service, ids, *flags.value().expected_revision);
     }
     if (subcommand == "list")
     {

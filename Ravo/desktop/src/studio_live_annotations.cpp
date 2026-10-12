@@ -1,6 +1,7 @@
 #include "ravo/desktop/studio_live_session_controller.h"
 #include "ravo/desktop/studio_presenter.h"
 #include "ravo/services/asset_annotation.h"
+#include "ravo/services/asset_annotation_batch.h"
 #include "studio_operation_store.h"
 #include "studio_qt.h"
 #include <QMetaObject>
@@ -9,8 +10,8 @@
 namespace ravo
 {
 Result<JsonValue> StudioLiveSessionController::beginAnnotationOperation(
-    std::string operation_id, std::string asset_id, AssetAnnotationEdit edit,
-    const std::int64_t expected_revision)
+    std::string operation_id, std::string asset_id,
+    std::variant<AssetAnnotationEdit, JsonValue> edit, const std::int64_t expected_revision)
 {
     auto token = operations_->token(operation_id);
     if (!token)
@@ -31,14 +32,38 @@ Result<JsonValue> StudioLiveSessionController::beginAnnotationOperation(
         {
             Result<AssetAnnotationResult> result =
                 make_error(ErrorCode::kIo, "Catalog session is closed");
+            std::optional<AssetAnnotationBatchResult> batch;
             if (auto active = cancellation.check(); !active)
                 result = active.error();
             else if (presenter_.service_)
-                result = apply_asset_annotation(*presenter_.service_, asset_id, edit,
-                                                expected_revision, cancellation);
+            {
+                if (const auto *items = std::get_if<JsonValue>(&edit))
+                {
+                    auto changed = apply_asset_annotation_batch(*presenter_.service_, *items,
+                                                                expected_revision, cancellation);
+                    if (!changed)
+                        result = changed.error();
+                    else
+                    {
+                        batch = std::move(changed).value();
+                        AssetAnnotationResult summary;
+                        summary.asset_id = asset_id;
+                        summary.revision = batch->revision;
+                        for (const auto &item : batch->items)
+                            if (item.asset_id == asset_id && item.result)
+                                summary.asset = item.result->asset;
+                        result = std::move(summary);
+                    }
+                }
+                else
+                    result = apply_asset_annotation(*presenter_.service_, asset_id,
+                                                    std::get<AssetAnnotationEdit>(edit),
+                                                    expected_revision, cancellation);
+            }
             QMetaObject::invokeMethod(
                 this,
-                [this, operation_id, path, history_head, result = std::move(result)]() mutable
+                [this, operation_id, path, history_head, result = std::move(result),
+                 batch = std::move(batch)]() mutable
                 {
                     if (!presenter_alive_)
                         return;
@@ -67,8 +92,41 @@ Result<JsonValue> StudioLiveSessionController::beginAnnotationOperation(
                     else
                     {
                         const auto &value = result.value();
-                        operations_->finish(operation_id, true, value.revision, history_head);
-                        operations_->progress(operation_id, asset_annotation_result_json(value));
+                        if (batch)
+                        {
+                            operations_->progress(operation_id,
+                                                  asset_annotation_batch_result_json(*batch));
+                            if (batch->unknown)
+                                operations_->unresolved(
+                                    operation_id,
+                                    make_error(ErrorCode::kIo,
+                                               "Annotation batch has an unknown outcome",
+                                               {{"mutation_applied", "unknown"},
+                                                {"catalog_committed",
+                                                 batch->committed_count ? "true" : "unknown"},
+                                                {"confirmed_catalog_revision",
+                                                 std::to_string(batch->revision)}}));
+                            else if (batch->committed_count != 0)
+                                operations_->finish(operation_id, true, value.revision,
+                                                    history_head);
+                            else
+                            {
+                                const auto failed = std::find_if(
+                                    batch->items.begin(), batch->items.end(),
+                                    [](const auto &item) { return item.error.has_value(); });
+                                Q_ASSERT(failed != batch->items.end());
+                                operations_->finish(
+                                    operation_id, false, 0, history_head,
+                                    std::string(error_code_name(failed->error->code)),
+                                    failed->error->message);
+                            }
+                        }
+                        else
+                        {
+                            operations_->finish(operation_id, true, value.revision, history_head);
+                            operations_->progress(operation_id,
+                                                  asset_annotation_result_json(value));
+                        }
                         if (binding_current)
                         {
                             if (value.asset)

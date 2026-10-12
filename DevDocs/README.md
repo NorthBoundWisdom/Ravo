@@ -43,6 +43,8 @@ These decisions explain the larger workflows without duplicating their state her
 - [Code retirement](adr/0181-retire-unused-dependencies-and-product-stubs.md),
   [nested field semantics](adr/0182-declared-nested-fields-and-contextual-ranges.md)
   and [documentation/test scope](adr/0183-document-authorities-and-runtime-test-coverage.md).
+- [Explicit AI batch annotations and readback](adr/0184-bounded-ai-batch-annotations.md),
+  including the dated Resolve reference assessment and existing-owner boundaries.
 
 ## Execution documents
 

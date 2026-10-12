@@ -61,8 +61,9 @@ constexpr auto instructions =
     "Use an explicit Studio session. Read state.binding and editing_scope before evaluating. "
     "Evaluate is read-only; commit only the chosen candidate. Preserve operation_id and query its receipt after "
     "timeouts. Never auto-retarget a stale binding or replay an unknown write. Staged mask changes are not saved. "
-    "Batch photos commit independently; inspect every partial result. Annotation tools target only the primary asset; "
+    "Batch photos commit independently; inspect every partial result. Single-asset annotation tools target only the primary asset; "
     "read state.selection.annotations and shared annotation schemas first. Inspect recovery warnings even after a committed receipt. "
+    "For annotation batches, read every explicit target with annotations.read, then supply per-item edits. Batches stop on first failure; completed items remain committed. "
     "Unknown outcomes require explicit reconciliation. Original images are never modified.";
 struct Job
 {
@@ -374,6 +375,11 @@ private:
             failed = *phase->string_if() == "failed" || *phase->string_if() == "cancelled" ||
                      *phase->string_if() == "partially_committed" ||
                      *phase->string_if() == "unknown";
+        if (const auto *result = data->find("result"))
+            if (const auto *outcome = result->find("outcome"); outcome && outcome->string_if())
+                failed = failed || *outcome->string_if() == "partial" ||
+                         *outcome->string_if() == "failed" ||
+                         *outcome->string_if() == "cancelled" || *outcome->string_if() == "unknown";
         if (!job->invocation.image)
         {
             // A receipt remains the result even for a partial/failed operation;

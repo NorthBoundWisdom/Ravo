@@ -114,11 +114,12 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
     const auto subcommand = positional.size() > 1U ? positional[1] : std::string_view{};
     const bool export_directory_command =
         subcommand == "export-batch" || subcommand == "export-job-create";
-    const bool multi_asset =
-        export_directory_command || subcommand == "companion-check" ||
-        subcommand == "preview-rebuild" || subcommand == "set-create" || subcommand == "set-add" ||
-        subcommand == "set-remove" || subcommand == "stack" || subcommand == "develop-apply" ||
-        subcommand == "cull-burst-accept" || subcommand == "hdr-merge" || subcommand == "panorama";
+    const bool multi_asset = export_directory_command || subcommand == "companion-check" ||
+                             subcommand == "preview-rebuild" || subcommand == "set-create" ||
+                             subcommand == "set-add" || subcommand == "set-remove" ||
+                             subcommand == "stack" || subcommand == "develop-apply" ||
+                             subcommand == "cull-burst-accept" || subcommand == "hdr-merge" ||
+                             subcommand == "panorama" || subcommand == "annotations";
     for (std::size_t index = 2; index < positional.size(); ++index)
     {
         if (positional[index] == "--no-align" || positional[index] == "--no-crop")

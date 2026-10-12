@@ -1,4 +1,5 @@
 #include "ravo/services/asset_annotation.h"
+#include "ravo/services/asset_annotation_batch.h"
 #include "ravo/services/catalog_service.h"
 
 #include <array>
@@ -67,16 +68,24 @@ JsonValue asset_annotation_fields_schema(const AssetAnnotationKind kind)
     {
         JsonValue::Object properties;
         for (const auto &[name, member] : fields)
-            properties.emplace(name, JsonValue::Object{{"type", JsonValue::Array{"string", "null"}},
-                                                       {"maxLength", JsonValue::number("65536")}});
+            properties.emplace(
+                name, JsonValue::Object{
+                          {"type", JsonValue::Array{"string", "null"}},
+                          {"maxLength", JsonValue::number(std::to_string(kMetadataFieldMaxLength))},
+                          {"description",
+                           "At most 4096 UTF-8 bytes; null explicitly clears the field."}});
         return closed_object(std::move(properties));
     }
     return JsonValue::Object{
         {"type", "array"},
         {"maxItems", JsonValue::number("256")},
-        {"items", JsonValue::Object{{"type", "string"},
-                                    {"minLength", JsonValue::number("1")},
-                                    {"maxLength", JsonValue::number("4096")}}}};
+        {"items",
+         JsonValue::Object{
+             {"type", "string"},
+             {"minLength", JsonValue::number("1")},
+             {"maxLength", JsonValue::number(std::to_string(kKeywordPathMaxLength))},
+             {"description",
+              "Canonical hierarchical path: at most 512 UTF-8 bytes; each keyword name at most 128 bytes."}}}};
 }
 
 JsonValue asset_annotation_capabilities_json()
@@ -90,6 +99,15 @@ JsonValue asset_annotation_capabilities_json()
         {"max_payload_bytes", JsonValue::number("65536")},
         {"original_writes", false},
         {"max_state_bytes", JsonValue::number("1048576")},
+        {"batch",
+         JsonValue::Object{
+             {"schema", "ravo.asset.annotation-batch/v1"},
+             {"scope", "explicit_asset_ids"},
+             {"max_items", JsonValue::number(std::to_string(kAnnotationBatchMaximumItems))},
+             {"max_payload_bytes", JsonValue::number(std::to_string(kAnnotationBatchMaximumBytes))},
+             {"atomic", false},
+             {"stop_on_first_error", true},
+             {"requires_explicit_targets", true}}},
         {"kinds",
          JsonValue::Object{
              {"review", asset_annotation_fields_schema(AssetAnnotationKind::kReview)},

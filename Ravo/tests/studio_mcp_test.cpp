@@ -12,6 +12,8 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QScopeGuard>
+#include <QSqlDatabase>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 #include <fstream>
 
@@ -134,7 +136,7 @@ TEST(StudioMcpProtocolTest, SupportsLegacyAndModernContractsAndRejectsUnknownInp
     ASSERT_NE(legacy.value().find("result"), nullptr);
     const auto *tools = legacy.value().find("result")->find("tools")->array_if();
     ASSERT_NE(tools, nullptr);
-    ASSERT_EQ(tools->size(), 18U);
+    ASSERT_EQ(tools->size(), 22U);
     std::string previous;
     for (const auto &tool : *tools)
     {
@@ -1412,5 +1414,375 @@ TEST_F(StudioMcpTest, StudioCloseCancelsQueuedBatchBeforeDestroyingBorrowedOwner
         ASSERT_TRUE(history);
         EXPECT_TRUE(history.value().empty());
     }
+}
+TEST_F(StudioMcpTest, AnnotationBatchesEditDistinctExplicitAssetsAndReplayExactlyOnce)
+{
+    auto repository = SqliteCatalogRepository::open(root.filePath("library.sqlite").toStdString());
+    ASSERT_TRUE(repository);
+    const auto initial_revision = repository.value()->snapshot().value().revision;
+    for (const auto kind : {"review", "metadata", "keywords"})
+    {
+        ASSERT_TRUE(ready());
+        auto current = state();
+        ASSERT_TRUE(current);
+        const auto &binding = *current.value().find("binding");
+        auto readback = call(
+            "ravo.annotations.read",
+            JsonValue::Object{{"catalog", root.filePath("library.sqlite").toStdString()},
+                              {"expected_revision", *binding.find("expected_catalog_revision")},
+                              {"asset_ids", JsonValue::Array{"ast_page_1", "ast_page_2"}}});
+        ASSERT_TRUE(readback) << readback.error().message;
+        ASSERT_EQ(readback.value().find("assets")->array_if()->size(), 2U);
+        const auto values = std::string_view(kind) == "keywords" ? "keywords" : "fields";
+        const auto tool = std::string_view(kind) == "review"   ? "ravo.review.apply_batch" :
+                          std::string_view(kind) == "metadata" ? "ravo.metadata.patch_batch" :
+                                                                 "ravo.keywords.replace_batch";
+        JsonValue first = std::string_view(kind) == "review" ?
+                              JsonValue{JsonValue::Object{{"rating", JsonValue::number("5")}}} :
+                          std::string_view(kind) == "metadata" ?
+                              JsonValue{JsonValue::Object{{"title", "First target"}}} :
+                              JsonValue{JsonValue::Array{"Travel|Japan"}};
+        JsonValue second =
+            std::string_view(kind) == "review" ?
+                JsonValue{
+                    JsonValue::Object{{"rating", JsonValue::number("2")}, {"flag", "reject"}}} :
+            std::string_view(kind) == "metadata" ?
+                JsonValue{JsonValue::Object{{"title", "Second target"}, {"description", nullptr}}} :
+                JsonValue{JsonValue::Array{}};
+        JsonValue args = JsonValue::Object{
+            {"binding", binding},
+            {"items",
+             JsonValue::Array{JsonValue::Object{{"asset_id", "ast_page_1"}, {values, first}},
+                              JsonValue::Object{{"asset_id", "ast_page_2"}, {values, second}}}}};
+        auto reserved = reserve();
+        ASSERT_TRUE(reserved);
+        auto reserved_args = *args.object_if();
+        reserved_args["operation_id"] = json_string(reserved.value(), "operation_id");
+        args = JsonValue{std::move(reserved_args)};
+        auto changed = call(tool, args);
+        ASSERT_TRUE(changed) << changed.error().message;
+        EXPECT_EQ(json_string(changed.value(), "phase"), "committed");
+        const auto *result = changed.value().find("result");
+        ASSERT_NE(result, nullptr);
+        EXPECT_EQ(json_string(*result, "outcome"), "completed");
+        EXPECT_EQ(result->find("committed_count")->number_if()->text, "2");
+        const auto revision = repository.value()->snapshot().value().revision;
+        auto replay = call(tool, args);
+        ASSERT_TRUE(replay);
+        EXPECT_EQ(serialize_json(replay.value()), serialize_json(changed.value()));
+        EXPECT_EQ(repository.value()->snapshot().value().revision, revision);
+        auto altered = *args.object_if();
+        altered["items"] =
+            JsonValue::Array{JsonValue::Object{{"asset_id", "ast_page_2"}, {values, first}}};
+        EXPECT_FALSE(call(tool, altered));
+    }
+    EXPECT_EQ(repository.value()->snapshot().value().revision, initial_revision + 6);
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_0").value()->review.rating, 0);
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_1").value()->review.rating, 5);
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_2").value()->review.rating, 2);
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_1").value()->metadata.title,
+              "First target");
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_2").value()->metadata.title,
+              "Second target");
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_1").value()->tags.size(), 1U);
+    for (const auto *id : {"ast_page_0", "ast_page_1", "ast_page_2"})
+    {
+        EXPECT_FALSE(repository.value()->load_recipe_json(id).value());
+        EXPECT_TRUE(repository.value()->list_recipe_history(id).value().empty());
+    }
+}
+
+TEST_F(StudioMcpTest, AnnotationBatchRejectsInvalidTargetsSchemasAndStaleReadback)
+{
+    auto current = state();
+    ASSERT_TRUE(current);
+    const auto binding = *current.value().find("binding");
+    const JsonValue item = JsonValue::Object{
+        {"asset_id", "ast_page_1"}, {"fields", JsonValue::Object{{"title", "Must not write"}}}};
+    EXPECT_FALSE(
+        call("ravo.metadata.patch_batch",
+             JsonValue::Object{{"binding", binding}, {"items", JsonValue::Array{item, item}}}));
+    EXPECT_FALSE(
+        call("ravo.metadata.patch_batch",
+             JsonValue::Object{{"binding", binding},
+                               {"items", JsonValue::Array{JsonValue::Object{
+                                             {"asset_id", "ast_page_1"},
+                                             {"fields", JsonValue::Object{{"unknown", "x"}}}}}}}));
+    auto missing = mcp.tool(
+        "ravo.metadata.patch_batch",
+        JsonValue::Object{
+            {"binding", binding},
+            {"items",
+             JsonValue::Array{
+                 item, JsonValue::Object{{"asset_id", "missing"},
+                                         {"fields", JsonValue::Object{{"title", "Missing"}}}}}}});
+    ASSERT_TRUE(missing);
+    const auto *receipt =
+        missing.value().find("result")->find("structuredContent")->find("error")->find("receipt");
+    ASSERT_NE(receipt, nullptr);
+    EXPECT_EQ(json_string(*receipt, "phase"), "failed");
+    EXPECT_FALSE(*receipt->find("mutation_applied")->boolean_if());
+    EXPECT_FALSE(call("ravo.annotations.read",
+                      JsonValue::Object{{"catalog", root.filePath("library.sqlite").toStdString()},
+                                        {"expected_revision", JsonValue::number("9999999")},
+                                        {"asset_ids", JsonValue::Array{"ast_page_1"}}}));
+    auto repository = SqliteCatalogRepository::open(root.filePath("library.sqlite").toStdString());
+    ASSERT_TRUE(repository);
+    EXPECT_FALSE(repository.value()->find_asset_by_id("ast_page_1").value()->metadata.title);
+    EXPECT_EQ(repository.value()->snapshot().value().revision,
+              std::stoll(binding.find("expected_catalog_revision")->number_if()->text));
+}
+
+TEST_F(StudioMcpTest, AnnotationBatchCancellationAndSelectionChangePreventQueuedWrites)
+{
+    for (const bool cancel : {true, false})
+    {
+        ASSERT_TRUE(ready());
+        auto current = state();
+        ASSERT_TRUE(current);
+        auto entered = std::make_shared<std::promise<void>>();
+        std::promise<void> release;
+        ASSERT_TRUE(testing::StudioAutomationTestControl::block(*presenter, entered,
+                                                                release.get_future().share()));
+        auto unblock = qScopeGuard([&] { release.set_value(); });
+        ASSERT_EQ(entered->get_future().wait_for(std::chrono::seconds(5)),
+                  std::future_status::ready);
+        auto pending =
+            call("ravo.review.apply_batch",
+                 JsonValue::Object{
+                     {"binding", *current.value().find("binding")},
+                     {"wait", false},
+                     {"items",
+                      JsonValue::Array{JsonValue::Object{
+                          {"asset_id", "ast_page_1"},
+                          {"fields", JsonValue::Object{{"rating", JsonValue::number("5")}}}}}}});
+        ASSERT_TRUE(pending);
+        const auto id = json_string(pending.value(), "operation_id");
+        if (cancel)
+            ASSERT_TRUE(call("ravo.operations.cancel",
+                             JsonValue::Object{{"session_id", session}, {"operation_id", id}}));
+        else
+            presenter->selectAsset("ast_page_1");
+        release.set_value();
+        unblock.dismiss();
+        auto receipt =
+            call("ravo.operations.get",
+                 JsonValue::Object{{"session_id", session}, {"operation_id", id}, {"wait", true}});
+        ASSERT_TRUE(receipt);
+        EXPECT_EQ(json_string(receipt.value(), "phase"), "cancelled");
+    }
+    auto repository = SqliteCatalogRepository::open(root.filePath("library.sqlite").toStdString());
+    ASSERT_TRUE(repository);
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_1").value()->review.rating, 0);
+}
+
+TEST_F(StudioMcpTest, CliAnnotationBatchAndReadbackShareVersionedContracts)
+{
+    auto current = state();
+    auto reserved = reserve();
+    ASSERT_TRUE(current);
+    ASSERT_TRUE(reserved);
+    auto body = *current.value().find("binding")->object_if();
+    body["kind"] = "annotation_batch";
+    body["items"] = JsonValue::Array{JsonValue::Object{
+        {"asset_id", "ast_page_2"},
+        {"annotation",
+         JsonValue::Object{{"version", JsonValue::number("1")},
+                           {"kind", "metadata"},
+                           {"fields", JsonValue::Object{{"headline", "Batch CLI"}}}}}}};
+    const auto path = root.filePath("annotation-batch.json");
+    QFile file(path);
+    ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+    const auto bytes = QByteArray::fromStdString(serialize_json(body));
+    ASSERT_EQ(file.write(bytes), bytes.size());
+    file.close();
+    const QStringList args{
+        "studio",         "commit",
+        "--session-id",   QString::fromStdString(session),
+        "--request",      path,
+        "--operation-id", QString::fromStdString(json_string(reserved.value(), "operation_id")),
+        "--wait",         "true",
+        "--json"};
+    auto result = run_cli_process(args);
+    ASSERT_EQ(result.exit_code, 0) << result.standard_output.toStdString();
+    auto receipt = cli_data(result.standard_output);
+    ASSERT_TRUE(receipt);
+    EXPECT_EQ(json_string(*receipt.value().find("result"), "outcome"), "completed");
+    auto replay = run_cli_process(args);
+    EXPECT_EQ(replay.exit_code, 0);
+    EXPECT_EQ(replay.standard_output, result.standard_output);
+    auto read = run_cli_process(
+        {"catalog", "annotations", "--catalog", root.filePath("library.sqlite"), "--asset-id",
+         "ast_page_1", "--asset-id", "ast_page_2", "--revision",
+         QString::fromStdString(receipt.value().find("catalog_revision")->number_if()->text),
+         "--json"});
+    ASSERT_EQ(read.exit_code, 0) << read.standard_output.toStdString();
+    auto state = cli_data(read.standard_output);
+    ASSERT_TRUE(state);
+    EXPECT_EQ(json_string(state.value(), "schema"), "ravo.asset.annotations-read/v1");
+    const auto &assets = *state.value().find("assets")->array_if();
+    ASSERT_EQ(assets.size(), 2U);
+    EXPECT_EQ(json_string(*assets[1].find("metadata"), "headline"), "Batch CLI");
+}
+
+TEST_F(StudioMcpTest, EofCancelsInflightAnnotationBatchBeforeCommit)
+{
+    auto current = state();
+    auto reserved = reserve();
+    ASSERT_TRUE(current);
+    ASSERT_TRUE(reserved);
+    const auto id = json_string(reserved.value(), "operation_id");
+    auto entered = std::make_shared<std::promise<void>>();
+    std::promise<void> release;
+    ASSERT_TRUE(testing::StudioAutomationTestControl::block(*presenter, entered,
+                                                            release.get_future().share()));
+    auto unblock = qScopeGuard([&] { release.set_value(); });
+    ASSERT_EQ(entered->get_future().wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    mcp.send(JsonValue::Object{
+        {"jsonrpc", "2.0"},
+        {"id", JsonValue::number("904")},
+        {"method", "tools/call"},
+        {"params",
+         JsonValue::Object{
+             {"name", "ravo.review.apply_batch"},
+             {"arguments",
+              JsonValue::Object{
+                  {"binding", *current.value().find("binding")},
+                  {"operation_id", id},
+                  {"items",
+                   JsonValue::Array{JsonValue::Object{
+                       {"asset_id", "ast_page_1"},
+                       {"fields", JsonValue::Object{{"rating", JsonValue::number("5")}}}}}}}},
+             {"_meta", JsonValue::Object{{"io.modelcontextprotocol/protocolVersion", "2026-07-28"},
+                                         {"io.modelcontextprotocol/clientCapabilities",
+                                          JsonValue::Object{}}}}}}});
+    ASSERT_TRUE(wait_until([&] { return presenter->busy(); }));
+    EXPECT_TRUE(mcp.close());
+    release.set_value();
+    unblock.dismiss();
+    ASSERT_TRUE(ready());
+    ASSERT_TRUE(mcp.start());
+    auto receipt = call("ravo.operations.get",
+                        JsonValue::Object{{"session_id", session}, {"operation_id", id}});
+    ASSERT_TRUE(receipt);
+    EXPECT_EQ(json_string(receipt.value(), "phase"), "cancelled");
+    EXPECT_EQ(live->snapshot()
+                  .find("selection")
+                  ->find("annotations")
+                  ->find("review")
+                  ->find("rating")
+                  ->number_if()
+                  ->text,
+              "0");
+}
+
+TEST_F(StudioMcpTest, CloseJoinsQueuedAnnotationBatchWithoutWritingCatalog)
+{
+    auto current = state();
+    ASSERT_TRUE(current);
+    auto entered = std::make_shared<std::promise<void>>();
+    std::promise<void> release;
+    bool released = false;
+    auto release_on_failure = qScopeGuard(
+        [&]
+        {
+            if (!released)
+                release.set_value();
+        });
+    ASSERT_TRUE(testing::StudioAutomationTestControl::block(*presenter, entered,
+                                                            release.get_future().share()));
+    ASSERT_EQ(entered->get_future().wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    auto pending =
+        call("ravo.keywords.replace_batch",
+             JsonValue::Object{{"binding", *current.value().find("binding")},
+                               {"wait", false},
+                               {"items", JsonValue::Array{JsonValue::Object{
+                                             {"asset_id", "ast_page_1"},
+                                             {"keywords", JsonValue::Array{"Must not write"}}}}}});
+    ASSERT_TRUE(pending);
+    QObject::connect(presenter.get(), &StudioPresenter::aboutToShutdown, presenter.get(),
+                     [&]
+                     {
+                         released = true;
+                         release.set_value();
+                     });
+    presenter.reset();
+    live.reset();
+    commands.reset();
+    auto repository = SqliteCatalogRepository::open(root.filePath("library.sqlite").toStdString());
+    ASSERT_TRUE(repository);
+    EXPECT_TRUE(repository.value()->find_asset_by_id("ast_page_1").value()->tags.empty());
+    EXPECT_TRUE(mcp.request("ping"));
+}
+
+TEST_F(StudioMcpTest, AnnotationBatchPartialFailurePreservesReceiptAndNeverReplaysCommittedItems)
+{
+    // Isolated adapter fault fixture: fail the second real metadata transaction.
+    const auto connection = QStringLiteral("annotation-batch-partial");
+    auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+    database.setDatabaseName(root.filePath("library.sqlite"));
+    ASSERT_TRUE(database.open());
+    auto cleanup = qScopeGuard(
+        [&]
+        {
+            {
+                QSqlQuery drop(database);
+                EXPECT_TRUE(drop.exec("DROP TRIGGER IF EXISTS annotation_batch_fail"));
+            }
+            database.close();
+            database = QSqlDatabase{};
+            QSqlDatabase::removeDatabase(connection);
+        });
+    QSqlQuery query(database);
+    ASSERT_TRUE(query.exec(
+        "CREATE TRIGGER annotation_batch_fail BEFORE INSERT ON asset_metadata "
+        "WHEN NEW.asset_id='ast_page_2' BEGIN SELECT RAISE(ABORT,'batch fixture'); END"));
+    auto current = state();
+    auto reserved = reserve();
+    ASSERT_TRUE(current);
+    ASSERT_TRUE(reserved);
+    const JsonValue args = JsonValue::Object{
+        {"binding", *current.value().find("binding")},
+        {"operation_id", json_string(reserved.value(), "operation_id")},
+        {"items",
+         JsonValue::Array{
+             JsonValue::Object{{"asset_id", "ast_page_1"},
+                               {"fields", JsonValue::Object{{"title", "Committed"}}}},
+             JsonValue::Object{{"asset_id", "ast_page_2"},
+                               {"fields", JsonValue::Object{{"title", "Failed"}}}},
+             JsonValue::Object{{"asset_id", "ast_page_0"},
+                               {"fields", JsonValue::Object{{"title", "Undispatched"}}}}}}};
+    auto changed = mcp.tool("ravo.metadata.patch_batch", args);
+    ASSERT_TRUE(changed);
+    const auto *result = changed.value().find("result");
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(*result->find("isError")->boolean_if());
+    const auto *receipt = result->find("structuredContent")->find("error")->find("receipt");
+    ASSERT_NE(receipt, nullptr);
+    EXPECT_EQ(json_string(*receipt, "phase"), "committed");
+    EXPECT_TRUE(*receipt->find("mutation_applied")->boolean_if());
+    EXPECT_EQ(json_string(*receipt->find("result"), "outcome"), "partial");
+    const auto &items = *receipt->find("result")->find("items")->array_if();
+    ASSERT_EQ(items.size(), 3U);
+    EXPECT_EQ(json_string(items[0], "status"), "committed");
+    EXPECT_EQ(json_string(items[1], "status"), "failed");
+    EXPECT_EQ(json_string(items[2], "status"), "not_started");
+    ASSERT_TRUE(query.exec("DROP TRIGGER annotation_batch_fail"));
+    auto replay = mcp.tool("ravo.metadata.patch_batch", args);
+    ASSERT_TRUE(replay);
+    EXPECT_EQ(serialize_json(*replay.value()
+                                  .find("result")
+                                  ->find("structuredContent")
+                                  ->find("error")
+                                  ->find("receipt")),
+              serialize_json(*receipt));
+    auto repository = SqliteCatalogRepository::open(root.filePath("library.sqlite").toStdString());
+    ASSERT_TRUE(repository);
+    EXPECT_EQ(repository.value()->find_asset_by_id("ast_page_1").value()->metadata.title,
+              "Committed");
+    EXPECT_FALSE(repository.value()->find_asset_by_id("ast_page_2").value()->metadata.title);
+    EXPECT_FALSE(repository.value()->find_asset_by_id("ast_page_0").value()->metadata.title);
+    EXPECT_EQ(repository.value()->snapshot().value().revision,
+              std::stoll(receipt->find("catalog_revision")->number_if()->text));
 }
 } // namespace ravo
