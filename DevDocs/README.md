@@ -46,6 +46,7 @@ These decisions explain the larger workflows without duplicating their state her
   and [documentation/test scope](adr/0183-document-authorities-and-runtime-test-coverage.md).
 - [Explicit AI batch annotations and readback](adr/0184-bounded-ai-batch-annotations.md),
   including the dated Resolve reference assessment and existing-owner boundaries.
+- [Explicit JPEG EXIF colour and preview failure completion](adr/0185-explicit-jpeg-exif-colour-and-preview-failure.md).
 
 ## Execution documents
 

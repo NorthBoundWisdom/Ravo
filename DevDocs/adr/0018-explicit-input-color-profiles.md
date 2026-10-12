@@ -30,7 +30,8 @@ acceptable replacement.
   source state. Demosaic produces camera RGB; the input-colour adapter performs
   the camera-to-working conversion. Embedded RAW JPEG previews explicitly
   declare sRGB.
-- The Qt raster adapter preserves a valid embedded profile. An untagged raster
+- The Qt raster adapter preserves a valid embedded profile; ADR-0185 also
+  admits explicit JPEG EXIF sRGB declarations. An untagged raster
   remains `missing` and rendering fails structurally unless the recipe names a
   concrete built-in or file profile. It is never silently reinterpreted as
   sRGB.

@@ -911,4 +911,51 @@ TEST(StudioPipelinePriority, UnrelatedImportDoesNotRejectPhotoEdit)
     ASSERT_TRUE(params);
     EXPECT_DOUBLE_EQ(params.value().exposure_ev, 0.5);
 }
+TEST(StudioPipelinePriority, FailedProgressivePreviewStopsLoadingAndExplicitProfileRecovers)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    ASSERT_TRUE(directory.isValid());
+    const auto photo = directory.filePath("untagged.jpg");
+    // Larger than the browse thumbnail: Develop must request its own decode,
+    // rather than reusing the small browse result for the entire source.
+    QImage image(640, 400, QImage::Format_RGB888);
+    image.fill(QColor(80, 120, 160));
+    ASSERT_TRUE(image.save(photo, "JPEG"));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({photo});
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.visibleCount() == 1 && !presenter.selectedAssetId().isEmpty() &&
+                   !presenter.busy() && !presenter.imports()->importWorkActive();
+        }));
+    presenter.setBrowseMode("develop");
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.errorText().contains("no declared colour profile") &&
+                   !presenter.busy();
+        }))
+        << presenter.errorText().toStdString();
+    EXPECT_FALSE(presenter.inspect()->previewLoading());
+    EXPECT_TRUE(presenter.inspect()->previewImage().isNull());
+    const auto asset = presenter.selectedAssetId().toStdString();
+    auto unchanged = testing::StudioPipelineTestControl::recipe(presenter, asset);
+    ASSERT_TRUE(unchanged);
+    auto baseline = develop_from_recipe(unchanged.value());
+    ASSERT_TRUE(baseline);
+    EXPECT_EQ(baseline.value().input_color.input_profile, "source");
+    presenter.develop()->setDevelopNumber("inputProfile", 1);
+    ASSERT_TRUE(wait_until([&] { return ready(presenter); }))
+        << presenter.errorText().toStdString();
+    auto saved = testing::StudioPipelineTestControl::recipe(presenter, asset);
+    ASSERT_TRUE(saved);
+    auto params = develop_from_recipe(saved.value());
+    ASSERT_TRUE(params);
+    EXPECT_EQ(params.value().input_color.input_profile, "srgb");
+}
 } // namespace ravo

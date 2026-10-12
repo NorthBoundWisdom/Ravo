@@ -37,8 +37,8 @@ subsampling, output metadata, profile writing, and disk-full publication.
   consistent, every one-based sequence number must occur exactly once, and
   physical marker order is irrelevant. The reassembled bytes must be one valid
   RGB ICC profile. Ravo preserves those exact bytes in `ColorProfileState`.
-  Missing APP2 ICC state remains `missing`; Qt-inferred or sRGB fallback state
-  is not published.
+  Missing APP2 ICC state remains `missing` unless EXIF explicitly declares
+  sRGB under ADR-0185; Qt-inferred or sRGB fallback state is not published.
 - `DecodedRaster` declares `RasterPixelFormat::kRgb8` and
   `RasterAlphaMode::kOpaque`. JPEG success explicitly publishes those values
   and an owned width-by-height-by-three byte buffer. JPEG has no inferred alpha

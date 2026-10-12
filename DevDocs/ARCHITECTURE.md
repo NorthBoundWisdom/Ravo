@@ -1887,7 +1887,10 @@ source → linear Rec709 `ravo.color.input` and working → output
 input-profile to working-profile conversion.
 Decode publishes immutable `ColorProfileState`:
 RAW supplies an enhanced camera-to-XYZ D50 matrix and raster supplies a valid
-embedded ICC/built-in profile or an explicit missing state. The engine-private
+embedded ICC/built-in profile or an explicit missing state. The private raster
+JPEG adapter recognises explicit EXIF ColorSpace 1 as built-in sRGB when ICC
+is absent (ADR-0185); ICC takes precedence and corrupt profiles remain errors.
+Uncalibrated/reserved EXIF values do not select a profile. The engine-private
 adapter retains the frozen matrix-only, 65,536-sample shaper plus unbounded
 extrapolation, target-gamut clipping, RAW blue mapping, and general LittleCMS
 RGB/XYZ/Lab paths. File ICC content and canonical profile parameters enter the

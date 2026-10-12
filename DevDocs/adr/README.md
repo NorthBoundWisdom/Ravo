@@ -197,3 +197,4 @@ never reused, and no redirect or empty compatibility document is kept.
 | [0182](0182-declared-nested-fields-and-contextual-ranges.md) | Accepted | Shared nested-field descriptors and explicit context-dependent crop/curve metadata without changing edit semantics |
 | [0183](0183-document-authorities-and-runtime-test-coverage.md) | Accepted | Single documentation authorities and runtime UI coverage; retire source-text checks and superseded stub documents |
 | [0184](0184-bounded-ai-batch-annotations.md) | Accepted | Shared bounded annotation readback and explicit per-item AI batch edits with partial/cancel/unknown receipts |
+| [0185](0185-explicit-jpeg-exif-colour-and-preview-failure.md) | Accepted | Honour explicit JPEG EXIF sRGB without overriding ICC; failed progressive previews clear loading |

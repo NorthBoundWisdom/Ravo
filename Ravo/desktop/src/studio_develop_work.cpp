@@ -826,8 +826,8 @@ void StudioDevelopPresenter::kick_develop_work()
                     // settled frame still owns the completion state. Keep the
                     // lifecycle busy until that exact request publishes.
                     const bool settle_preview =
-                        job.settle_preview && !(job.prefer_cached_settled_preview && preview &&
-                                                !preview.value().cache_path.empty());
+                        preview && job.settle_preview &&
+                        !(job.prefer_cached_settled_preview && !preview.value().cache_path.empty());
                     host_.preview_loading(settle_preview);
                     if (!preview)
                     {

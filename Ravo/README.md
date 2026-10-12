@@ -35,6 +35,10 @@ perspective correction, clone/heal/blur/fill retouch, canvas, framing and output
 effects. Brush, gradient, radial, path and range selections support local
 photographic adjustments.
 
+JPEG source colour uses embedded ICC first, then an explicit EXIF sRGB
+declaration. Untagged/uncalibrated inputs require an explicit input-profile
+choice; a failed preview stops loading and retains its error.
+
 Discover the exact installed operation and parameter schemas with:
 
 ```text

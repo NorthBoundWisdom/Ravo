@@ -28,6 +28,7 @@
 #include "ravo/domain/types.h"
 #include "ravo/engine/engine.h"
 #include "ravo/foundation/cancellation.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/services/catalog_service.h"
 
 namespace ravo
@@ -753,6 +754,37 @@ TEST(JpegExportContractTest, HonorsEntryAndScanlineCancellationWithoutMutatingIn
     return marker(0xE2U, payload);
 }
 
+[[nodiscard]] QByteArray exif_color_marker(const std::uint16_t value, const bool little = true,
+                                           const std::uint16_t type = 3U,
+                                           const std::uint32_t count = 1U,
+                                           const std::uint32_t exif_offset = 26U)
+{
+    QByteArray payload("Exif\0\0", 6);
+    payload.append(little ? "II" : "MM", 2);
+    const auto append = [&](const std::uint32_t number, const int bytes)
+    {
+        for (int i = 0; i < bytes; ++i)
+            payload.append(
+                static_cast<char>((number >> (8 * (little ? i : bytes - 1 - i))) & 255U));
+    };
+    append(42U, 2);
+    append(8U, 4);
+    append(1U, 2);
+    append(0x8769U, 2);
+    append(4U, 2);
+    append(1U, 4);
+    append(exif_offset, 4);
+    append(0U, 4);
+    append(1U, 2);
+    append(0xA001U, 2);
+    append(type, 2);
+    append(count, 4);
+    append(value, 2);
+    append(0U, 2);
+    append(0U, 4);
+    return marker(0xE1U, payload);
+}
+
 [[nodiscard]] std::vector<std::uint8_t> vector_bytes(const QByteArray &bytes)
 {
     return {reinterpret_cast<const std::uint8_t *>(bytes.constData()),
@@ -1003,6 +1035,92 @@ TEST(JpegAdapterTest, RejectsIncompleteDuplicateInconsistentAndCorruptIccProfile
         decoder.decode_memory(vector_bytes(inject_after_soi(base, {marker(0xE2U, malformed)})), 0,
                               CancellationToken{}),
         ErrorCode::kValidation, "malformed_jpeg_icc_header");
+}
+
+TEST(JpegAdapterTest, ExifSrgbDeclarationWorksForBothByteOrdersAndFileMemoryRender)
+{
+    QtRasterDecoder decoder;
+    JpegTempDirectory temporary;
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    for (const bool little : {true, false})
+    {
+        SCOPED_TRACE(little);
+        const auto encoded =
+            inject_after_soi(encode_asymmetric_jpeg(), {exif_color_marker(1U, little)});
+        const auto original_hash = QCryptographicHash::hash(encoded, QCryptographicHash::Sha256);
+        const auto path = temporary.path() / (little ? "little.jpg" : "big.jpg");
+        write_file(path, encoded);
+        const auto memory = decoder.decode_memory(vector_bytes(encoded), 0, CancellationToken{});
+        const auto file = decoder.decode(path.string(), 0, CancellationToken{});
+        ASSERT_TRUE(memory) << memory.error().message;
+        ASSERT_TRUE(file) << file.error().message;
+        EXPECT_EQ(memory.value().color_profile.kind, ColorProfileKind::kBuiltin);
+        EXPECT_EQ(memory.value().color_profile.model, ColorModel::kRgb);
+        EXPECT_EQ(memory.value().color_profile.identifier, "srgb");
+        EXPECT_EQ(file.value().color_profile.identifier, "srgb");
+        EXPECT_EQ(file.value().rgb, memory.value().rgb);
+        RasterBuffer raster;
+        raster.width = file.value().width;
+        raster.height = file.value().height;
+        raster.srgb = file.value().rgb;
+        raster.color_profile = file.value().color_profile;
+        RenderRequest request;
+        request.asset = {"exif-srgb", path.string(), std::nullopt};
+        auto recipe = recipe_from_develop(request.asset, DevelopParams{});
+        ASSERT_TRUE(recipe) << recipe.error().message;
+        request.recipe = std::move(recipe).value();
+        const auto rendered = engine.value().render_to_image(request, &raster);
+        ASSERT_TRUE(rendered) << rendered.error().message;
+        EXPECT_EQ(rendered.value().width, raster.width);
+        EXPECT_EQ(QCryptographicHash::hash(read_file(path), QCryptographicHash::Sha256),
+                  original_hash);
+    }
+}
+
+TEST(JpegAdapterTest, ExifDoesNotOverrideIccOrInventUncalibratedProfiles)
+{
+    QtRasterDecoder decoder;
+    const auto base = encode_asymmetric_jpeg();
+    const auto profile = QColorSpace(QColorSpace::DisplayP3).iccProfile();
+    const auto tagged = decoder.decode_memory(
+        vector_bytes(inject_after_soi(base, {exif_color_marker(1U), icc_marker(profile, 1U, 1U)})),
+        0, CancellationToken{});
+    ASSERT_TRUE(tagged) << tagged.error().message;
+    EXPECT_EQ(tagged.value().color_profile.kind, ColorProfileKind::kIcc);
+    EXPECT_EQ(tagged.value().color_profile.icc_bytes, vector_bytes(profile));
+    for (const auto value : {0U, 2U, 65535U})
+    {
+        const auto uncalibrated = decoder.decode_memory(
+            vector_bytes(
+                inject_after_soi(base, {exif_color_marker(static_cast<std::uint16_t>(value))})),
+            0, CancellationToken{});
+        ASSERT_TRUE(uncalibrated) << uncalibrated.error().message;
+        EXPECT_EQ(uncalibrated.value().color_profile.kind, ColorProfileKind::kMissing);
+    }
+    expect_jpeg_error(decoder.decode_memory(vector_bytes(inject_after_soi(
+                                                base, {exif_color_marker(1U),
+                                                       icc_marker(QByteArray(128, '\0'), 1U, 1U)})),
+                                            0, CancellationToken{}),
+                      ErrorCode::kValidation, "corrupt_jpeg_icc_profile");
+}
+
+TEST(JpegAdapterTest, RejectsMalformedOrConflictingExifColourDeclarations)
+{
+    QtRasterDecoder decoder;
+    const auto base = encode_asymmetric_jpeg();
+    for (const auto &exif :
+         {exif_color_marker(1U, true, 4U), exif_color_marker(1U, true, 3U, 2U),
+          exif_color_marker(1U, false, 3U, 1U, 0xFFFFFFFFU),
+          exif_color_marker(1U, true, 3U, 1U, 8U), marker(0xE1U, QByteArray("Exif\0\0II", 8))})
+        expect_jpeg_error(decoder.decode_memory(vector_bytes(inject_after_soi(base, {exif})), 0,
+                                                CancellationToken{}),
+                          ErrorCode::kValidation, "malformed_jpeg_exif_color_space");
+    expect_jpeg_error(
+        decoder.decode_memory(vector_bytes(inject_after_soi(
+                                  base, {exif_color_marker(1U), exif_color_marker(65535U)})),
+                              0, CancellationToken{}),
+        ErrorCode::kValidation, "conflicting_jpeg_exif_color_space");
 }
 
 TEST(JpegAdapterTest, DefinesRgbGrayCmykAndOpaqueOutputDecisions)

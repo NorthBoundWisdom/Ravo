@@ -158,11 +158,11 @@ struct TiffField
                                                       std::uint32_t max_edge,
                                                       const CancellationToken &cancellation,
                                                       std::string_view source, int rotate_quarters);
-[[nodiscard]] std::uint16_t read_u16(std::span<const std::uint8_t> bytes, std::size_t offset,
+[[nodiscard]] std::uint16_t read_u16(std::span<const std::uint8_t> bytes,
                                      bool little_endian) noexcept;
-[[nodiscard]] std::uint32_t read_u32(std::span<const std::uint8_t> bytes, std::size_t offset,
+[[nodiscard]] std::uint32_t read_u32(std::span<const std::uint8_t> bytes,
                                      bool little_endian) noexcept;
-[[nodiscard]] std::uint64_t read_u64(std::span<const std::uint8_t> bytes, std::size_t offset,
+[[nodiscard]] std::uint64_t read_u64(std::span<const std::uint8_t> bytes,
                                      bool little_endian) noexcept;
 [[nodiscard]] Result<JpegFileCandidate>
 read_jpeg_file_candidate(std::string_view path, const CancellationToken *cancellation = nullptr);

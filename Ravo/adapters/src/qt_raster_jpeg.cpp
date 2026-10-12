@@ -37,6 +37,68 @@
 namespace ravo::qt_raster_internal
 {
 
+// Read only IFD0's Exif pointer and the Exif ColorSpace SHORT. Other EXIF
+// fields remain Qt's responsibility; never follow arbitrary IFD chains.
+[[nodiscard]] Result<std::optional<std::uint16_t>>
+jpeg_exif_color_space(const std::span<const std::uint8_t> tiff, const std::string_view source)
+{
+    const auto invalid = [&]
+    {
+        return jpeg_error(ErrorCode::kValidation, "JPEG EXIF colour declaration is malformed",
+                          source, "malformed_jpeg_exif_color_space");
+    };
+    if (tiff.size() < 8U)
+        return invalid();
+    const bool little = tiff[0] == 'I' && tiff[1] == 'I';
+    if ((!little && !(tiff[0] == 'M' && tiff[1] == 'M')) ||
+        read_u16(tiff.subspan(2U, 2U), little) != 42U)
+        return invalid();
+    const auto find_entry = [&](const std::size_t offset,
+                                const std::uint16_t tag) -> Result<std::optional<std::size_t>>
+    {
+        if (offset < 8U || offset > tiff.size() || tiff.size() - offset < 6U)
+            return invalid();
+        const auto count = read_u16(tiff.subspan(offset, 2U), little);
+        if (count > (tiff.size() - offset - 6U) / 12U)
+            return invalid();
+        std::optional<std::size_t> found;
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const auto entry = offset + 2U + i * 12U;
+            if (read_u16(tiff.subspan(entry, 2U), little) == tag)
+            {
+                if (found)
+                    return invalid();
+                found = entry;
+            }
+        }
+        return found;
+    };
+    const auto ifd0 = read_u32(tiff.subspan(4U, 4U), little);
+    auto pointer = find_entry(ifd0, 0x8769U);
+    if (!pointer)
+        return pointer.error();
+    if (!pointer.value())
+        return std::optional<std::uint16_t>{};
+    const auto entry = *pointer.value();
+    if (read_u16(tiff.subspan(entry + 2U, 2U), little) != 4U ||
+        read_u32(tiff.subspan(entry + 4U, 4U), little) != 1U)
+        return invalid();
+    const auto exif = read_u32(tiff.subspan(entry + 8U, 4U), little);
+    if (exif == ifd0)
+        return invalid();
+    auto color = find_entry(exif, 0xA001U);
+    if (!color)
+        return color.error();
+    if (!color.value())
+        return std::optional<std::uint16_t>{};
+    const auto color_entry = *color.value();
+    if (read_u16(tiff.subspan(color_entry + 2U, 2U), little) != 3U ||
+        read_u32(tiff.subspan(color_entry + 4U, 4U), little) != 1U)
+        return invalid();
+    return std::optional<std::uint16_t>{read_u16(tiff.subspan(color_entry + 8U, 2U), little)};
+}
+
 [[nodiscard]] bool is_start_of_frame_marker(const std::uint8_t marker) noexcept
 {
     return (marker >= 0xC0U && marker <= 0xC3U) || (marker >= 0xC5U && marker <= 0xC7U) ||
@@ -59,6 +121,7 @@ parse_jpeg_contract(const std::span<const std::uint8_t> bytes, const std::string
     bool saw_eoi = false;
     bool saw_frame = false;
     JpegContract result;
+    std::optional<std::uint16_t> exif_color_space;
     std::optional<std::uint8_t> icc_segment_count;
     std::vector<std::optional<std::vector<std::uint8_t>>> icc_segments;
 
@@ -176,7 +239,21 @@ parse_jpeg_contract(const std::span<const std::uint8_t> bytes, const std::string
         const auto payload = bytes.subspan(payload_begin, payload_size);
         position += marker_length;
 
-        if (is_start_of_frame_marker(marker))
+        if (marker == 0xE1U && payload.size() >= 6U &&
+            std::equal(payload.begin(), payload.begin() + 6, "Exif\0\0"))
+        {
+            auto color = jpeg_exif_color_space(payload.subspan(6U), source);
+            if (!color)
+                return color.error();
+            if (color.value())
+            {
+                if (exif_color_space && exif_color_space != color.value())
+                    return invalid("JPEG EXIF colour declarations disagree",
+                                   "conflicting_jpeg_exif_color_space");
+                exif_color_space = color.value();
+            }
+        }
+        else if (is_start_of_frame_marker(marker))
         {
             if (saw_frame)
             {
@@ -313,6 +390,12 @@ parse_jpeg_contract(const std::span<const std::uint8_t> bytes, const std::string
         result.color_profile.model = ColorModel::kRgb;
         result.color_profile.identifier = "embedded_icc";
         result.color_profile.icc_bytes = std::move(profile);
+    }
+    else if (exif_color_space == 1U)
+    {
+        result.color_profile.kind = ColorProfileKind::kBuiltin;
+        result.color_profile.model = ColorModel::kRgb;
+        result.color_profile.identifier = "srgb";
     }
     return result;
 }

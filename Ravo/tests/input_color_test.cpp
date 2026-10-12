@@ -19,6 +19,7 @@
 #include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/color.h"
 #include "ravo/recipe/color_input.h"
+#include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
 
 namespace ravo
@@ -376,14 +377,16 @@ TEST(InputColorTest, FacadeRejectsAnUntaggedRasterWithoutSrgbFallback)
     raster.width = 1;
     raster.height = 1;
     raster.srgb = {128, 128, 128};
-    Recipe recipe;
-    recipe.asset = {"untagged", "memory:untagged", std::nullopt};
+    auto recipe =
+        recipe_from_develop({"untagged", "memory:untagged", std::nullopt}, DevelopParams{});
+    ASSERT_TRUE(recipe) << recipe.error().message;
     RenderRequest request;
-    request.asset = recipe.asset;
-    request.recipe = recipe;
+    request.asset = recipe.value().asset;
+    request.recipe = recipe.value();
     auto rendered = engine.value().render_to_image(request, &raster);
     ASSERT_FALSE(rendered);
     EXPECT_EQ(rendered.error().code, ErrorCode::kValidation);
+    EXPECT_EQ(rendered.error().message, "Decoded input has no declared colour profile");
 }
 
 TEST(InputColorTest, FileIccContentParticipatesInTheCacheFingerprint)
@@ -420,8 +423,8 @@ TEST(InputColorTest, Frozen0000EnhancedMatrixHasARealMire1WorkingReference)
 {
     auto engine = EngineFacade::create_phase1();
     ASSERT_TRUE(engine) << engine.error().message;
-    const auto raw_path =
-        std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" / "frozen" / "images" / "mire1.cr2";
+    const auto raw_path = std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" /
+                          "fixtures" / "frozen" / "images" / "mire1.cr2";
     auto decoded = engine.value().decode_raw_frame(raw_path.string(), CancellationToken{});
     ASSERT_TRUE(decoded) << decoded.error().message;
     const auto original_pixels = decoded.value().pixels;
