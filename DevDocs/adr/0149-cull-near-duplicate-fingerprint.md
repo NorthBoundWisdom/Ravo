@@ -4,7 +4,7 @@
 - Date: 2026-09-04
 - Relates: CULL-01 in [TODO.md](../TODO.md)
 - Extends: [ADR-0147](0147-cull-exact-duplicate-and-burst-proposals.md)
-- Does not supersede ADR-0147 exact-byte groups or ADR-0142 AI stub cues.
+- Does not supersede ADR-0147 exact-byte groups. AI stub cues are retired by ADR-0181.
 
 ## Context
 
@@ -35,7 +35,7 @@ and never auto-delete.
 
 ### Non-goals
 
-- Learned embeddings / AI similarity (ADR-0142 / AI-04).
+- Learned embeddings / AI similarity (AI-04).
 - Keyboard Pick/Reject chrome (separate residual).
 - Treating near-dup groups as delete authority.
 

@@ -3,7 +3,11 @@
 Ordinary Develop scalars use the recipe-private immutable descriptor table in
 `develop_scalar_fields.cpp` for assignment, clamping, field names, schema and
 individual reset where permitted. Group resets, crop/exposure coupling, nested
-controls, instances and masks retain their explicit owners. Lens TCA metadata
+special controls, instances and masks retain their explicit owners. Independent
+Profile Gamma/Primaries fields share that table, including finite/default and
+degree-to-radian semantics. Declared crop and RGB split metadata carries
+`context_dependent:true`; coarse bounds do not replace current-recipe validation
+([ADR-0182](adr/0182-declared-nested-fields-and-contextual-ranges.md)). Lens TCA metadata
 reports its actual continuous 0.9–1.1 range. Import-only historic conversion
 types/functions live in `legacy_develop.h`, separate from normal Develop fields;
 canonical recipe values and accepted operation rendering do not depend on it.
@@ -1694,24 +1698,14 @@ disables that Flickable through a restoring QML Binding. Release, cancellation,
 disable/hide and editor destruction restore the prior scroll state. Wheel events
 are consumed only during the drag; ordinary scrolling remains available otherwise.
 
-The lightweight P1 global controls do not stand in for the later full-module
-migration queue. The raster/old-recipe core Contrast path plus Saturation and
-Vibrance retain the darktable basic-adjustments CPU response. RAW Contrast is
-owned by Sigmoid, Highlights/Shadows use the calibrated scene-EV response from
-ADR-0088, and Whites/Blacks use the positivity- and tone-order-preserving
-response from ADR-0091. A contiguous canonical Highlights → Shadows → Whites →
-Blacks sequence composes the same ordered EV maps in one cancellable row pass.
-Each of those four operations may carry one owned canonical mask (ADR-0112);
-an enabled masked control leaves the fused pass and mixes as a single-amount
-envelope, while remaining unmasked neighbours still fuse.
-Lab-backed controls share the engine's D50 working conversion; Grain, Bloom,
-and Soften defaults use the corresponding source parameters, while Sharpen and
-post-crop vignette geometry (signed amount, midpoint, falloff, shape, centre)
-are independently accepted below (ADR-0085). Studio presents
-darktable-equivalent soft ranges while recipe validation retains the explicit
-hard bounds. Full leftover `shadhi`, `gamma`, `grain`, `vignette`, `bloom`, and
-`soften` IOP acceptance remains governed by the root migration queue rather than
-inferred from these global controls. Dehaze is independently accepted below.
+Global controls use the accepted recipe/Engine operations listed in
+[MIGRATION.md](MIGRATION.md). There is no remaining full-module port queue.
+RAW Contrast belongs to Sigmoid; Highlights/Shadows and Whites/Blacks retain
+ADR-0088/0091 scene-EV and tone-order invariants. A contiguous unmasked
+Highlights → Shadows → Whites → Blacks sequence shares one cancellable row
+pass. A masked control leaves that fused pass and uses its owned mask envelope;
+remaining unmasked neighbours may still fuse. Raster/explicit old recipes keep
+their accepted Contrast response. UI soft ranges never replace recipe hard bounds.
 
 `ravo.repair.retouch` is the first operation with an ordered set of internal
 mask attachments rather than one operation-level blend mask. Recipe owns the
@@ -1961,289 +1955,41 @@ or display-profile calculation. Its drag ranges mirror the source soft ranges:
 primary hue ±20°, primary purity 0.5–1.5, and achromatic purity 0–0.2; the
 canonical recipe retains the full validated hard bounds.
 
-`ravo.color.channelmixerrgb` v1 fixes the `linear_srgb_d50` workspace and
-V3 algorithm, persisting three mixing rows, saturation/lightness/grey,
-normalization, adaptation, illuminant xy, gamut, and clip. Studio normally
-edits only the `adaptation=rgb` 3×3 matrix; CAT16/Bradford/XYZ are selected
-only through explicit canonical parameters and never hidden camera/ICC state.
+The following color operations share recipe-owned versioned parameters and
+Engine-owned numerical execution. Services persist/schedule the immutable recipe;
+Studio projects controls and forwards intents. Numeric kernels, frozen XMP payload
+admission, constants and fit/interpolation details belong in each operation ADR
+and its independent tests, rather than a second architecture specification.
 
-`ravo.color.colorchecker` v1 is an independent, explicitly present calibration
-operation. Its canonical state is `working_space=lab_d50`,
-`algorithm=thin_plate_rbf_v2`, and 0–49 ordered source/target Lab patch pairs;
-it shares neither schema nor cache identity with Color Calibration, Primaries,
-or Color Balance RGB. Canonical Develop order places it after the accepted
-tone-equalizer and graduated-filter stages and before subsequent colour grading.
-Absence skips it, while an explicitly present default 24-patch operation is
-serialized, rendered, cached, and reopened rather than treated as identity.
+| Operation | Ownership and execution boundary | Decision |
+| --- | --- | --- |
+| `channelmixerrgb` | Explicit linear-sRGB D50 workspace; canonical adaptation/illuminant/matrix state, never hidden camera/ICC state | Migration ledger |
+| `colorchecker` | Independent Lab calibration, explicit presence and owned patch data; absent differs from present default; private RGB/XYZ/Lab bridge and render-local fit memory | [ADR-0026](adr/0026-colorchecker-calibration-contract.md) |
+| `colorbalance` | Separate accepted legacy grading operation; no reinterpretation as Color Balance RGB | Migration ledger |
+| `colorbalancergb` | Explicit workspace and canonical zones; profile-aware Engine gamut/soft-clip resources | Migration ledger |
+| `colorcorrection` | Canonical Lab affine parameters; private D50 conversion, ordinary mask/output ownership | [ADR-0029](adr/0029-colorcorrection-contract.md) |
+| `colorcontrast` | Canonical Lab axis response; independent from core Contrast and tone mapping | Migration ledger |
+| `velvia` | Linear-Rec709 creative color operation with ordinary mask dispatch | Migration ledger |
+| `colorharmonizer` | Profile-aware dt-UCS harmony and canonical ROI smoothing; bounded owned resources, no tile-local or global-state approximation | [ADR-0042](adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md) |
+| `colorzones` | Canonical ordered curves/LUTs; eight-band Studio view is only a bounded projection, not authority over unrepresented nodes/masks | Migration ledger |
+| `monochrome` | Creative Lab filter; shares Engine-private bilateral primitive with Retouch, independent from sensor monochrome/demosaic state | Migration ledger |
+| `splittoning` | Linear-Rec709 HSL grading; normal mask and publication dispatcher | Migration ledger |
+| `colorreconstruct` | Post-demosaic, pre-Output Color Lab reconstruction over the attached full frame; explicit canonical scale, no tile-local grid/cache | [ADR-0055](adr/0055-colorreconstruction-bilateral-grid-contract.md) |
 
-The CPU engine requires the explicit linear-Rec709 working state and privately
-bridges RGB through XYZ D50 to Lab and back. Zero through four patches use the
-frozen special polynomial fits; larger sets use the `(N+4)` thin-plate RBF
-system. Coefficient layout, float addition order, bit-level fast-log kernel,
-Gaussian pivoting, and the sequential N=2/N=3 versus shared N=4/RBF singular
-fallbacks remain source-exact. Fit matrices, pivots, coefficients, patch copies,
-and output bytes enter render memory estimates. Invalid profiles, dimensions,
-buffers, components, denominators, kernels, coefficients, results, allocation,
-or cancellation fail before an owned output is published; input pixels, profile,
-and immutable exposure-analysis state are retained unchanged.
+All failures in parameters, profile, dimensions, finite math, memory admission or
+cancellation leave borrowed input/profile/analysis unchanged and publish no
+partial output. Render-local LUTs, grids, fit scratch and output bytes participate
+in Engine estimates. Cache identity follows canonical recipe parameters and
+content/profile identity. Operation absence, enabled default and explicit
+identity must not be conflated. Shared masks retain canonical coordinates and
+owned graph semantics.
 
-The strict decoder accepts only the evidenced enabled-v2, default-unmasked
-singleton presentation and a synthetic v1 parameter-history upgrade. It ignores
-inactive v2 tail planes because frozen patch removal leaves stale bytes. The one
-real record is preserved verbatim in a minimal positive document; the complete
-0098 history remains structured unsupported because unrelated preceding
-operations have no canonical mapping. Disabled legacy state, duplicates, masks,
-custom blend, multi-instance, malformed, non-finite active, and unsupported
-version state reject explicitly. Studio owns preset selection and direct Lab
-patch intent, not fitting mathematics. All eight frozen presets are exact data;
-the GTK live chart, picker, add/remove interaction, and OpenCL execution are not
-new product contracts. Shared `common/colorchecker.h`, Gaussian helpers,
-`extended.cl`, order, and registry text remain D0.3/D0.4/S1/S4 cleanup owners,
-not runtime dependencies of the canonical operation.
-[ADR-0026](adr/0026-colorchecker-calibration-contract.md)
-freezes these boundaries.
-
-The RGB↔XYZ D50↔Lab conversion is one engine-private, value-only owner shared
-by Color Checker, Legacy Color Balance, Tone Curve, and the Lab basic controls.
-It freezes the transposed matrix expression order, D50 reciprocal,
-epsilon/kappa branches, Lab scale/add order, negative zero, and non-finite
-propagation with source-derived goldens. Algebraic steps are bit-exact;
-`cbrtf`-dependent round trips retain exact host-local scalar-oracle agreement
-and a recorded 1e-5 component tolerance for supported platform libm variation.
-It adds no clamp, finite repair, profile selection, or publication policy. This
-bounded S1.1 owner is complete, while the wider S1 colour-science workspace/LUT
-migration remains unfinished.
-
-`ravo.color.colorbalancergb` v1 also explicitly declares
-`linear_srgb_d50`. It stores four Y/C/H zones, three falloff/fulcrum values,
-chroma/saturation/brilliance, hue/vibrance/contrast, and formula. The engine
-derives a render-lifetime gamut LUT and executes CAT16 D65, CIE 2006 LMS,
-Filmlight Yrg/Ych, and DT UCS by default or explicit JzAzBz. It writes pixels
-to an owned output buffer and publishes only after every row succeeds. Studio
-projects canonical values into a read-only parameter map; QML owns no mask,
-LUT, or colour mathematics.
-
-The independent `ravo.color.colorbalance` v1 contract owns the complete frozen
-legacy Color Balance CPU path rather than reviving the removed three-parameter
-approximation. It stores explicit presence plus mode and all 16 numeric legacy
-values. Linear sRGB D50 enters a Lab D50/XYZ/ProPhoto boundary, where corrected
-RGBL lift/gamma/gain or slope/offset/power, input/output saturation, and
-grey-fulcrum contrast execute before the inverse conversion. An explicitly
-present default operation still performs this round trip; absence alone skips
-it. The engine owns finite/domain/cancellation checks and atomic output, while
-Studio exposes numeric intent only. Picker, HSL colour derivation, auto
-optimisation, masks, custom blend state, and multiple instances do not acquire
-presentation or graph semantics; unsupported serialized state rejects
-structurally. Shared ordering/proxy/name strings and the `extended.cl` kernels
-remain retirement work for D0.4/S4/S14, not runtime owners.
-
-`ravo.color.colorcorrection` v1 is an independent, explicitly present affine
-D50 Lab operation. Its exact seven-field schema declares `working_space=lab_d50`,
-`algorithm=affine_lab_v1`, four highlight/shadow a*/b* endpoints in [-40, 40],
-and saturation in [-3, 3]. Numeric edits establish presence; field reset retains
-presence, while whole-operation or Color-section reset removes it. Canonical
-Develop order is Color Balance RGB, Color Correction, then Color Contrast.
-Absence alone skips the operation; an explicit default remains serialized and
-executes because its RGB/Lab round trip is observable.
-
-The CPU path accepts only declared linear-Rec709 RGB working pixels and reuses
-the private S1.1 D50 bridge. It derives each float scale as
-`(highlight - shadow) / 100.0F`, retains the shadow base, copies L*, and
-evaluates `saturation * (chromatic + L * scale + base)` in frozen order. It
-adds no clamp, repair, transfer curve, or profile fallback. Dimensions, buffer,
-profile, parameters, samples, allocation, and pre/row/final cancellation fail
-before publication. Success returns separately owned pixels while preserving
-the exact profile and immutable exposure-analysis snapshot; generic working
-buffers remain part of the engine memory budget.
-
-Across all 158 frozen XMPs, only 0029 and 0092 contain actual operation records.
-The strict decoder accepts their enabled-v1 singleton, exact priority-zero,
-unnamed, default-unmasked envelope and exact blend-v9/v11 default payloads;
-history position only names the instance. Every unsupported version, disabled,
-duplicate, mask, custom blend, multi/name/priority, unknown, malformed, or
-non-finite state rejects structurally. Studio exposes the five numeric intents,
-not the old GTK 2D plane/picker, three presets, blend UI, or OpenCL path. Shared
-`basic.cl`, order/modulegroup/usermanual names, and pixmap remain D0.3/D0.4 or
-later cleanup owners. Bundled `.dtstyle` examples are retired by ADR-0072.
-[ADR-0029](adr/0029-colorcorrection-contract.md)
-freezes this boundary.
-
-`ravo.color.colorcontrast` v2 is the independent frozen Color Contrast owner.
-Its exact seven-field schema declares `working_space=lab_d50`,
-`algorithm=axis_affine_v2`, separate finite float-representable a*/b*
-steepness and offset values, and boolean `unbound`; steepness is bounded to
-[0, 5], while offsets retain the complete finite float surface. Develop owns
-explicit presence because even canonical defaults execute an observable D50
-round trip. Numeric edits establish presence, individual resets retain it, and
-whole-operation or Color-section reset removes it. Canonical order is Color
-Correction, Color Contrast, then Velvia.
-
-The former Ravo schema-v1 `amount` contract remains compatibility input only.
-A nonzero value narrows in its original float order and maps to both slopes,
-zero offsets, and `unbound=true`; zero preserves its prior skip. Frozen legacy
-module v1 separately copies its four floats and adds `unbound=false`. Recipe
-validation, Develop load, and engine dispatch share those deterministic
-normalizations rather than maintaining parallel runtime implementations.
-
-The CPU path accepts only declared linear-Rec709 RGB and privately uses the
-S1.1 D50 Lab bridge. It narrows canonical values once, then evaluates each
-chromatic channel as `input * steepness + offset` in frozen float order.
-Unbounded mode adds no clamp; bounded mode preserves the frozen per-axis
-ternary clamp to [-128, 128]. L* and the surrounding profile contract are
-retained. Dimensions, buffer length, profile, parameters, input/output samples,
-allocation, mask state, and pre/row/final cancellation fail before publication.
-Success owns separate pixels and profile storage, preserves the immutable
-exposure-analysis snapshot, and leaves its borrowed input unchanged.
-
-The 158-XMP census has one actual record, in 0038. Strict import accepts its
-enabled-v2 singleton, priority-zero, unnamed, exact default-unmasked blend-v10
-envelope and the corresponding synthetic v1 upgrade; history position remains
-only the generic instance identifier. The complete 0038 document is a stable
-negative because it contains the unsupported mask graph. Disabled, duplicate,
-custom-blend, multi/name/priority, mask, unknown, malformed, non-finite, and
-unsupported-version state rejects structurally. CLI, Catalog, and Studio use
-the same recipe/engine/cache path; QML forwards only the six Develop fields and
-contains no Lab mathematics. GTK presentation and OpenCL are not product
-contracts. Shared `extended.cl`, order/modulegroup/usermanual names, the sepia
-style, and frozen fixtures remain D0.3/D0.4/S14/E1 cleanup or evidence owners.
-[ADR-0031](adr/0031-colorcontrast-contract.md) freezes this boundary.
-
-`ravo.color.velvia` v2 follows Color Contrast in linear Rec.709. Its canonical
-state is explicit presence/enabled, strength `0..100`, mid-tones bias `0..1`,
-and an optional mask. The engine retains the frozen float order: min/max RGB,
-HSL-style luminance and saturation, low-saturation plus midtone-bias weight,
-strength multiplication, per-channel distance from half the other-channel
-sum, and `[0,1]` clamp. Strength zero is bit-preserving identity. Schema-v1
-Ravo amount remains an upgrade input only and maps to strength times 100.
-
-The operation accepts only declared linear-Rec709 finite working pixels.
-Dimensions, buffers, profile, parameters, allocation, row/pre-publication
-cancellation, and source ownership fail before publication. Canonical masks
-run through the shared evaluator and normal mix. Strict import accepts only
-the exact enabled 0063 version-2 singleton, eight-byte parameter payload, and
-blend-v10 default-unmasked envelope. Recipe, CLI, Catalog, Studio, history,
-styles, preview, and export consume the same typed state; QML contains no
-Velvia math. The old IOP, exclusive kernel, and icons are retired while shared
-order/module-group/manual names and frozen fixtures remain with their owners.
-[ADR-0095](adr/0095-velvia-weighted-saturation-contract.md) freezes this
-boundary.
-
-`ravo.color.colorharmonizer` v1 is a bounded profile-aware colour operation,
-not an alias for Color Equalizer, Color Balance RGB, or an HSL nearest-hue
-control. Its exact 17-field flat schema fixes
-`working_space=profile_linear_rgb_d50`,
-`algorithm=dt_ucs_harmony_v1`, one of nine predefined rules or `custom`, the
-anchor/pull/neutral/width values, four custom hues, custom node count, four node
-saturations, and smoothing. The two real version-1 records at history positions
-12 and 13 in frozen fixture 0176 provide default and edited parameter evidence
-and the accepted strict-import singleton envelope; they do not make the
-complete 0176 document compatible.
-
-The engine boundary accepts enabled unmasked operations plus an S3.1 canonical
-attachment resolved by the private normal-mix dispatcher. It clips each finite
-working RGB channel with
-source-order `fmaxf(value, 0)`, applies the declared profile matrix to XYZ D50,
-and reuses the private S1.2 D50/CAT16-D65/dt-UCS bridge. S2.1 supplies immutable
-720-step UCS↔RYB lookup, all nine predefined node geometries, custom-node
-lookup, circular attraction, and strict winner behavior. Neutral protection is
-cubed before the `0.03F` cutoff; denominator, pull, wrap, saturation, inverse
-dt-UCS, and inverse profile-matrix expressions retain their frozen float order.
-The source compiles with float contraction disabled and adds no transfer curve,
-FMA, reassociation, fallback profile, clamp beyond the frozen negative input
-clip, or non-finite repair. Production and the independent scalar oracle match
-bit-for-bit on each host; libm-dependent Color Harmonizer output references
-also retain a recorded 1e-5 cross-platform tolerance.
-The inverse dt-UCS JCH→xyY and xyY→XYZ transforms preserve floating-point
-exception semantics locally under Clang, so x86 SIMD padding cannot add `0/0`
-divisions in unused lanes of their two-component calculations. This changes
-neither the source-order arithmetic nor the lookup table values.
-
-For positive smoothing, `LinearWorkingBuffer` supplies one immutable canonical
-ROI scale: current pixel density over original input density. RAW/raster
-creation validates oriented proportional geometry and every derived working
-buffer/cache preserves the value; unknown geometry is explicit and positive
-smoothing fails as `invalid_colorharmonizer_roi_scale`, while smoothing zero
-does not consume it. Pass 1 owns JCH 3c plus the sole correction 2c; private
-S2.2 moves that correction into an exact `DT_IOP_GAUSSIAN_ZERO` two-channel
-vertical/horizontal recurrence with its ±1e9 per-read clamp, then Pass 2 owns
-the RGB output. Validation covers schema bounds/float narrowing, dimensions,
-buffers/overflow, profile/matrix state, scale/sigma, finite signals and every
-input/output sample. Cancellation covers preflight, mapping, recursive stages,
-apply, and pre-publication. Success deep-copies RGB/profile, shares immutable
-exposure analysis and preserves scale; any failure leaves borrowed input
-unchanged and publishes nothing. Canonical S3.1 attachments are evaluated only
-by the outer engine dispatcher; direct operation entry points remain fail-closed
-when given a mask.
-
-The private legacy-XMP adapter maps the evidenced v1 singleton (enabled 1,
-priority 0, empty multi_name, missing-or-zero multi_name_hand_edited, blend v14
-default-unmasked payload, no mask/custom blend/extra attrs) onto one canonical
-operation. Ordered revisions are validated and the greatest numeric history
-position wins. Develop owns explicit presence plus the existing 17-field
-parameter object; CLI `--set`, Catalog preview/save/reopen/export, and one
-Studio section consume that same recipe, including smoothing `0..2`. Cache
-identity follows the canonical recipe/engine path. Synthetic positive legacy
-payloads remain rejected because no frozen record evidences them. S3.1/S3.2's
-canonical recipe graph and bounded Studio authoring do not relax that importer.
-Studio overlay, owned group editing, and path/brush are accepted under
-[ADR-0045](adr/0045-studio-mask-overlay-group-path.md). Remaining blend
-modes and leftover GTK mask-manager consumers stay later work and do not
-authorize C15. The frozen `iop/colorharmonizer.c` owner is retired.
-[ADR-0035](adr/0035-colorharmonizer-core-contract.md) freezes the core;
-[ADR-0041](adr/0041-colorharmonizer-smoothing-zero-vertical-slice.md)
-extends it with the first product surface; [ADR-0042](adr/0042-colorharmonizer-canonical-roi-recursive-smoothing.md)
-accepts canonical positive smoothing.
-
-`ravo.color.colorzones` v1 is an optional D50 Lab/LCh curve owner, distinct
-from the default dt-UCS Color Equalizer. Recipe owns one selection axis plus
-three independent ordered curves and interpolation types. Engine owns their
-source-quantized 65,536-entry LUTs, periodic hue geometry, low-chroma blend,
-Lab formula, normal-mask dispatch, cancellation, and 768 KiB LUT resource
-term. Studio's eight-band view is a bounded editor projection; custom canonical
-nodes and attached masks remain immutable unless an owner capable of editing
-their full graph is used.
-
-`ravo.color.monochrome` v2 owns the creative Lab colour-filter path. It creates
-a source-fast-exp filter plane from a*/b*, runs the engine-private shared
-bilateral lightness grid at canonical original-pixel scale, applies the frozen
-lightness envelope/highlight blend, clears chroma, and optionally mixes in Lab.
-Retouch and Monochrome call the same bilateral primitive; mask dispatch,
-cancellation, finite checks, and resource estimates remain outer-engine
-contracts. Camera monochrome flags and demosaic passthrough are unrelated
-source-workflow state.
-
-`ravo.color.splittoning` v2 consumes linear Rec.709 through the engine-private
-shared HSL value helpers. Its shadow/highlight hue+saturation, balance pivot,
-compression band, and mix remain canonical state; row processing owns the
-frozen HSL lightness preservation and clamp order. Masks and publication use
-the same outer dispatcher as other accepted creative colour operations.
-
-`ravo.color.colorreconstruct` v1 is the post-demosaic highlight-colour owner.
-Its exact schema declares `working_space=lab_d50`,
-`algorithm=bilateral_grid_v3`, threshold, spatial/range extent, normalized hue,
-and none/chroma/hue precedence. Develop places it immediately before Output
-Color. The engine therefore receives the explicit linear-Rec709 compatibility
-working state, converts privately through the accepted D50 Lab bridge, and
-retains the input profile on the separately owned result.
-
-The CPU path sees the complete attached frame. It splats only samples at or
-below threshold into the bounded 3D grid, applies the frozen in-place five-tap
-blur in x/y/lightness order, and trilinearly slices replacement a*/b* through
-the frozen 95%-threshold blend ramp while preserving L*. Spatial extent is in
-original-input pixels and consumes `CanonicalRoiScale`; unknown or
-non-proportional scale rejects instead of guessing or evaluating a local tile.
-The RAW preflight accounts for the one owned grid next to the ordinary working
-buffers. Splat-row, blur-line, slice-row, and pre-publication cancellation,
-invalid dimensions/buffer/profile/scale, non-finite samples, overflow, and
-allocation return a structured failure without changing the borrowed input.
-
-The strict XMP adapter accepts only the one evidenced 0052 enabled-v3,
-priority-zero, unnamed, default-unmasked singleton and exact built-in RAW blend
-tuples in that document. Studio exposes the same threshold, spatial/range,
-hue, and precedence values through the existing revisioned Develop task path.
-No GTK preview-grid cache, historic blend graph, tile-local approximation, or
-OpenCL owner enters Ravo. [ADR-0055](adr/0055-colorreconstruction-bilateral-grid-contract.md)
-freezes these boundaries.
+Historical XMP parsing stays in its private adapter and admits only evidenced
+schemas/blend/instance states recorded in the ledger. Studio's editable projection
+cannot relax importer admission or rewrite unsupported graphs. Composed CLI,
+preview, save/reopen and export paths consume the same canonical operation;
+localization and runtime UI checks do not define pixel truth. Deleted GTK/OpenCL
+consumers are not outstanding migration tasks.
 
 `ravo.detail.texture` v1 is the optional local-texture owner before Sharpen.
 Recipe stores signed strength, an original-input-pixel detail threshold and a
@@ -2371,7 +2117,7 @@ buffer must not implicitly select colour strategy. See
 
 `CatalogService` composes one owner-thread resource session and its use-case
 services. Library, Metadata, Develop, Import, Ingest, Recovery, Preview, Export,
-XMP interchange, external editor, offline edit, conversion, Cull, AI and photo
+XMP interchange, external editor, offline edit, conversion, Cull and photo
 merge services do not retain a pointer
 to that composition object. They borrow only their required resource slots or
 another specific capability. The composition object is immovable; its private

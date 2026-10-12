@@ -39,6 +39,5 @@ struct CliProcessResult
 [[nodiscard]] CliProcessResult run_cli_process(const QStringList &arguments,
                                                int timeout_ms = 30000);
 [[nodiscard]] Result<JsonValue> cli_data(const QByteArray &output);
-[[nodiscard]] QString qml_model_entry(const QString &source, const char *field);
 
 } // namespace ravo::studio_test_support

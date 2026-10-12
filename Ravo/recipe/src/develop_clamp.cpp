@@ -46,44 +46,12 @@ void clamp_develop(DevelopParams &params) noexcept
         params.demosaic_mode = std::string(kDemosaicModeRcd);
     }
     clamp_temperature(params.temperature);
-    const auto clamp_profile_gamma_value =
-        [](double &value, const double default_value, const double minimum, const double maximum)
-    { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : default_value; };
     if (!params.profile_gamma_enabled &&
         params.profile_gamma.mode != kProfileGammaModeLogarithmic &&
         params.profile_gamma.mode != kProfileGammaModeGamma)
     {
         params.profile_gamma.mode = std::string(kProfileGammaModeLogarithmic);
     }
-    clamp_profile_gamma_value(params.profile_gamma.linear, kProfileGammaLinearDefault,
-                              kProfileGammaLinearMin, kProfileGammaLinearMax);
-    clamp_profile_gamma_value(params.profile_gamma.gamma, kProfileGammaGammaDefault,
-                              kProfileGammaGammaMin, kProfileGammaGammaMax);
-    clamp_profile_gamma_value(params.profile_gamma.dynamic_range, kProfileGammaDynamicRangeDefault,
-                              kProfileGammaDynamicRangeMin, kProfileGammaDynamicRangeMax);
-    clamp_profile_gamma_value(params.profile_gamma.grey_point, kProfileGammaGreyPointDefault,
-                              kProfileGammaGreyPointMin, kProfileGammaGreyPointMax);
-    clamp_profile_gamma_value(params.profile_gamma.shadows_range, kProfileGammaShadowsRangeDefault,
-                              kProfileGammaShadowsRangeMin, kProfileGammaShadowsRangeMax);
-    clamp_profile_gamma_value(params.profile_gamma.security_factor,
-                              kProfileGammaSecurityFactorDefault, kProfileGammaSecurityFactorMin,
-                              kProfileGammaSecurityFactorMax);
-    const auto clamp_primaries_value =
-        [](double &value, const double default_value, const double minimum, const double maximum)
-    { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : default_value; };
-    clamp_primaries_value(params.primaries.achromatic_tint_hue, 0.0, kPrimariesHueMin,
-                          kPrimariesHueMax);
-    clamp_primaries_value(params.primaries.achromatic_tint_purity, 0.0,
-                          kPrimariesAchromaticTintPurityMin, kPrimariesAchromaticTintPurityMax);
-    clamp_primaries_value(params.primaries.red_hue, 0.0, kPrimariesHueMin, kPrimariesHueMax);
-    clamp_primaries_value(params.primaries.red_purity, 1.0, kPrimariesPrimaryPurityMin,
-                          kPrimariesPrimaryPurityMax);
-    clamp_primaries_value(params.primaries.green_hue, 0.0, kPrimariesHueMin, kPrimariesHueMax);
-    clamp_primaries_value(params.primaries.green_purity, 1.0, kPrimariesPrimaryPurityMin,
-                          kPrimariesPrimaryPurityMax);
-    clamp_primaries_value(params.primaries.blue_hue, 0.0, kPrimariesHueMin, kPrimariesHueMax);
-    clamp_primaries_value(params.primaries.blue_purity, 1.0, kPrimariesPrimaryPurityMin,
-                          kPrimariesPrimaryPurityMax);
     for (auto *channel : {&params.channel_mixer.red, &params.channel_mixer.green,
                           &params.channel_mixer.blue, &params.channel_mixer.saturation,
                           &params.channel_mixer.lightness, &params.channel_mixer.grey})

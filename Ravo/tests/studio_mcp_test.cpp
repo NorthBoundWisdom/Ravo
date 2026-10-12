@@ -148,6 +148,21 @@ TEST(StudioMcpProtocolTest, SupportsLegacyAndModernContractsAndRejectsUnknownInp
     ASSERT_TRUE(capabilities);
     auto capabilities_data = mcp_data(capabilities.value());
     ASSERT_TRUE(capabilities_data);
+    const auto *capability_fields = capabilities_data.value().find("fields");
+    ASSERT_NE(capability_fields, nullptr);
+    ASSERT_NE(capability_fields->array_if(), nullptr);
+    std::size_t contextual = 0;
+    for (const auto &field : *capability_fields->array_if())
+    {
+        const auto *scope = field.find("context_dependent");
+        if (!scope)
+            continue;
+        ASSERT_NE(scope->boolean_if(), nullptr);
+        EXPECT_TRUE(*scope->boolean_if());
+        EXPECT_EQ(json_string(field, "kind"), "number");
+        ++contextual;
+    }
+    EXPECT_EQ(contextual, 7U);
     const auto *annotations = capabilities_data.value().find("annotations");
     ASSERT_NE(annotations, nullptr);
     const auto *kinds = annotations->find("kinds");

@@ -669,13 +669,16 @@ enum class DevelopSetFieldKind : std::uint8_t
 };
 
 // Names accepted by catalog develop/probe `--set`, plus `watermarkText`.
-// Bounds come from `apply_develop_field_strict` on an identity DevelopParams.
+// Declared bounds or, for undeclared fields, identity-context probes. Contextual
+// bounds are necessary limits; strict validation of the current recipe decides
+// whether a proposed value is accepted.
 struct DevelopSetField
 {
     std::string name;
     DevelopSetFieldKind kind = DevelopSetFieldKind::Number;
     std::optional<double> minimum;
     std::optional<double> maximum;
+    bool context_dependent = false;
 };
 
 [[nodiscard]] std::string_view develop_set_field_kind_name(DevelopSetFieldKind kind) noexcept;

@@ -154,62 +154,6 @@ TEST(StudioImportKeyboard, BatchCheckSkipsDuplicates)
     EXPECT_FALSE(model.highlighted(1));
 }
 
-TEST(StudioImportKeyboard, GridContractMatchesProductionKeys)
-{
-    ensure_qt_core();
-    QFile grid_file(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
-    ASSERT_TRUE(grid_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto source = QString::fromUtf8(grid_file.readAll());
-
-    EXPECT_TRUE(source.contains(QStringLiteral("activeFocusOnTab: true")));
-    EXPECT_TRUE(source.contains(QStringLiteral("Keys.priority: Keys.BeforeItem")));
-    EXPECT_TRUE(source.contains(QStringLiteral("function moveKeyboardFocus")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Left")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Right")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Up")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Down")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Home")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_End")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_PageUp")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_PageDown")));
-    EXPECT_TRUE(source.contains(QStringLiteral("event.key === Qt.Key_Space")));
-    EXPECT_FALSE(source.contains(QStringLiteral("highlightAll")));
-    EXPECT_TRUE(
-        source.contains(QStringLiteral("highlightRange(root.selectionAnchor, bounded, additive)")));
-    EXPECT_TRUE(source.contains(QStringLiteral("applyCheck(candidateGrid.currentIndex)")));
-    EXPECT_TRUE(source.contains(QStringLiteral("Accessible.description")));
-
-    QFile photo_file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
-                     QStringLiteral("/Ravo/desktop/qml/chrome/ImportPhotoGrid.qml"));
-    ASSERT_TRUE(photo_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto photo = QString::fromUtf8(photo_file.readAll());
-    EXPECT_TRUE(photo.contains(QStringLiteral("ImportCandidateGrid")));
-    EXPECT_TRUE(photo.contains(QStringLiteral("importCandidateCheckBox")));
-    EXPECT_TRUE(photo.contains(QStringLiteral("accessibleName")));
-    EXPECT_TRUE(photo.contains(QStringLiteral("accessibleDescription")));
-    EXPECT_FALSE(photo.contains(QStringLiteral("function moveKeyboardFocus")));
-    EXPECT_FALSE(photo.contains(QStringLiteral("Keys.onPressed")));
-
-    QFile harness_file(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_KEYBOARD_HARNESS_QML));
-    ASSERT_TRUE(harness_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto harness = QString::fromUtf8(harness_file.readAll());
-    EXPECT_TRUE(harness.contains(QStringLiteral("productionGridUrl")));
-    EXPECT_FALSE(harness.contains(QStringLiteral("function moveKeyboardFocus")));
-    EXPECT_FALSE(harness.contains(QStringLiteral("Keys.onPressed")));
-    EXPECT_FALSE(harness.contains(QStringLiteral("event.key === Qt.Key_PageDown")));
-    EXPECT_FALSE(harness.contains(QStringLiteral("highlightAll")));
-
-    QFile page_file(QString::fromUtf8(RAVO_REPOSITORY_ROOT) +
-                    QStringLiteral("/Ravo/desktop/qml/chrome/ImportPage.qml"));
-    ASSERT_TRUE(page_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto page_source = QString::fromUtf8(page_file.readAll());
-    EXPECT_TRUE(page_source.contains(QStringLiteral("candidateKeyboardHelp")));
-    // Statistics occupy the status row; keyboard help remains available on
-    // hover at every width, including while scanning, and in grid accessibility.
-    EXPECT_TRUE(page_source.contains(QStringLiteral("visible: candidateHelpHover.hovered")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("\\n\" + root.candidateKeyboardHelp")));
-}
-
 TEST(StudioImportKeyboard, GridEventsDriveHighlightAndCheck)
 {
     ensure_qt_core();
@@ -494,13 +438,6 @@ TEST(StudioImportKeyboard, SelectAllCommandOwnsImportGalleryAndTextContexts)
     EXPECT_EQ(import_model->highlighted(0), was_highlighted_zero);
     EXPECT_EQ(import_model->selectedCount(), checked);
     controller.setTextInputActive(false);
-
-    // Production grid must not invent a second Ctrl+A owner.
-    QFile grid_file(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
-    ASSERT_TRUE(grid_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto grid_source = QString::fromUtf8(grid_file.readAll());
-    EXPECT_FALSE(grid_source.contains(QStringLiteral("Key_A")));
-    EXPECT_FALSE(grid_source.contains(QStringLiteral("SelectAll")));
 }
 
 TEST(StudioImportKeyboard, FocusSurvivesScanAndPageLifecycles)
@@ -579,31 +516,6 @@ TEST(StudioImportKeyboard, LockedGridRejectsKeyboardAndKeepsSelection)
     EXPECT_EQ(harness.currentIndex(), 2);
 }
 
-TEST(StudioImportKeyboard, LateModelUpdateDoesNotStealTextFocusContract)
-{
-    ensure_qt_core();
-    // Structural contract: ImportPage disables the grid while locked, and the
-    // production grid only consumes Keys when interactionLocked is false.
-    QFile page(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
-    ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto page_source = QString::fromUtf8(page.readAll());
-    EXPECT_TRUE(page_source.contains(QStringLiteral("readonly property bool locked")));
-    EXPECT_TRUE(page_source.contains(
-        QStringLiteral("importWorkActive || presenter.imports.importPreflightActive")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("enabled: !root.locked")));
-
-    QFile grid(QString::fromUtf8(RAVO_IMPORT_CANDIDATE_GRID_QML));
-    ASSERT_TRUE(grid.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto grid_source = QString::fromUtf8(grid.readAll());
-    EXPECT_TRUE(grid_source.contains(QStringLiteral("if (root.interactionLocked)")));
-    EXPECT_TRUE(grid_source.contains(QStringLiteral("return;")));
-    // Passive focus must not be stolen by passive count/visible publication.
-    EXPECT_TRUE(grid_source.contains(QStringLiteral("onVisibleChanged")));
-    EXPECT_FALSE(grid_source.contains(QStringLiteral(
-        "onVisibleChanged: if (visible) {\n            root.initializeKeyboardFocus();\n            forceActiveFocus();")));
-    EXPECT_TRUE(grid_source.contains(QStringLiteral("function focusGrid")));
-}
-
 TEST(StudioImportKeyboard, FirstCandidatesDoNotStealFilenameTemplateFocus)
 {
     ensure_qt_core();
@@ -645,12 +557,6 @@ TEST(StudioImportKeyboard, FirstCandidatesDoNotStealFilenameTemplateFocus)
     QGuiApplication::processEvents();
     EXPECT_TRUE(field->hasActiveFocus()) << "passive candidate publication stole text focus";
     EXPECT_EQ(field->property("selectedText").toString(), selected_text);
-
-    QFile page(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
-    ASSERT_TRUE(page.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto page_source = QString::fromUtf8(page.readAll());
-    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportDestinationPanel")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportPhotoGrid")));
 }
 
 TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
@@ -783,99 +689,7 @@ TEST(StudioImportKeyboard, FilenameTemplateSelectAllDoesNotMutateCandidates)
         highlighted_grid += import_model->highlighted(row) ? 1 : 0;
     EXPECT_GE(highlighted_grid, 1);
     EXPECT_EQ(presenter.selectedCount(), gallery);
-
-    // Production ImportPage / DestinationPanel / StudioActions / GeoControls contracts.
-    // Instantiating those QML graphs needs GeoControls qrc prefer paths owned by ravo_studio;
-    // this command-test binary keeps source + filesystem membership as the hard gate.
-    QFile page_file(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
-    ASSERT_TRUE(page_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto page_source = QString::fromUtf8(page_file.readAll());
-    EXPECT_TRUE(page_source.contains(QStringLiteral("import GeoControls 1.0")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportDestinationPanel")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportPhotoGrid")));
-
-    QFile destination_file(QFileInfo(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML))
-                               .dir()
-                               .filePath(QStringLiteral("ImportDestinationPanel.qml")));
-    ASSERT_TRUE(destination_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto destination_source = QString::fromUtf8(destination_file.readAll());
-    EXPECT_TRUE(destination_source.contains(QStringLiteral("CustomTextField")));
-    EXPECT_TRUE(destination_source.contains(QStringLiteral("readOnly: true")));
-    EXPECT_TRUE(destination_source.contains(
-        QStringLiteral("text: root.presenter.imports.importRenameExample")));
-    EXPECT_TRUE(
-        destination_source.contains(QStringLiteral("objectName: \"importFilenameTemplate\"")));
-    ASSERT_TRUE(
-        QFileInfo::exists(QDir(QString::fromUtf8(RAVO_GEOCONTROLS_QML_IMPORT_ROOT))
-                              .filePath(QStringLiteral("GeoControls/CustomTextField.qml"))));
-
-    QFile actions_file(QString::fromUtf8(RAVO_STUDIO_ACTIONS_QML));
-    ASSERT_TRUE(actions_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto actions_source = QString::fromUtf8(actions_file.readAll());
-    EXPECT_TRUE(actions_source.contains(QStringLiteral("required property var controller")));
-    EXPECT_TRUE(actions_source.contains(QStringLiteral("executeAction")));
     EXPECT_EQ(controller.ids().value(QStringLiteral("photoSelectAll")).toString(), action);
-
-    QFile main_file(QFileInfo(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML))
-                        .dir()
-                        .filePath(QStringLiteral("../Main.qml")));
-    if (!main_file.exists())
-        main_file.setFileName(QDir(QString::fromUtf8(RAVO_REPOSITORY_ROOT))
-                                  .filePath(QStringLiteral("Ravo/desktop/qml/Main.qml")));
-    ASSERT_TRUE(main_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto main_source = QString::fromUtf8(main_file.readAll());
-    EXPECT_TRUE(main_source.contains(QStringLiteral("property: \"textInputActive\"")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("window.textInputActive")));
-}
-
-TEST(StudioImportKeyboard, SelectAllThroughProductionStudioActions)
-{
-    // Behavioral Select All through production ImportPage/StudioActions/Shortcuts runs in
-    // ravo_studio smoke_import_layout (GeoControls qrc prefer paths). This binary keeps the
-    // production membership / wiring contracts that must remain true for that smoke to work.
-    ensure_qt_core();
-    QFile page_file(QString::fromUtf8(RAVO_STUDIO_IMPORT_PAGE_QML));
-    ASSERT_TRUE(page_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto page_source = QString::fromUtf8(page_file.readAll());
-    EXPECT_TRUE(page_source.contains(QStringLiteral("import GeoControls 1.0")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportDestinationPanel")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("ImportPhotoGrid")));
-    EXPECT_TRUE(page_source.contains(QStringLiteral("objectName: \"importWorkspace\"")));
-
-    QFile actions_file(QString::fromUtf8(RAVO_STUDIO_ACTIONS_QML));
-    ASSERT_TRUE(actions_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto actions_source = QString::fromUtf8(actions_file.readAll());
-    EXPECT_TRUE(actions_source.contains(QStringLiteral("required property var controller")));
-    EXPECT_TRUE(actions_source.contains(QStringLiteral("executeAction")));
-
-    QFile shortcuts_file(QFileInfo(QString::fromUtf8(RAVO_STUDIO_ACTIONS_QML))
-                             .dir()
-                             .filePath(QStringLiteral("StudioCommandShortcuts.qml")));
-    ASSERT_TRUE(shortcuts_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto shortcuts_source = QString::fromUtf8(shortcuts_file.readAll());
-    EXPECT_TRUE(shortcuts_source.contains(QStringLiteral("shortcutEntries")));
-    EXPECT_TRUE(shortcuts_source.contains(QStringLiteral("executeAction")));
-    EXPECT_TRUE(shortcuts_source.contains(QStringLiteral("Qt.WindowShortcut")));
-
-    QFile main_file(QDir(QString::fromUtf8(RAVO_REPOSITORY_ROOT))
-                        .filePath(QStringLiteral("Ravo/desktop/qml/Main.qml")));
-    ASSERT_TRUE(main_file.open(QIODevice::ReadOnly | QIODevice::Text));
-    const auto main_source = QString::fromUtf8(main_file.readAll());
-    EXPECT_TRUE(main_source.contains(QStringLiteral("StudioActions")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("StudioCommandShortcuts")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("ImportPage")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("property: \"textInputActive\"")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("window.textInputActive")));
-    // Removing production Actions/Shortcuts wiring must remain detectable.
-    EXPECT_FALSE(main_source.contains(QStringLiteral("DuplicateSelectAllHost")));
-    // Import workspace is not a dialog modal; real dialogs still gate shortcuts.
-    const auto modal_pos = main_source.indexOf(QStringLiteral("property: \"modalOpen\""));
-    ASSERT_GE(modal_pos, 0);
-    const auto modal_slice = main_source.mid(modal_pos, 500);
-    EXPECT_FALSE(modal_slice.contains(QStringLiteral("studio.imports.importPageOpen")))
-        << "Re-introducing importPageOpen into modalOpen must fail this contract";
-    EXPECT_TRUE(modal_slice.contains(QStringLiteral("applicationDialogs.modalOpen")));
-    EXPECT_TRUE(modal_slice.contains(QStringLiteral("removeDialog.visible")));
 }
 
 TEST(StudioImportKeyboard, ProductionWindowKeysUseQTestWindowEntry)

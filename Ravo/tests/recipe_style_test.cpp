@@ -907,6 +907,20 @@ TEST(DevelopSetFieldsTest, ListsAcceptedCliFieldsWithBoundsAndRejectsUnknownName
             ASSERT_TRUE(field.minimum);
             ASSERT_TRUE(field.maximum);
             EXPECT_LE(*field.minimum, *field.maximum) << field.name;
+            if (field.context_dependent)
+            {
+                const DevelopParams original;
+                auto candidate = original;
+                EXPECT_FALSE(
+                    apply_develop_field_strict(candidate, field.name, *field.minimum - 1.0))
+                    << field.name;
+                EXPECT_EQ(candidate, original);
+                EXPECT_FALSE(
+                    apply_develop_field_strict(candidate, field.name, *field.maximum + 1.0))
+                    << field.name;
+                EXPECT_EQ(candidate, original);
+                continue; // Compatible and incompatible contexts have dedicated coverage.
+            }
             DevelopParams at_min;
             EXPECT_TRUE(apply_develop_field_strict(at_min, field.name, *field.minimum))
                 << field.name;

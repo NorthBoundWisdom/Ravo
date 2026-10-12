@@ -128,43 +128,5 @@ TEST(StudioAssistantCommands, ToggleOpensAndDismissCloses)
     EXPECT_FALSE(controller.action(assistant).value(QStringLiteral("checked")).toBool());
 }
 
-TEST(StudioQmlContract, AssistantPanelIsFloatingAndSettingsOwnUrlAndModel)
-{
-    QFile main(QStringLiteral(RAVO_STUDIO_MAIN_QML));
-    ASSERT_TRUE(main.open(QIODevice::ReadOnly | QIODevice::Text))
-        << main.errorString().toStdString();
-    const auto main_source = QString::fromUtf8(main.readAll());
-    EXPECT_TRUE(main_source.contains(QStringLiteral("AssistantPanel")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("studioAssistant")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("studioCommands.assistantOpen")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("qsTr(\"Assistant\")")));
-    EXPECT_TRUE(main_source.contains(QStringLiteral("ids.windowAssistant")));
-
-    QFile actions(QStringLiteral(RAVO_STUDIO_ACTIONS_QML));
-    ASSERT_TRUE(actions.open(QIODevice::ReadOnly | QIODevice::Text))
-        << actions.errorString().toStdString();
-    EXPECT_TRUE(
-        QString::fromUtf8(actions.readAll()).contains(QStringLiteral("ids.windowAssistant")));
-
-    QFile panel(QStringLiteral(RAVO_STUDIO_ASSISTANT_PANEL_QML));
-    ASSERT_TRUE(panel.open(QIODevice::ReadOnly | QIODevice::Text))
-        << panel.errorString().toStdString();
-    const auto panel_source = QString::fromUtf8(panel.readAll());
-    EXPECT_FALSE(panel_source.contains(QStringLiteral("Fonts.size48")));
-    EXPECT_TRUE(panel_source.contains(QStringLiteral("Fonts.scaledUiSize(48)")));
-    EXPECT_TRUE(panel_source.contains(QStringLiteral("signal closeRequested")));
-    EXPECT_FALSE(panel_source.contains(QStringLiteral("Popup {")));
-    EXPECT_FALSE(panel_source.contains(QStringLiteral("Overlay.overlay")));
-    EXPECT_FALSE(panel_source.contains(QStringLiteral("XMLHttpRequest")));
-
-    QFile settings(QStringLiteral(RAVO_STUDIO_SETTINGS_ASSISTANT_QML));
-    ASSERT_TRUE(settings.open(QIODevice::ReadOnly | QIODevice::Text))
-        << settings.errorString().toStdString();
-    const auto settings_source = QString::fromUtf8(settings.readAll());
-    EXPECT_TRUE(settings_source.contains(QStringLiteral("assistant.setEndpoint")));
-    EXPECT_TRUE(settings_source.contains(QStringLiteral("assistant.setModel")));
-    EXPECT_TRUE(settings_source.contains(QStringLiteral("assistant.setApiKey")));
-}
-
 } // namespace
 } // namespace ravo

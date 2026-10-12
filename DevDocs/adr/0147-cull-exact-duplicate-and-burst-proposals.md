@@ -3,18 +3,16 @@
 - Status: Accepted
 - Date: 2026-09-04
 - Relates: CULL-01 in [TODO.md](../TODO.md)
-- Extends: [ADR-0105](0105-asset-versions-stacks-and-survey.md),
-  [ADR-0142](0142-ai-metadata-culling-suggestions.md) (deterministic, non-AI)
-- Does not supersede ADR-0142 stub duplicate *cues*; this ADR owns catalog-fact
-  duplicate/burst **assistance** without model weights.
+- Extends: [ADR-0105](0105-asset-versions-stacks-and-survey.md)
+- Owns deterministic catalog-fact duplicate/burst assistance without model weights.
 
 ## Context
 
 CULL-01 needs high-throughput review assistance before AI-04 quality work.
 Photographers need exact same-bytes detection and burst grouping proposals that
 never auto-delete, auto-reject, or conflate virtual copies, RAW+JPEG companions,
-or distinct byte identities. ADR-0142 duplicate suggestions remain non-authoritative
-cues; operators still need a deterministic, hash-based catalog report.
+or distinct byte identities. Operators need a deterministic, hash-based catalog
+report; retired AI suggestions (ADR-0181) are not an authority.
 
 ## Decision
 
@@ -66,7 +64,7 @@ catalog cull-burst-accept --catalog <path> --user-initiated \
 - Perceptual / near-duplicate embeddings (later CULL tranche).
 - Keyboard Pick/Reject chrome and Studio 1:1 sync (later).
 - Auto-stack on import, auto-delete, or AI ranking.
-- Treating ADR-0142 stub duplicate suggestions as catalog facts.
+- Treating heuristic duplicate suggestions as catalog facts.
 
 ## Consequences
 
@@ -75,6 +73,6 @@ proposals without mutating originals or inventing delete authority.
 
 ## Rejected alternatives
 
-- Reusing ADR-0142 AI stub duplicate cues as the only duplicate surface.
+- Reusing AI duplicate cues as the only duplicate surface.
 - Auto-stacking bursts on import or propose.
 - Grouping by size+mtime `content_fingerprint` (not byte identity).

@@ -1,6 +1,6 @@
 # ADR-0121: AI architecture, privacy, provenance, and licence boundary
 
-- Status: Accepted
+- Status: Accepted privacy/provenance/licence policy; stub proposal implementation superseded by ADR-0181
 - Date: 2026-09-03
 - Relates: AI-00 in [TODO.md](../TODO.md), ProductRoadmap AI section
 - Extends: [ADR-0009](0009-p1-develop-recipe.md),
@@ -16,25 +16,14 @@ read as authorization for model inference, image upload, automatic catalog
 mutation, or generated-pixel publication. AI-01…AI-05 need one dated boundary
 for owners, privacy, provenance, and licence before any Ready tranche.
 
-This ADR accepts the architecture. Shipping a concrete local/remote model binary,
-weight pack, or paid provider remains a packaging follow-through recorded in
-`Packaging.md` / dependency workflow when first introduced—not a silent default.
+This ADR retains the privacy, provenance and licensing constraints for a future
+real provider. Deterministic proposal/suggestion providers and their stores are
+retired by [ADR-0181](0181-retire-unused-dependencies-and-product-stubs.md).
+Current external AI grading uses the shared revision-bound CLI/MCP contract in
+[ADR-0168](0168-ai-control-and-mcp.md), not an internal inference provider.
+A future provider requires an explicit admission and package/dependency evidence.
 
 ## Decision
-
-### Owners (no business rules in QML)
-
-| Concern | Owner |
-| --- | --- |
-| Conversational UX / intent forwarding | Desktop presenter (existing assistant panel) |
-| Inference provider port (local/remote) | Adapters behind a versioned services façade |
-| Proposal create/validate/list | Services (`AiProposal` owner; name finalized with AI-01) |
-| Apply proposal → recipe/mask | CatalogService / existing Develop + mask owners |
-| Immutable generated-pixel derived asset | CatalogService version/stack path (ADR-0105), not in-place original rewrite |
-| Credentials | Desktop-only secret store; never services logs or QML |
-| Evaluation corpus protocol | DevDocs + private corpus (not product runtime) |
-
-QML may display proposals and forward accept/reject/cancel only.
 
 ### Initiation, privacy, and redaction
 
@@ -55,21 +44,15 @@ QML may display proposals and forward accept/reject/cancel only.
 - Cancellation, timeout, retry budget, concurrency, and memory bounds are owned
   by the services façade and fail closed (no partial catalog write on cancel).
 
-### Proposal contract (replayable recipe/mask work)
+### Future provider boundary
 
-AI-01…AI-04 consume a versioned **proposal** artifact (not a silent recipe write):
-
-- identity: proposal id, created time, source `asset_id`, observed catalog
-  revision and recipe/recovery generation
-- provider: vendor/model id, model version or weight content hash, parameters
-- body: ordinary Develop fields and/or canonical mask graph fragments only
-- optional confidence / alternatives
-- validation: deterministic schema + Develop/mask bounds **before** apply
-- lifecycle: reject/cancel changes nothing; apply goes through existing
-  `save_develop` / mask commit / keyword APIs and creates normal history/undo
-
-Unknown fields, stale revision, invalid bounds, provider failure, or missing
-model fail without partial catalog state.
+A real provider must produce reviewable, versioned recipe/mask suggestions with
+source asset and observed revisions, provider/model identity or weight hash,
+settings and validated ordinary Develop fields. Reject/cancel leaves the catalog
+unchanged; accepted edits use existing services, normal history and revision
+checks. Unknown fields, stale revisions, invalid bounds, provider failure and a
+missing model fail without partial state. This policy does not implement a
+proposal store or authorize restoration of retired stub commands.
 
 ### Derived-asset contract (non-replayable pixels)
 
@@ -104,16 +87,14 @@ Before the first shipped provider:
 5. A licensed evaluation corpus and human review protocol (cameras, lighting,
    genres, skin tones, edge cases) must exist before claiming AI-01 quality.
 
-Offline / no-model behavior: proposals and apply UIs explain the missing
-dependency; no silent CPU approximation of a generative model.
+A future provider reports a missing model explicitly; no silent CPU
+approximation of a generative model.
 
 ## Consequences
 
-AI-01 may proceed as Ready design/implementation against the proposal contract
-without choosing a final commercial provider in this ADR. AI-05 remains blocked
-on proving proposal/mask workflows and on the derived-asset publication details
-above. Threat/privacy posture is fail-closed, user-initiated, and non-training
-by default.
+Real model quality, provider choice and generative publication remain gated in
+TODO.md. The existing assistant is not implicit image-upload authorization.
+Current CLI/MCP control does not claim a packaged inference model.
 
 ## Rejected alternatives
 

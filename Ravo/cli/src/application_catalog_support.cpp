@@ -606,6 +606,8 @@ JsonValue keyword_mutation_to_json(const KeywordMutation &mutation)
         {
             item.emplace("maximum", JsonValue::number(std::to_string(*field.maximum)));
         }
+        if (field.context_dependent)
+            item.emplace("context_dependent", true);
         fields.push_back(JsonValue{std::move(item)});
     }
     JsonValue::Array prefixes;

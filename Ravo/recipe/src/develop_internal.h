@@ -15,12 +15,13 @@
 namespace ravo::develop_internal
 {
 
-// Immutable descriptor ownership stays in recipe; string views borrow static names.
+// Descriptors have static lifetime. Input names/params are borrowed only for the
+// synchronous call; returned schema strings own their bytes.
 [[nodiscard]] bool assign_scalar_develop_field(DevelopParams &, std::string_view, double) noexcept;
 [[nodiscard]] bool reset_scalar_develop_field(DevelopParams &, std::string_view);
 void clamp_scalar_develop_fields(DevelopParams &) noexcept;
-void append_scalar_develop_field_names(std::vector<std::string> &);
-[[nodiscard]] std::optional<DevelopSetField> scalar_develop_field_schema(std::string_view);
+void append_declared_develop_field_names(std::vector<std::string> &);
+[[nodiscard]] std::optional<DevelopSetField> declared_develop_field_schema(std::string_view);
 
 extern const double kEpsilon;
 

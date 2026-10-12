@@ -524,8 +524,11 @@ An AI client should use this sequence:
    photo-editing commands retain their normal media/recipe availability checks.
 2. Read `ravo.develop.fields` and `ravo.preview.read`. Fields use Recipe's strict
    native units and bounds (for example exposure is EV); text values remain
-   strings. Do not send slider positions or infer applicability from a field's
-   name. Read current/saved recipes and history before a persistent edit.
+   strings. `context_dependent:true` marks crop/curve limits that also depend on
+   other recipe fields; read the current recipe and let strict evaluation decide
+   whether a proposed value is accepted. Do not send slider positions or infer
+   applicability from a field's name. Read current/saved recipes and history
+   before a persistent edit.
 3. Call `ravo.develop.evaluate` with that binding and an ordered field array,
    inspect its image, and compare alternatives. Evaluation changes no live draft,
    stored recipe, history, preview record or original image. It returns a

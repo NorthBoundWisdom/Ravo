@@ -163,10 +163,6 @@ namespace ravo::develop_internal
         "colorZonesLightnessInterpolationIndex",
         "colorZonesSelectByIndex",
         "colorZonesStrength",
-        "cropHeight",
-        "cropWidth",
-        "cropX",
-        "cropY",
         "dehazeAdaptive",
         "demosaicModeIndex",
         "exposure",
@@ -230,22 +226,8 @@ namespace ravo::develop_internal
         "perspectiveInterpolationIndex",
         "perspectiveShear",
         "perspectiveVertical",
-        "primariesAchromaticHueDegrees",
-        "primariesAchromaticPurity",
-        "primariesBlueHueDegrees",
-        "primariesBluePurity",
-        "primariesGreenHueDegrees",
-        "primariesGreenPurity",
-        "primariesRedHueDegrees",
-        "primariesRedPurity",
-        "profileGammaDynamicRange",
         "profileGammaEnabled",
-        "profileGammaGamma",
-        "profileGammaGreyPoint",
-        "profileGammaLinear",
         "profileGammaModeIndex",
-        "profileGammaSecurityFactor",
-        "profileGammaShadowsRange",
         "proofIntent",
         "proofMode",
         "proofProfile",
@@ -261,9 +243,6 @@ namespace ravo::develop_internal
         "rgbCurveMode",
         "rgbCurvePreserve",
         "rgbCurveShadows",
-        "rgbCurveSplit0",
-        "rgbCurveSplit1",
-        "rgbCurveSplit2",
         "rgbLevelsMode",
         "rgbLevelsPreserve",
         "sigmoidContrast",
@@ -314,7 +293,7 @@ namespace ravo::develop_internal
         names.emplace_back(name);
     }
     append_develop_numeric_field_names(names);
-    append_scalar_develop_field_names(names);
+    append_declared_develop_field_names(names);
     append_color_balance_develop_names(names);
     append_legacy_color_balance_develop_names(names);
     for (int band = 0; band <= 7; ++band)

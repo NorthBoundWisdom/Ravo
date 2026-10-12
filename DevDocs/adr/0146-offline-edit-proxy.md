@@ -3,16 +3,17 @@
 - Status: Accepted
 - Date: 2026-09-04
 - Relates: OFFLINE-01 in [TODO.md](../TODO.md)
-- Extends: [ADR-0141](0141-dng-conversion-smart-preview-policy.md),
-  [ADR-0047](0047-first-frame-raw-cache-lifecycle.md),
+- Extends: [ADR-0047](0047-first-frame-raw-cache-lifecycle.md),
   [ADR-0136](0136-derived-tree-backup-restore.md)
 - Supersedes: the OFFLINE-01 decision deferral that treated Smart Preview as the
-  offline-edit vehicle. ADR-0141 Smart Preview remains **browse-only**.
+  offline-edit vehicle. Historical Smart Preview trees remain browse-only;
+  their producers are retired by
+  [ADR-0181](0181-retire-unused-dependencies-and-product-stubs.md).
 
 ## Context
 
-ADR-0141 Smart Previews under `{catalog}.ravo/smart-previews/` accelerate Library
-browse and must never feed Develop, loupe, scopes, or export. Photographers still
+Historical Smart Preview trees under `{catalog}.ravo/smart-previews/` are
+browse-derived and must never feed Develop, loupe, scopes, or export. Photographers still
 need an explicit **offline-edit proxy** so Develop/history/metadata can continue
 while originals are on offline/removable volumes, without making a lossy browse
 raster the export authority.
@@ -21,7 +22,7 @@ raster the export authority.
 
 ### Distinct offline-edit proxy class
 
-- Offline-edit proxies are a **separate class** from ADR-0141 Smart Previews.
+- Offline-edit proxies are a **separate class** from historical browse-only Smart Previews.
 - Storage may share the catalog support root `{catalog}.ravo/` but must use a
   distinct tree: `{catalog}.ravo/offline-edit-proxies/<asset-id>/`.
 - A proxy never becomes edit authority for the original URI. Recipes remain
@@ -90,7 +91,7 @@ fail-closed. Corrupt manifests surface in list/status results.
 ## Consequences
 
 OFFLINE-01 gains an accepted offline-edit proxy owner and a testable
-service/CLI surface. ADR-0141 Smart Preview policy is unchanged.
+service/CLI surface. Retired browse-proxy producers are not restored.
 
 ## Rejected alternatives
 

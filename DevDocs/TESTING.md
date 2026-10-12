@@ -1,298 +1,72 @@
 # Ravo Testing Strategy
 
-Library/control fixtures publish their recovery mirrors synchronously before
-timing an asynchronous Studio open; recovery-backfill tests remain separate.
-Import planning assertions wait for enumeration completion as well as active
-destination preparation. The post-dispatch timeout test leaves a five-second
-transport deadline to reach dispatch under CI load, then deliberately holds
-settlement; it still requires a committed receipt. Non-Apple ROI tests bind
-backend assertions to the available Engine adapter and require downloaded pixels
-without a native surface; GPU availability is distinct from native presentation.
+This document owns test policy, reproducible entry points and acceptance boundaries.
+Current capability belongs in [Ravo/README.md](../Ravo/README.md), ownership in
+[ARCHITECTURE.md](ARCHITECTURE.md), operation decisions in the
+[migration ledger](MIGRATION.md) and [ADRs](adr/README.md), and deployed-package
+qualification in [Packaging.md](Packaging.md). Test names and discovery come
+from CMake/GoogleTest, rather than a parallel per-feature inventory here.
 
-Retirement contracts (ADR-0181) reject removed stub commands before opening a
-catalog and preserve pre-existing side files. Real DNG/RAW decode, offline proxy,
-XMP, schema migration, backup/restore and revision-bound CLI/MCP contracts remain
-acceptance surfaces. Tests for retired deterministic providers and absent
-encoders are removed with those APIs rather than retained as unsupported shells.
+## Runtime coverage and UI test scope
 
-`DevelopSetFieldsTest` pins the continuous 0.9–1.1 lens TCA schema, fractional
-assignment, atomic out-of-range rejection and unchanged lens-group reset.
-`ravo_studio_workflow_smoke` retains the moved import/settings/curve/merge assertions
-and uses the same QML resource module as shipping startup/video smoke. Build it
-with BUILD_TESTING=ON and run `ctest -R '^ravo_studio_(qml|workflow)_smoke$'`;
-BUILD_TESTING=OFF must contain no workflow-smoke target.
+Prefer the smallest layer that observes the behavior. Service tests establish
+business state; real CLI/MCP subprocesses establish machine contracts; desktop
+presenter/component/window tests establish command routing and interaction.
+QML source-string searches for titles, object names, property spellings or layout
+order do not establish a working feature and are retired under
+[ADR-0183](adr/0183-document-authorities-and-runtime-test-coverage.md).
+Architectural boundary checks remain enforced. Do not replace runtime assertions
+with source text checks, or treat removed text checks as permission to remove
+behavioral coverage.
 
-`StudioUpdateTest.*` exercises the desktop release-check owner through an
-injected QNetworkAccessManager/QNetworkReply and browser opener. Tests never
-access live GitHub or launch a browser. Coverage includes strict numeric version
-comparison, formal-release and URL validation, offline/HTTP/limit/timeout/size
-failures, single-flight manual/automatic checks, cancellation, destruction and
-late replies, persisted preferences and write failures. Production QML contracts
-cover modal deferral and explicit confirmation before URL dispatch. Startup
-smoke suppresses automatic requests; localization smoke loads every manifest
-locale. Run with:
+| Boundary | Retained acceptance surface |
+| --- | --- |
+| Recipe and image operations | Parameter/schema and round-trip tests, independent numerical oracles, frozen fixtures, cancellation and immutable input checks |
+| Catalog and recovery | Real adapter/service transactions, migration/reopen, injected rollback, revision guards, backup/restore and unchanged source hashes |
+| Machine control | Actual CLI JSON/exit codes, stale asset/selection/recipe rejection, cancellation, bounded immutable artifacts and readback |
+| Import interaction | Production grid/window keyboard and text-focus tests; preflight, destination, thumbnail, cancellation and destroy/reopen workflows |
+| Develop interaction | Presenter/command state, crop/local-mask gestures, shared frame identity, history/undo and pixel publication |
+| Composed UI | Root QML load, test-only workflow smoke, localization package/load smoke and owner teardown |
+| Installed/native behavior | Package checker and explicit native-startup/frame/audio/hardware gates; offscreen results cannot close them |
 
-```text
-cmake --build --preset mac_clang_release --target ravo_desktop_command_tests RavoCodeQuality
-build/mac_clang_release/Ravo/tests/ravo_desktop_command_tests --gtest_filter='StudioUpdateTest.*'
-cmake --build --preset mac_clang_release --target ravo_studio_localization_smoke
-```
+`ravo_studio --smoke` is the shipping startup/composition check. Heavy Import,
+Settings, curves and merge assertions belong to BUILD_TESTING-only
+`ravo_studio_workflow_smoke`, sharing the shipping resource module and owners.
+Both remain in CTest. Root QML or registry failures fail smoke, with subprocess
+and CTest deadlines; Windows smoke requires a usable font directory and fatal
+Qt diagnostics must fail immediately rather than open a crash dialog.
 
-Native installed-package browser launch remains a user-run platform check;
-injected URL dispatch is not evidence that an OS browser opened.
+Desktop tests isolate both QSettings scopes and use the shared Qt/font bootstrap.
+Use controlled worker gates and completion predicates to establish ordering;
+a sleep, a queued callback or button readiness is not proof of scan completion.
+Keep original deadlines, pixel assertions and failure-injection windows. Discovery
+and execution run serially because GoogleTest registration files are shared.
 
-Video contracts use the generated CC0 corpus in `Ravo/tests/fixtures/video`;
-`Ravo/tools/generate_video_fixtures.py` owns its media and hash manifest.
-`VideoDecoderTest` covers H.264/AAC, HEVC HLG/PQ, display matrices, timestamps,
-cancellation, corrupt/missing input and plane bounds. `VideoColorTest` checks
-finite monotonic SDR mapping. `VideoCatalogTest` covers atomic metadata/import,
-schema 17→18 migration, transaction injection, Move/source hashes, duplicate
-import, recipe rejection, source change, original copy, reopen and backup/restore.
+`DevelopFieldDescriptor` tests retain nested finite/default/degree semantics,
+round-trip and contextual crop/curve validation. MCP discovery checks optional
+`context_dependent:true` metadata through the real CLI capabilities path;
+field names/order and unrelated schema remain stable (ADR-0182).
+Retirement tests reject removed stub commands before catalog mutation and leave
+existing side files untouched. Real DNG/RAW decode, proxies, XMP and backup v3
+remain covered (ADR-0181). No frozen gold is regenerated by these retirements.
 
-Synthetic auxiliary-audio MOV fixtures cover AAC alongside an unknown `apac`
-entry, type-1 cover metadata, and excess stereo channel descriptions. They are
-not APAC-encoded camera samples. Decoder tests require stable diagnostics,
-unchanged originals, working frame decode, no repeated known-warning output,
-and explicit rejection when no supported audio track exists. Corrupt-container
-errors must still reach both stderr and structured failures, including concurrent
-probes. The full-range gray fixture checks midtone values and avoids deprecated
-YUVJ format warnings by supplying an explicit range to swscale.
-`ImportCandidateListModel.MixedMediaTotalsTrackBatchesChecksFailuresAndReset`
-checks complete versus checked media counts/bytes across scan batches,
-duplicates, unsupported candidates, MIME updates, selection and source reset.
-The production QML smoke checks complete versus checked summaries and capacity
-units while changing checks, including every manifest locale.
+Video tests retain poster/playback range and color comparisons, input hashes,
+selection-bound teardown and structured unsupported states. The separate
+`ravo_video_software_playback` case forces the software decoder path; it does
+not replace the ordinary hardware-capable run. Generator-owned video fixtures
+are updated only through their owning script. Audio/device/4K/private-corpus
+qualification remains in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
 
-`CatalogServiceTest.ImportWork*` checks hash observations before publication,
-unchanged completion callback semantics, and cancellation during a partial
-hash with no catalog/output publication. `StudioImportRoundtrip.ProgressIsObservableBeforeItemsCompleteAndThroughRealCli`
-checks preflight visibility and reads versioned progress/candidate state through
-the real CLI and local control server. Existing import conflict, cancellation,
-transaction, duplicate and destruction contracts remain required.
+Opt-in probes use explicit read-only inputs and isolated catalogs. Missing input
+means UNTESTED, not pass. In addition to the performance procedures below:
 
-P3 D65/BT.601 fixtures exercise full and limited range, SMPTE 170M and BT.470BG
-aliases, and a rejected YCgCo matrix. Tests check recovered nonlinear RGB code
-values, an independent Qt P3-to-sRGB transform, catalog metadata/preview reopen,
-strict unknown-matrix rejection and old v1 metadata without a matrix. Muted Qt
-playback must match owned poster pixels for both ranges and resolve old metadata
-from the source before playback. ProRes fixtures require frame-header colour
-resolution, zero-time decode, seek and owned Qt playback matching the poster.
-Native 4:2:2 checks require full-height chroma and reject short buffers. P016
-checks require complete interleaved 16-bit UV and preserve expected RGB values.
-Original fixtures are owned by the generator.
-
-`ravo_video_software_playback` repeats the unchanged poster/playback pixel
-contract with Qt's hardware decoder list explicitly empty, so hardware
-availability cannot conceal software YUVJ range-normalization errors. The
-ordinary test remains enabled too. `test_video_dependencies.py` exercises the
-production Windows CMake resolver with isolated DLL/tool fixtures, including
-missing runtime, empty exports and failed tools. Native MSVC CI validates real
-DLL export inspection, generated import linkage and execution. Linux CI and
-clean-package hosts install the declared PipeWire/VA-API dependencies; CLI
-stdout/stderr assertions are not loosened or filtered.
-
-`StudioVideoTest` uses the production C++ controller and real CLI subprocesses
-for play/pause/seek/volume/mute, owned-pixel comparison with the shared HDR
-renderer, view release and cancellation during close. No UI automation or
-screenshots are an oracle. `--smoke --video-smoke-input <file>` exercises the
-shipped Qt backend and frame path with bounded time and muted output, returning
-`ravo.video_playback_smoke/v1`. The packaged-runtime checker requires video
-import, verified immutable frame and playback stages; audible output and
-real-corpus quality remain separate native acceptance.
-
-`StudioLibraryPaging` allows 60 seconds for opening its 205-file test catalog
-under parallel Windows CI load. This is a setup budget, not a performance claim;
-page-resolution waits and unloaded-row/selection assertions retain their original
-contracts. Open failures report catalog-open, busy, visible-count and error state.
-Its range/all regressions also use 1,000 files, resolve rows 50–850 into 801
-ordered nonempty identities, verify the actual persisted tag batch and preserve
-selection through page eviction. Blocked-executor cases reject superseded query,
-selection and Cull-mode results. A duplicate pair only on rows 801/802 must still
-be listed; an empty burst result must remain empty until Clear Filters.
-`CullCandidatesConstrainCountPagesAnchorsAndSelectionBeforePaging` covers service
-intersection, large candidate sets beyond a single SQL parameter bound, rating,
-folder, collection, stacks, stale revision and cancellation. Cull analysis rejects
-a non-owner thread structurally; partial-hash callbacks verify cancellation
-inside the current file and unchanged source bytes.
-`StudioDisplayPresentationTest` covers cancellation before/during a held cache
-lock, terminal proxy/missing state across superseded presentation, synchronous
-Presenter notification and same-path/size/mtime source-content replacement.
-GPU contracts include all tied maximum-channel Sigmoid permutations and RCD
-edge pixels for all four Bayer patterns at odd/non-workgroup dimensions. A skipped
-GPU case is not GPU evidence.
-
-Lightroom import contracts construct SQLite catalogs with the vendor table
-relationships and verify source hashes, metadata after reopen, missing files,
-active journals, invalid references, cancellation and destination conflict in
-`catalog_lightroom_test.cpp`. This is synthetic structural coverage, not vendor
-release certification. Real private catalogs, large-catalog memory/disk pressure
-and platform-specific volume remapping require separate evidence (ADR-0164).
-ADR-0166 adds database-only Develop, independent virtual-copy recipes,
-catalog XMP, named history/snapshots, collection membership, source archive
-hash/export/reopen and cancellation/rollback contracts. Source preservation is
-not evidence that an unsupported control renders correctly. Schema 19 and
-ordinary backup/restore must retain verified archive bytes.
-Catalog XMP contracts cover plain and declared-length zlib packets, while empty
-current settings remain unedited. Read-only CLI inventory must leave source
-hashes unchanged, require no destination and bound diagnostic/sample payloads.
-Virtual-copy contracts must cover empty edits, tags, labels and writable text
-independently of a modified master. History-only conversion must publish a
-verified recovery artifact and restore through the ordinary snapshot owner;
-prepared snapshots reject a mismatched asset/source before writes.
-ADR-0167 contracts cover per-record checkpoint rollback and backup, reopen
-resume without duplicate history/versions/sets, ambiguous partial records,
-destination revision conflicts and real CLI journal inspection. Final source
-audit cancellation, disappearance and observed changes must retain committed
-receipts, with no false `originals_unchanged` success.
-Schema 21 contracts additionally exit a real subprocess after import, rating,
-metadata, history snapshot, Develop and collection commits, before receipt publication; reopened
-journals must retain the proven target and allow untouched work to continue.
-Second-connection writes must not be adopted as task progress. Proof insertion
-failure rolls back the business data/revision, and exceptional stage callbacks
-close their connection without leaking provenance into later writes. Collection
-tests restore a missing original, reuse the same set, add no duplicate members,
-retain explicit subset boundaries and reject manual destination edits. Schema
-20 upgrades retain wide 64-bit revisions without inventing old commit proofs.
-`SingleReviewPatchesRollbackDataAndRevisionTogether` covers all four single-photo
-commands, revision-failure rollback, unrelated-field preservation and stale guards.
-
-`StudioPipelinePriority.RecipeLoadRejectsOldAAfterABAAndSessionReplacement`
-drains an old worker read while delaying GUI publication, then uses a second
-worker barrier to prove old A results cannot complete a replacement load.
-History-only read failure and a stopped executor must leave Develop unavailable.
-The test's private SQLite fault is confined to its temporary catalog.
-
-ICC resource measurement uses scoped caller-owned `DisplayConversionObserver`
-sinks; concurrent callbacks are noexcept and all workers join before return.
-No process-global collector, worker pool or rendering policy is introduced.
-Run the measure-only `DisplayPresentationResourceProbe` and
-`StudioDisplayResourceProbe` in `mac_clang_release` with
-`RAVO_DISPLAY_RESOURCE_PROBE=1` and optionally
-`RAVO_INTERACTIVE_PERF_REPORT_PATH=<new.jsonl>`. Reports include P95/P99,
-created ICC threads, aggregate active participants for concurrent transforms,
-and intent-to-publication samples with/without real import work. The Studio
-case requires a system monitor ICC different from sRGB. Offscreen publication
-is an owned-pixel handoff measurement, not physical display scanout latency.
-Resource measurements alone do not admit a global scheduler replacement.
-Observer peaks count ICC participants in the measured workload. Sampled native
-process thread counts also include idle Qt/Engine workers and must be reported
-separately. Repeat tail-latency measurements under comparable load and power
-conditions before attributing a change to thread creation.
-
-Release artifacts also run on fresh CI runners without the build bootstrap or
-Qt SDK. `ravo_studio --startup-smoke -platform cocoa|windows|xcb` loads the
-production root, presents a native frame within 15 seconds, emits
-`ravo.native_startup` v1 JSON, and exits through ordinary owner destruction.
-It rejects offscreen; the existing offscreen `--smoke` interaction suite remains
-separate and required. [Packaging.md](Packaging.md) owns the runner matrix,
-package install/launch lifecycle, evidence and remaining host qualifications.
-The Python checker tests cover loader environment isolation, first-frame
-evidence, timeout/nonzero failure, direct AppImage execution and DEB cleanup.
-
-`StudioControls.*` scans all production Studio QML for unowned Qt visual
-widgets and attached default tooltips. It loads the production Import page,
-delivers keyboard and pointer input through a real offscreen QQuickWindow, and
-requires live thumbnail sizing, disabled-state rejection and destruction.
-Shared-component contracts require scroll position propagation, live theme
-colors, bounded busy visibility, keyboard menu activation, one-press Escape
-cancellation of text dialogs and popup destruction. Test engines register the
-same static GeoControls resources, qrc import root and Basic input foundation
-as Studio.
-The complete production-QML smoke also covers the shared controls in every
-supported locale; no desktop automation or application screenshot is used.
-
-Studio's production-QML smoke checks that the Develop tool strip remains fixed
-while the inspector scrolls, exposes mask creation in the local workspace, and
-draws gradient geometry and completes mask editing before entering Crop. It checks Crop and Edit selection
-against presenter state and verifies the pinned crop controls remain available.
-Expanding mask settings must overflow the bounded local-tools viewport; scrolling
-it and the adjustment stack independently must preserve both viewport positions
-and their separate scroll offsets, as well as the fixed toolbar position.
-The same smoke requires toolbar labels to fit their standard buttons and opens
-the shared mask-creation menu with all five actions. Locale smoke repeats these
-checks with every packaged translation.
-`StudioQmlContract.ExposureAndColorBalanceInstanceChrome` requires the global
-instance controls and rejects the retired Advanced menu and visibility flag
-in the Develop stack.
-
-`LocalAdjustmentWorkspaceTest` checks geometric guides for gradient, circle,
-ellipse, path and brush masks after photo rotation, and retains those guides when
-coverage is disabled. Parameter-preview assertions require uncolored published
-pixels, unchanged guide coordinates and overlay preference, timed restoration,
-and the existing save/reopen invariants.
-
-Studio's curve gesture smoke sends pointer and wheel events to the production
-ToneCurveEditor inside a real Flickable. It checks changed point coordinates with
-unchanged scroll position, one commit on release outside the plot, resumed wheel
-scrolling, cancellation without commit, preservation of an initially disabled
-scroll owner, and restoration when the editor is destroyed mid-press.
-The resumed NoScrollPhase wheel assertion observes `contentYChanged`, with a
-bounded failure deadline, rather than assuming one fixed event pump contains an
-animation tick. Coordinate, commit, cancellation and restored-scroll assertions
-and the executable's overall smoke deadline remain unchanged.
-
-`StudioCommands.GalleryExposureRefreshesGridThumbnailPixels` exercises the
-Gallery exposure commands against real thumbnails with an injected monitor
-profile. It requires model notifications, darker pixels after −1 EV, restored
-pixels after +1 EV, bounded thumbnail dimensions and the latest pixels after
-rapid repeated edits, without leaving Grid or manually requesting another thumbnail.
-The same test rejects transient empty model URLs during refresh. Production QML
-smoke reloads a real ThumbnailCell asynchronously and requires uninterrupted chrome
-visibility and retained gutter geometry, then verifies clearing the source removes
-the retained frame.
-`StudioInspectFrame.NavigatorExtentIgnoresPreviewRoundingAndResetsForGeometry`
-checks thumbnail/settled size rounding, real aspect changes, reselection and clear.
-`StudioInspectFrame.PendingThumbnailCorrectsBothViewportsWithoutReplacingPublishedFrame`
-requires pending portrait/landscape/square thumbnails to correct both viewport
-aspects without replacing a published preview. The real-catalog
-`StudioPipelinePriority.ReselectCroppedPhotoUsesThumbnailAspectBeforeFullPreview`
-blocks full-preview work during rapid reselection and requires the cached cropped
-thumbnail's aspect immediately, followed by the final cropped frame.
-Production QML smoke checks decoded `paintedWidth`/`paintedHeight` on both
-navigator Images and the main loading placeholder against the selected photo
-while the destination geometry changes between landscape, portrait and square.
-Production smoke also watches both navigator and viewport-border scene geometry
-through four Gallery exposure commands and requires no movement.
-At every preview publication in that loop it also requires the navigator to
-use the selected Grid thumbnail URL and keep its GPU presentation disabled.
-The separately decoded navigator hold image must never become visible in Grid,
-including during asynchronous replacement.
-
-`StudioCommands.WritableMetadataAcceptsEveryDomainFieldAndRejectsInvalidInput`
-checks all fourteen writable fields through command dispatch, including clearing,
-multi-field patches, unchanged-field preservation and whole-patch rejection for
-invalid input. Catalog IPTC contracts cover transactions and reopen.
-Localization contracts check the native Settings-role prefix and command dispatch
-after each supported language switch. Production Studio smoke checks live Light
-slider values and the 30% long-edge viewport ratio in landscape and portrait
-windows, plus return from 1:1. Native trackpad gestures require host evidence.
-
-`StudioDisplayPresentationTest` covers thumbnail cache loss before catalog open
-and deterministic eviction between listing and display dispatch. Recovery must
-publish monitor-corrected pixels without a transient error, preserve original
-bytes, classify an unavailable original as photo-level missing state, and stop
-after one repair if its output is evicted again. Existing presentation contracts
-also cover listing replacement, owner destruction, cache corruption, and output
-publication conflicts. The 200-row folder/cache fixture drains the full
-monitor-change batch before taking the publication lock, so it tests an
-intentional competing publisher rather than racing its own remaining rows.
-It also requires visible demand to finish within the four dispatched background
-tasks, repairs a failed decoded URL, rejects stale URL failures and bounds repeat
-repair. `GalleryCacheReusesIndexAndObservesOtherPublishers` checks index reuse,
-cross-owner eviction under a shared byte budget, cancellation and invalid epoch
-errors. Release measurements record cold-page and warm-reopen timings on the same
-200-image fixture; they are synthetic cache/scheduling evidence, not a private
-RAW corpus or removable-drive throughput claim.
-`PagedThumbnailUsesPresentationAndEvictionRecovery` loads a cached thumbnail
-past the initial 200-row page, evicts its input at display dispatch, and requires
-recovered monitor-corrected pixels with unchanged originals. The production QML
-smoke imports a synthetic photo and requires the Gallery cell's filename, image
-URL, and `Image.Ready` state, rather than treating root creation as image readiness.
-
-`StudioLibraryPaging.*` contracts cover the 199→200 sparse-page boundary,
-repeated navigation, placeholder row selection through the command controller,
-and rejection of queued selection after a new selection or query. Filmstrip
-uses the shared metadata-page owner before requesting thumbnail pixels.
+| Probe | Explicit input |
+| --- | --- |
+| Mounted-root discovery | `RAVO_TEST_EXPECT_MOUNTED_ROOT`; discovery only, no photo scan/import |
+| Destination planning | `RAVO_IMPORT_PREVIEW_SOURCE`; cold/warm date/month plans without publication |
+| Native RAW preview | `RAVO_TEST_GPU_RAW`; optional new artifact directory `RAVO_TEST_GPU_OUTPUT_DIRECTORY` |
+| Import progress | `RAVO_IMPORT_SCAN_SOURCE`; temporary catalog, first viewport, no import; `scan_ms=-1` means classification still active |
+| Display resource observations | `RAVO_DISPLAY_RESOURCE_PROBE=1`; optional unique `RAVO_INTERACTIVE_PERF_REPORT_PATH` |
 
 ## Multi-photo merge contracts
 
@@ -305,7 +79,7 @@ cancel after file publication, import-transaction failure, concurrent revision,
 reopen/preview/re-export and backup verification. CLI and Studio merge tests
 cover versioned artifact JSON, revision requirement, stale dialog selection,
 option validation, availability and owned-window destruction.
-Production `ravo_studio --smoke` also opens the 16-photo dialog at 960×640 and
+Test-only `ravo_studio_workflow_smoke` also opens the 16-photo dialog at 960×640 and
 1280×800, checks bounded scroll/body/footer geometry and modal command isolation,
 then closes it without issuing a merge mutation.
 
@@ -342,524 +116,51 @@ that cancelled `presenting` states return to pending while ready states survive.
 
 ## Current evidence baseline
 
-Frozen 0.9 assets are used only for static evidence:
-
-- `Ravo/tests/fixtures/frozen/` contains 158 XMP + `expected.png` fixture sets and five
-  source images.
-- Fixtures cover 68 operation names; that number is an asset inventory, not
-  Ravo coverage.
-- Those fixtures are read-only static evidence. They are not a leftover-faithful
-  algorithm port queue (ADR-0106).
-
-Boundary checks:
+Frozen 0.9 assets are static evidence, not a port queue. The fixture manifest and
+classification ledger own their identities and operation classification. Run:
 
 ```text
 python3 Ravo/tools/freeze_legacy_manifest.py --check
+python3 Ravo/tools/check_fixture_classification_ledger.py
 python3 Ravo/tools/check_ravo_dependency_boundary.py
 ```
 
-The dependency-boundary checker covers the product target graph:
-`Qt6::Sql` is adapters-only, `Qt6::Gui` is raster adapters, desktop, and the
-Engine QRhi GPU adapter,
-`Qt6::Network` is control/CLI-local-socket or desktop-only, `Qt6::Qml`/`Qt6::Quick`,
-`QtQuick.Controls`/`QtQuick.Dialogs`/`QtQuick.Layouts`,
-`GeoControls`/`GeoControls.AppShell` imports, and production `.qml` are
-desktop-only; every Ravo target rejects Qt Widgets. Do not remove a check to
-admit a new dependency.
+Boundary checks enforce the target graph and permitted Qt/QML imports; a new
+feature cannot weaken them to admit a dependency. CMake owns the current test
+targets, labels and discovery. A historical run, local-only fix or skipped case
+does not prove the current source SHA on another host. CI/cache and package
+configuration belongs to [Packaging.md](Packaging.md) and the workflow sources.
 
-The current Ravo Debug graph covers foundation/recipe/engine/CLI and catalog
-integration, including first-frame Bayer RAW/DNG errors and preview-cache miss
-rebuild. Review contracts include schema v2→v11 migration, review
-persistence, filtering, and missing-source state. Develop contracts include one
-canonical recipe per image, schema-v1/v2 → v3 explicit colour-boundary upgrade,
-CPU Develop operations, edited previews, and
-`ravo catalog` JSON commands going through the same CatalogService. Schema v4
-covers Unicode tag filtering, writable metadata, history/snapshot save and
-restore, history preview without appending, and atomic discard of newer history
-steps. Schema v5 adds capture local time/offset and GPS magnitude/reference
-columns with strict migration, import-transaction, storage-decoding, and reopen
-contracts. Opening a v5 file that still has signed `gps_altitude_mm` repairs
-the ADR-0040 magnitude/ref columns in place. Schema v6 adds transactional
-per-asset recovery generations, exact acknowledgement, post-preview Studio
-Develop publication, restart retry, tamper rejection, and catalog backup/
-verification with strict layout, hashes, integrity, destination conflicts, and
-preview/original exclusion. ADR-0099 tests add cancellable chunked database
-copy, every backup/restore publication checkpoint, destination races,
-support-first/catalog-last commit, post-commit durable-fact errors, ordinary
-reopen, source immutability, CLI round trip, Studio progress/cancellation, and
-explicit preview rebuild. Windows atomic publication uses `\\?\` extended-length
-paths so nested derived-tree restore temps can exceed `MAX_PATH`. Schema v7 page tests compare every accepted filter
-and sort against the domain oracle, traverse 10,000 real SQLite rows in 50
-bounded pages, require at most 200 materialized assets per page, and pin page,
-tag, and stable-folder query plans. A sparse-model test exposes 10,000 logical
-rows while retaining no more than three pages. Import tests require one-item
-dispatch, deterministic result order, foreground interleaving, and cancellation
-that commits no undispatched input (ADR-0100). Studio additionally pins a
-stable Gallery model throughout an active batch, one final switch to the
-successful Last Imported Photos range, partial-cancellation membership, folder
-exit, command/QML wiring, and catalog-lifecycle reset. Managed-import tests
-add exact Copy/Move bytes, same-stem XMP, three destination organizations,
-bounded deterministic rename expansion, primary/second-tree portable conflict
-preflight, independent byte verification, verification mismatch and
-cancellation cleanup, source-change and Move cleanup failures, CLI JSON,
-workspace selection, highlight versus import-check, named placeholder publication before thumbnail decode,
-named Gallery placeholders as soon as Import starts, and cancellable
-background preview policies (ADR-0102/
-0104). Import-scan tests cover catalog preview/support-tree exclusion through
-scan and execution, explicit descendant inputs, POSIX symlink aliases,
-similarly named ordinary photo folders and source preservation. They also cover
-same-path, renamed/copied content, same-batch
-duplicates, equal-size/different-byte inputs, source mutation, revision conflict,
-cancellation, and v16-to-v17 index migration/backfill. The derived hash table
-must preserve catalog revision, source bytes, and edit history. CLI subprocess
-tests exercise `import-scan` and `import --skip-existing` against real files.
-`DomainUriTest.FileModificationIdentityIsStableAtMillisecondBoundaries` proves
-that repeated reads cannot manufacture a source-change conflict from clock
-sampling. HEIC adapter/catalog tests (ADR-0159) generate non-private oriented
-and Display-P3 images on macOS, compare owned path/memory pixels, preserve
-source bytes and dimensions, and reject truncated/oversized/cancelled input.
-Other hosts assert an explicit unavailable decoder. HEIC stays a primary-photo
-SDR input with the same catalog and preview/publication owners as other rasters.
-`ImportScanVerifiesKnownContentAcrossTimestampOnlyChanges` covers verified
-SHA-256 identity after metadata-only changes and rejection of actual byte
-changes; neither branch revises catalog or recipe state.
-Desktop tests isolate QSettings and cover Copy defaults, opt-in filename
-composition, ordered parts/separators, extension preservation, unchecked/Add
-original-name behavior, invalid choice rejection and preflight locking. Production
-offscreen smoke checks preview/rename/second-copy/destination ordering, the
-non-collapsible destination section, Add hiding its tree, and the read-only
-filename example; Copy/second-copy integration verifies renamed output bytes.
-Second-copy checkbox contracts cover missing-path rejection, retained disabled
-paths, Add omission, preflight locking and unchecked Copy publishing only the
-primary while preserving source bytes.
-They also cover streaming check intent,
-visible disabled duplicates, single/range/all selection exclusion, duplicate
-thumbnail completion without rescan loops, and source-byte preservation,
-source persistence before import, source ancestor selection/reveal after page
-reopen and cross-catalog restart, one-shot expansion of the restored source,
-manual source changes while storage discovery is blocked, tree reset clearing
-selection and rejecting old listings, unavailable saved-source removal and explicit
-errors with collapsed roots and no automatic scanning of another folder, invalid source
-preferences and failed-write preservation, destination and organization persistence
-without importing, organization value validation and failed-write preservation,
-restart/cross-catalog restore, unavailable
-destinations, settings-write failures that preserve committed photos and the
-prior destination, conflict-before-import with Gallery error feedback while
-retaining the chosen valid destination, asynchronous ancestor reveal
-after all planned-branch model resets,
-superseded reveal cancellation, and visible directory-listing errors. Folder
-contracts cover Home and mounted-volume roots in both panels, volume refresh
-without losing expanded children or selection, removal/reinsertion with late
-listing rejection, unique paths across overlapping roots, accessible absolute
-storage discovery, activation/expansion, pending-list
-deduplication, external picker paths, and repeated destination selection without
-losing loaded children; QML contracts check independent disclosure/selection areas. The
-mounted-root discovery test accepts `RAVO_TEST_EXPECT_MOUNTED_ROOT` for an
-independently identified mounted card path; it verifies discovery without scanning
-or importing the card's photos.
-The import contracts also cover the checkbox's explicit click intent, non-recursive
-selection across folder changes/page reentry, late recursive-result rejection,
-and the Home recursion guard for normalized and symlink paths. The
-destination-preview tests check single/date/month/hierarchy and second-copy
-counts against actual import, no early directory/media/catalog publication,
-selection/organization replacement, close cancellation, and stale metadata/directory
-blocker errors. Path-only projections defer corrupt-image validation to preflight;
-date-based plans reject corrupt metadata. Metadata-only preview accepts an unverified
-content hash and existing output file while formal preflight rejects them; CLI subprocess tests
-verify provisional v2 counts followed by actual content-deduplicated import.
-A blocked import-worker test requires destination planning to finish and close
-cleanly on its independent session. CLI subprocess tests verify the versioned
-`catalog import-plan` JSON.
-Partial-projection contracts check the first photo's counts, primary/second-copy
-folders, cancellation after a partial result, stale catalog rejection and no
-destination writes. RAW date/month projections are checked against actual import.
-Set `RAVO_IMPORT_PREVIEW_SOURCE` to an explicit read-only directory when running
-`CatalogServiceTest.DestinationPreviewPerformanceProbe` in a Release build to
-record first-result latency, complete-plan latency and update counts.
-Blocked scan and destination-planner tests require Cancel/Escape to abandon the
-current source while keeping Import open, reject late publications, and allow a
-child folder to be selected without reopening the page. They verify unchanged
-source bytes and no destination/catalog publication. The production offscreen
-smoke invokes the modal Cancel button through its QML command binding and checks
-that the source is cleared and Import remains open.
-The 1025-photo workspace regression blocks destination planning and thumbnail
-decoding independently: enumeration must release the window, pending plans must
-reject import, published trees remain visible without an immediate model reset,
-and partial/replacement counts must publish while thumbnails are still blocked. The
-production smoke also invokes source-tree context intent and Copy Path, checking
-the clipboard and that no scan or source selection occurs. File-manager launch
-tests validate platform arguments without launching a user's file manager.
-Filesystem model tests cover ordered month overlays, existing-year/month deduplication,
-collapse/expand, virtual-folder selection rejection, late listings, plan replacement,
-second-copy exclusion and explicit listing errors without retry loops.
-Service cache coverage distinguishes provisional same-size/time metadata reuse
-from formal byte admission, invalidates changed timestamps, refreshes current
-catalog membership, and rejects cancelled/closed requests. The opt-in
-`CatalogServiceTest.DestinationPreviewPerformanceProbe` takes an explicit
-`RAVO_IMPORT_PREVIEW_SOURCE` and records cold month, warm month and warm date
-planning times without importing or creating planned directories.
-Desktop worker-gate coverage holds the destination planner, verifies immediate
-interaction blocking and rejected early import/commands, exercises command
-cancellation, and reopens without accepting late results. Production QML loads
-the modal planning/cancel controls alongside the real destination tree.
-Deferred
-Home/ancestor listing coverage requires the planned month to be revealed without
-selecting it, with correct counts on both real and future directories; clearing
-the plan removes the counts and virtual rows. Presenter
-coverage checks that the month plan appears in the destination tree and disappears
-on page close while the directory remains absent on disk. Production QML smoke
-checks the gray, italic month label alongside the normally styled existing year,
-their inline planned counts, and the month's position inside the tree viewport.
-`StudioGpuPreviewTest` verifies that delayed delivery retains the original pixels
-after surface reuse at 639×960 and 1066×1600, and checks cancellation, invalid
-surface and dimension failures. With `RAVO_TEST_GPU_RAW` set to an explicit RAW
-path, it also compares native portrait publication with CPU gold, verifies the
-source hash, and exercises the real asynchronous Loupe presenter in a temporary
-catalog. `RAVO_TEST_GPU_OUTPUT_DIRECTORY` optionally receives new CPU/GPU/Loupe
-PNG artifacts for inspection.
-`StudioLibraryProgress` covers small batches, batches completed before the reveal
-delay, sustained work, the low-count tail and rapid replacements. Production QML
-smoke also measures the Library header height and navigator position across
-hidden, visible and completed thumbnail-progress states.
-`StudioBackupSettingsTest` covers command-owned Settings drafts, save failure,
-invalid inputs, late folder selection, matching-policy conflict recovery,
-real backup execution, disable/reopen and
-CLI policy readback. `WindowGeometryTest` covers panel reset persistence.
-Production Settings smoke loads all four categories at narrow and wide sizes;
-it checks native folder URL conversion with Unicode, spaces and escaped path
-characters. Localization smoke repeats the production load for every manifest locale.
-The ordinary Studio QML smoke logs after presenter destruction has cancelled
-and joined its workers, so an early logging shutdown fails the real executable
-smoke. It checks a temporary directory's real disclosure handler,
-expand/collapse result, and hit-area dimensions. It also activates a
-loaded collapsed directory row and verifies
-that the folder choice reaches the presenter despite synchronous delegate replacement.
-Import grid/action/panel bounds are exercised at
-1440×900, 1440×1100, 1024×640, and 640×480 without screenshots or a user catalog.
-The smoke also transitions the menu bar between zero and visible client-area
-height and checks that Import starts immediately below it, with no stale
-automatic top inset. Native system-menu objects and commands remain present.
-The smoke checks equal-width destination mode segments and C++-owned Move
-availability, including the whole panel's work/preflight/interaction blocking
-state. It waits for those bindings and geometry to converge within five seconds;
-the equal-width/height tolerances remain unchanged. This avoids treating an
-intentionally disabled ancestor as a Move-policy or layout failure.
-It checks matching source/destination tree surfaces, inline month/count styling and final scroll
-visibility with dozens of Home siblings and deferred ancestor listings, absence
-of a separate preview list, adaptive tree growth and collapse/Add sizing,
-and a real checkbox indicator of at least 24 pixels within a 32-pixel hit area.
-`StudioImportRoundtrip.FolderMovePreservesDestinationBytesAndReopensCatalog`
-covers ordinary folder Move through the workspace, spaces in paths, exact
-primary/second-copy media and XMP bytes, source removal and catalog reopen.
-`StudioImportWorkspace.MoveCancelAndConflictPreserveSourceAndCatalog` gates
-the worker to check cancelled preflight and destination conflict without source
-deletion or catalog publication. `MoveCleanupFailureSurfacesWarningAndKeepsCommittedAsset`
-changes XMP at publication and requires retained source bytes, a committed asset
-and visible cleanup error. `StudioControls.DisabledImportMoveShowsReasonOnHoverAndCannotBeClicked`
-loads the production destination panel and sends window mouse events to verify
-the disabled Move tooltip, click rejection, hover exit, re-enabling for folder
-import and tooltip destruction. The ingest-policy roundtrip covers rejection
-and return to ordinary folder import for every accepted transport.
-The preview fixture waits for the model's final leaf reveal with a bounded
-deadline before inspecting delegates; a fixed delay is not listing completion.
-Enumeration callbacks are tested before classification and for cancellation
-without publication. Catalog-independent PNG/RAW thumbnail decode must match
-Catalog pixels and preserve source hashes and structured corrupt/missing/cancel
-errors. Desktop worker gates prove that all named placeholders precede
-classification, 96 reverse-demanded rows drain in ascending order even with the
-catalog worker blocked, and real import completes while workspace thumbnails
-are blocked. Cache tests cap retained images at 256 and preserve scan-owned
-eligibility across thumbnail completion/failure. Select All tests freeze one
-command shortcut, import-vs-Gallery routing, duplicate exclusion, and text-input
-isolation. `StudioImportWorkspace.RealSourceProgressProbe` is opt-in via
-`RAVO_IMPORT_SCAN_SOURCE`: it uses an isolated temporary catalog, reads only the
-explicit source folder, requests the first 32 thumbnails, and reports candidate
-count plus enumeration/first-image times and classification progress as GoogleTest
-properties. It cancels remaining classification after the first viewport finishes;
-`scan_ms=-1` means classification was still active, not a failed image result.
-Run this probe from a Release desktop test binary with `--gtest_output=xml:<file>`;
-it never executes import or uses a user's existing catalog.
-LibraryQuery tests cover every
-supported predicate, missing capture values, inclusive numeric/time endpoints,
-ASCII-insensitive plus exact-Unicode text matching, invalid rating/color/media/
-text/range state, deterministic capture/file-size sorting, Catalog validation
-propagation, Studio command/QML wiring, clear state, translations, and QML
-smoke. They also pin the ADR-0059 decision not to persist recent filters or
-silently map legacy-only bookkeeping fields, and the ADR-0077 compact filter
-bar (default rating stars, opt-in extra chips, command-owned query).
-Schema v8 scheduling tests persist and reopen policy state, exercise due and
-forced runs, display last verified success/next run/bytes/failure, and retain
-unknown or checksum-invalid paths while deleting only strict-name, reverified,
-same-catalog artifacts after quarantine re-verification. Schema v9 tests assign
-and preserve stable direct-folder IDs through migration/reopen, derive missing
-state, validate every replacement file identity, reject conflict/mismatch/
-cancellation without mutation, inject failure after folder/asset/revision
-updates, and prove transaction/revision/recovery rollback. CLI and Studio
-tests use explicit folder IDs and verify that source hashes remain unchanged
-(ADR-0101). Studio folder-tree tests cover right-click import, reveal, missing
-relink, expand/collapse, and catalog-only folder removal that keeps originals;
-`catalog folder-remove --folder-uri` shares that service contract.
-Schema v10 tests create manual membership and smart `LibraryQuery` sets,
-reject stale catalog revisions and invalid/unknown IDs, keep empty sets, page
-listing without materializing the catalog, reopen and restore the rows through
-verified backup, and pin Studio/CLI/QML wiring (ADR-0103).
-Schema v11 tests create a virtual copy that shares the original URI, isolate
-recipe/export of the version, refuse disk deletion of a non-primary, cascade
-catalog deletion of versions with a primary, collapse stacked non-picks from
-the default page total, expand on request, migrate v10 catalogs, reopen and
-restore stack identity, and pin Survey as a browse mode that does not start N
-Develop pipelines (ADR-0105).
-Assistant tests pin default xAI endpoint/model, reject non-http(s) URLs and
-blank models, persist valid URL/model/key, repair malformed stored URL, and
-toggle the floating panel command. Copy/paste parameter tests pin an empty
-session clipboard, no-op without a photo, the two-button History/context-menu/
-command wiring, and the shared initially-empty modified-parameter chooser.
-Accepted copy stores only explicit stable field IDs; paste overlays those fields,
-including required mask nodes, while preserving every unselected destination
-value and entering ordinary history/undo. Empty, duplicate, unknown, and stale
-selections reject without replacing the clipboard. The old complete clipboard
-and Paste Light / Paste Color paths must be absent (ADR-0078/0098). CRS XMP
-tests pin leftover
-rejection of Camera Raw documents, PV2012 mapping onto Develop owners, calibrated
-RAW sigmoid contrast, post-sigmoid display-sRGB curve order, nested Look
-isolation, identity-only Point Colors, overlay that keeps destination crop,
-unknown-key/Kelvin fail-closed, and `recipe import-xmp` dialect=crs. Synthetic
-engine tests pin the scene-EV highlight/shadow endpoints, Whites/Blacks exact
-envelopes, strict tone order, positive-sample preservation, shared RGB scale,
-single-pass/ordered-composition equivalence, and cancellation for all four;
-recipe validation rejects display-sRGB curves carrying scene-only policies. The
-Edit left-rail QML contract pins Presets above History with Import and apply
-commands. Copy Info and Copy Parameters tests pin the
-`ravo.debug.photo` / `ravo.debug.parameters` / `ravo.debug.preset` clipboard
-payloads, current saved/pending canonical recipe text, empty selection/unknown-file
-failure, and photo/preset context-menu command wiring (QML does not assemble
-the identity or parameter text). QML contract tests pin the default grading
-stack, the compact Color grouping for White Balance/Presence/Hue, three-way
-and global Color Balance RGB wheels, the eight-swatch Color Mixer with
-Hue/Saturation/Luminance tracks, common-first Light control order, first-class
-Curves, Camera Calibration after Color, vignette geometry including centre,
-HSL band names, Detail profile denoise, Color Mixer versus Graduated ND, Color
-· Advanced, and RAW white-balance pick wiring.
-Engine tests pin CFA sampling of a warm Bayer patch to manual coefficients;
-catalog tests reject raster pick.
-Session undo is the single stack for right-panel Develop commits and
-left-rail history/Original/snapshot restore; live preview/overlay drags do
-not push that stack. Consecutive commits for one control retain one history row
-and one pre-adjustment Undo anchor. A different control, snapshot, history
-restore, selection/view change, undo/redo, or a newer client row breaks the
-group; expected-latest replacement and injected SQLite update failure preserve
-recipe/history/revision atomicity.
-Navigation tests cover the single
-presenter zoom owner, 0.1–8 clamps, wheel step, Actual-size toggle restoring
-the last non-1:1 mode, bounded Flickable/navigator seek, inspect magnifier
-click wiring, active-asset comparison, recenter triggers, crop pan exclusion,
-and QML smoke; same-asset review notifications are required not to reset pan.
-Actual-size inspect ROI follows live Develop parameters without requiring a pan.
-Its published URL must resolve to a non-null owned image, and leaving actual-size
-mode clears both URL and image. QML contracts require the hidden CPU ROI item to
-clear its source when the GPU display item owns presentation.
-The CFA-window linear working is reused across RGB-only edits and rebuilt on
-pan or preprocess change.
-`InteractiveGpuSourceTracksSameSizeCacheReplacement` checks same-size source
-replacement, alternating caches, cache recreation and moves against CPU gold
-with and without a cached prefix. `SameSizeInspectPansMatchTheirCpuExportRegions`
-compares successive real RAW viewport pixels to their full CPU export regions,
-returns to the initial viewport, and preserves source hash/catalog/recipe state.
-Catalog tests cover Bayer viewport-ROI 1:1 windows, full-frame ROI rejection,
-and geometry rejection (ADR-0132).
-Engine GPU adapter tests require `create_phase1` to succeed whether or not a
-device exists, honor cancellation before dispatch, and reject size-mismatched
-opt-in copies. When QRhi reports a compute backend, identity copies are
-bit-exact and Exposure affine RGB, unmasked light controls, Lab USM Sharpen,
-RapidRAW global tone controls, and the active display mapper (Sigmoid for
-synthesized RAW baselines, RapidRAW Basic for explicit stored recipes) are RMSE-gated against the CPU gold.
-`render_interactive_linear_working` reports `gpu_backend` when those GPU RGB
-passes ran, including the default RAW baseline that keeps Sharpen and Sigmoid on the GPU. `render_linear_working` and export stay on CPU even when a
-compute backend exists. Sigmoid hue tests exercise all six RGB channel orders and
-equal-channel ties against CPU gold at zero, half and full hue preservation.
-Windows shader baking requires the SDK's `fxc` on PATH and invokes `qsb --fxc`
-to compile generated Shader Model 5 HLSL into DXBC. Invalid HLSL is a build
-failure, rather than a runtime-only diagnostic. No CPU fallback is added.
-Recipes without admitted GPU ops stay on CPU. A later smaller upload must not
-over-read a grow-only SSBO. Retained-source RGB apply matches
-the uploaded path. Interactive skip-download on Metal publishes a non-zero
-display generation and native surface with empty CPU RGB, including odd widths
-whose IOSurface `bytesPerRow` is 16-byte aligned. Studio pure-interactive
-Develop skips the synchronous float readback, then copies owned RGB8 from that
-same completed IOSurface for exact live identity, scopes, and headless presenter
-tests. Invalid surface identity/layout fails structurally. Comparison, overlay,
-persisted preview, and non-native paths still request ordinary CPU RGB. Hosts
-without compute or buffer readback, and hosts whose QRhi device cannot build the
-preview pipelines, return `gpu_unavailable` or `gpu_pipeline_failed`. Bayer
-window RCD is RMSE-gated against the CPU gold when the adapter is present; PPG
-and hosts without a working compute backend stay on CPU. Export stays on the
-CPU path.
-Progressive-preview coverage uses a source larger than the display preview and
-requires live drag pixels and viewport to retain the settled 1600px resolution.
-`DisplaySizeLiveEditKeepsResolutionAndPreparedRawSource` verifies source reuse,
-native GPU display dimensions, CPU-gold pixels and unchanged catalog/recipe
-state. Explicit low-edge requests remain separately bounded.
-`CroppedPreviewUsesFinalPhotoDensityAndReopensExactCache` verifies crop
-density against CPU rendering, RGB-only source reuse, exact cache dimensions
-after reopening, and unchanged source/recipe bytes. Perspective contracts
-check the same integer geometry sizing, native limits, bypass, and cancellation.
-`StudioCropTest.AutoLevelChangesOnlyRotationAndRejectsInvalidModes` uses tilted
-line pixels to verify rotation and preserved perspective/source bytes. The
-production QML smoke enters crop, checks the expanded controls above the Develop
-scroller, half-surround layout, independent scrolling, and hiding on exit.
-Engine guide-fit contracts verify rotation-only level fitting, cancellation and
-missing guides; CLI structured analysis accepts `--mode level` without writing
-the source. Desktop exposes the same mode through the shared command owner.
-A saved-edit reopen
-case enters Develop before the asynchronous Recipe callback and requires the
-first live frame to match the loaded Recipe, preventing an identity warm-up
-generation from charging a complete rebuild to the first slider intent.
-Library-resume contracts cover primary identity after insertion changes its row
-beyond the first page, restored query/sort/loupe before startup handoff,
-independent per-library grid/selection, explicit-path precedence, deleted
-bookmarks and empty libraries. Corrupt bookmarks fail without replacing their
-bytes or opening a default library. Last Import scope restores its selector and
-count, and All Photographs clears its saved time window. Paging contracts locate every anchor under
-tested sort/filter combinations with bounded materialization and reject mixed
-cursor/anchor requests. A real `catalog locate` subprocess verifies the versioned
-row/page result, missing identity, and unchanged catalog revision. Existing startup
-error and owner-destruction contracts still apply. Tests isolate QSettings.
-Catalog-open setup failures terminate the resume case before later commands.
-The 400-file resume fixture uses a bounded 30-second open/startup deadline on
-shared runners; its identity, ordering and sparse-page assertions are unchanged.
-Desktop tests use the shared Qt bootstrap to set an organization and isolate
-both user and system settings scopes before constructing settings owners. Display
-tests use that bootstrap as well; an unset organization is a real QSettings error
-on Linux/Windows. Preflight cancellation/source-loss tests gate the import worker
-which owns preflight, keeping source mutation/cancellation ahead of its execution;
-gating the foreground catalog executor does not establish that ordering.
-Inspect-click scale/pan animation is QML-only and is loaded by smoke rather
-than a C++ timing contract. Develop toolbar comparison tests require that its
-baseline is non-persistent and immutable while the edited pane refreshes,
-rapid exit rejects a late baseline, and QML presents two whole images through
-one shared zoom/pan plane.
-Scope tests pin RGB Parade as the initial Studio mode, histogram bins/max plus
-Rec.709 luma, Waveform/Parade 8/9 white placement and RGB
-composition, neutral-center versus saturated-red D50 u*v*, exact image sizes,
-Split left equality and max-preserved right signal, exact-buffer rejection,
-five presenter/command/QML modes, provider URLs, translations, and offscreen
-smoke. Canvas is checked not to contain the engine color math. Asset mutation
-tests cover duplicate revision neutrality, missing/error publication, every
-preview cache variant, original-preserving catalog removal, successful disk
-deletion, unknown/missing paths, and forced SQLite revision failure. The latter
-must restore row, revision, original bytes, and remove the quarantine; repository
-delete and revision are exercised as one transaction. These tests do not
-complete I11/I12/I13 shared-consumer retirement, PNG pHYs, or TIFF multipage
-masks. FreeCM Test and
-`ctest --test-dir build/<preset>` run the same suite
-from the repository root. Ordinary GitHub Actions branch/PR runs use
-`mac_clang_debug`, `linux_clang_debug`, and `win_msvc_release`, after static
-fixture-manifest and dependency-boundary checks. Tags and package rehearsals run
-the full Release suite inside each of the five native package jobs, before
-packaging the same binaries; no separate Debug or Release smoke matrix runs.
-Both flows use `.github/actions/ci-test`, reject empty test discovery and retain
-Windows runtime-path setup/failure diagnostics. Windows development CI uses Release because
-MSVC Debug `/Zi` shared PDBs are uncacheable; Release objects are cacheable and
-share the tag-package ccache key. Debug CRT/assert coverage remains on macOS
-and Linux. CI runs `--init`, updates Qt/PATH in the
-active lock, then runs `--update`. Builds use `cmake --build build/<preset>` so
-they do not depend on the Linux template's `ClangDebug` build-preset name and
-Windows gtest discovery can see Qt on runner `Path`.
-Compiler cache setup/restore belongs to `ci-bootstrap`; its native absolute
-directory is exported as job-wide `CCACHE_DIR` through `GITHUB_ENV`, and is also
-used by `actions/cache/save`. An action-scoped environment alone does not reach
-subsequent CMake/Ninja processes. After compilation, `check_ccache.py` requires
-matching effective/save directories, C/C++ ccache launchers and nonzero cacheable
-calls, and prints hit/miss counts plus uncacheable reasons. A restored archive
-is not evidence of compiler hits; the first populated run may be entirely cold.
-Every successful build saves before CTest, so later
-test failure or cancellation does not discard an already uploaded cache.
-Build failure skips saving. Keys retain the preset/OS/architecture restore prefix
-and add job/run/attempt identity so reruns can publish updated immutable entries.
-The bootstrap action's job-end save is disabled; its statistics remain available.
+The functional suite must preserve these cross-layer regression obligations:
 
-Unit/contract coverage includes foundation/recipe/executor, CLI JSON/exit
-codes, bounded strict XMP mappings, and real `mire1.cr2` inspect/render. Catalog tests
-cover schema create/reopen/newer-version reject, idempotent PNG/JPEG/RAW/DNG
-import, same-stem RAW+JPEG pairing, directory sidecar skipping, unchanged source hashes, preview cache
-including corrupt-PNG miss, missing/unsupported/cancelled input, and
-recipe/review independence. They do not replace
-local manual Studio Fit/100%/Develop acceptance. Each successful link of
-`ravo_studio` runs `--smoke` on the `offscreen` software backend to instantiate
-the root QML and exit before `QGuiApplication::exec()` so Windows CI cannot
-block in the Qt Quick scene-graph loop; a QML or command-registry failure
-fails the target build. Smoke mode installs a fatal-message handler that writes
-the Qt diagnostic and exits immediately, including on Windows where an
-interactive crash dialog would otherwise look like a hang. The full Windows
-Debug root-QML instantiation has a 300-second subprocess bound and a 330-second
-CTest bound; macOS and Linux retain 90 seconds. Windows offscreen smoke binds
-`QT_QPA_FONTDIR` to an existing explicit or `%WINDIR%/Fonts` directory and
-fails before launch when neither is available; it does not use Qt's absent
-`lib/fonts` default. The same check is
-`ravo_studio_qml_smoke` in CTest so GitHub Actions exercises it after
-configure/build. Manual check:
-`$<TARGET_FILE:ravo_studio> --smoke`.
-The same smoke checks a compact independent startup splash with a loaded,
-nonzero-size logo and verifies that showing it leaves the main window hidden.
-`StudioStartupTest` covers first-run create intent, one-shot handoff after the
-complete initial catalog state, explicit corrupt-catalog failure without default
-retry, and destruction during an in-flight open. Startup never attaches the
-splash to the geometry settings owner; `WindowGeometryTest` retains the stored
-windowed/maximized restoration contract.
-`ravo_desktop_command_tests` validates built-in command/action coverage,
-stable IDs, runtime-state rechecks, invalid dispatch, shortcut conflicts,
-three-platform primary modifiers, and Unicode fuzzy search; its label is
-`ravo-desktop-smoke`. Develop automated contracts also cover injected rollback
-failures for recipe/history/revision, pixel-for-pixel equivalence of RAW
-interactive and full CPU render, L2–L9 + temperature + input/output profile +
-profile gamma + exposure + RGB primaries + channel mixer + Color Checker +
-Legacy Color Balance + Color Balance RGB + Color Correction + Color Contrast
-parameter/pixel reopen, and preview-owner cancellation of a superseded token
-with old revision/asset rejection.
-Separate final-display
-contracts cover private RGB8 packing and strict legacy display-boundary
-absorption; neither is a Develop recipe operation or pixel-reopen claim.
-Desktop QML smoke verifies that Input Profile, Unbreak Input Profile, Output &
-Soft Proof, White Balance, Exposure, RGB Primaries, Color Calibration, Color
-Checker, Legacy Color Balance, Color Correction, Color Contrast, and full Color
-Balance RGB bindings load;
-these automated checks do not rely on Computer Use.
+- Create/reopen/migrate and reject newer/corrupt catalogs; transactions roll back
+  assets, recipes, history, recovery generation and revisions together.
+- Add/Copy/Move, duplicate classification, relink and source disappearance retain
+  byte identity and explicit partial/post-commit outcomes. Planned directories
+  and metadata projections do not authorize import before formal preflight.
+- Sparse listing/query/selection generations reject stale pages and unloaded-row
+  mistakes; preview/thumbnail caches remain bounded, atomic and rebuildable.
+- Saved/current/displayed recipes remain distinct during live edits. Undo grouping,
+  external-client polling, masks, crop/ROI and late-result rejection use their
+  existing owners, not QML or a second state store.
+- CPU pixels remain the correctness oracle. GPU availability, owned image bytes
+  and native display presentation are separate claims. Preserve source/profile
+  identity, same-size cache replacement and portrait/odd-row lifetime coverage.
+- `catalog probe` uses the Studio preview service without modifying recipe bytes
+  or preview records. Output is atomic/no-replace and bounded; wrong format,
+  conflicts, unknown fields and invalid coupled values fail structurally.
+- CLI `--json` stdout contains exactly one parseable envelope; logs and credentials
+  stay out of that channel. Live sessions use owner-only discovery and bounded
+  local messages, with cleanup on destruction and explicit stale/revision errors.
+- Actual Studio subprocess tests cover selection/current/saved state, strict edits,
+  settlement, immutable PNG dimensions/hash, concurrent clients and timeout/
+  disconnection behavior. Process discovery is not an asset-selection oracle.
 
-The real `ravo` process is also a protocol contract: `--json` stdout contains
-exactly one parseable envelope and logging remains file-only. `catalog probe`
-drives the same non-persistent Develop preview used by Studio, supports strict
-repeatable numeric overrides, reports deterministic display-RGB statistics, and
-proves the stored recipe serialization and preview-record set are unchanged.
-Optional probe `--output` writes a throwaway PNG of that in-memory RGB without
-creating a preview record, rejects a non-PNG path, and returns `conflict` when
-the destination exists. `develop-fields` / `catalog fields` list the recipe-owned
-`--set` inventory, including kind and measured bounds, and reject unknown names
-through the same `apply_develop_field_strict` path. Probe is the preferred local
-entry point for parameter-response sweeps; external image decoders and manual UI
-observations are not pixel or persistence oracles.
-Catalog snapshot tests prove `revision` is re-read from SQLite so a second
-connection's bump is visible. Desktop presenter tests open a library, apply a
-second CatalogService `save_develop`, call `pollCatalogRevision`, and require
-the selected Develop values to match the committed recipe. Live-control
-coverage also keeps an in-memory edit across the first post-import poll, proving
-that Studio's own import revision is not replayed as an external write.
-
-Live Studio control tests isolate an owner-only registry, prove multiple live
-sessions and stale descriptor rejection, enforce the 4 MiB message bound, and
-remove discovery state with its owner. A real CLI subprocess reads the selected
-asset/current and saved recipes, proves assistant credentials are absent,
-rejects a stale revision and an unknown field without mutation, commits one
-ordered strict parameter batch, waits for saved/preview settlement, and
-publishes a no-replace PNG whose dimensions and SHA-256 are independently
-checked. Existing catalog polling covers the concurrent second-client write;
-selection and recipe rechecks prevent an in-flight artifact from publishing
-for changed state. Repeated subprocess discovery and state requests require
-each successful `ping` connection to be released before the next request;
-the unresponsive-session test distinguishes a connected response timeout from
-a transient Windows named-pipe `not_found` result and bounds same-endpoint
-reconnection by the requested timeout. Explicit-session subprocesses resolve a
-validated descriptor once and use the requested method as their liveness proof
-(ADR-0090).
+Ravo tests and generated CLI artifacts are the machine acceptance surface.
+User-operated native visual checks remain a distinct, explicitly reported gate;
+application screenshots and external decoders do not replace pixel or persistence
+oracles. Detailed coverage is discoverable from the relevant test target instead
+of duplicating operation-by-operation prose here.
 
 ### AI grading and MCP contracts
 
@@ -1055,7 +356,7 @@ backup/restore and bounded preview-cache tests remain the business-level oracle.
 identity rejection, explicit token renewal and first-cancellation reason retention.
 Preview/Import controller tests separately verify their scheduling and shutdown
 use of that mechanism. The Library facet command test reads the child object's
-scoped counts; the QML contract checks its direct bindings and canonical commands.
+scoped counts; runtime command tests check canonical intents and the workflow smoke loads the bindings.
 
 Develop/Inspect/Export migrations retain original test identities, failure windows
 and numeric/image assertions. QML and tests address their specific child owner;
@@ -1098,7 +399,9 @@ components target at most 1,000 lines.
 `configs/test_split_inventory.jsonc` freezes the ordered GoogleTest case
 inventory and target membership of test files being decomposed. Splitting may
 move a case between listed source files, but cannot rename, disable, reorder, or
-move it to another target. Reusable fixtures and independent numeric oracles
+move it to another target. An explicitly reviewed capability/test retirement
+updates only its named removal set; all remaining identities and membership must
+match the pre-change inventory (ADR-0183). Reusable fixtures and independent numeric oracles
 belong in target-owned `*_test_support.cpp` units; split test-case files do not
 carry private copies of the complete helper prelude. Run all three repository
 checks and their self-tests through:
@@ -1125,8 +428,8 @@ Mask-scoped Develop (ADR-0158) is covered by `LocalAdjustmentScopeTest`,
 global/local parameters, recipe v4 round trips, whole-group alpha, original
 mask pixel parity, transformed coordinates, graph ownership/copying,
 incomplete gesture cancellation, Done during an in-flight preview, persistence,
-and explicit CLI revision conflicts. `StudioQmlContract` requires exactly one
-mask editor in the unified workspace and no per-control mask editors.
+and explicit CLI revision conflicts. The workflow smoke exercises the unified
+mask workspace through its actual command and gesture boundary.
 Canonical brushes accept up to 1,024 points; paths remain bounded to 32.
 Use the full Ravo suite for these public recipe/Engine changes, with
 `RavoCodeQuality`, Studio QML smoke and localization smoke. User-operated visual
@@ -1412,7 +715,8 @@ gated (ADR-0096).
 checks the preview-only recipe and canonical geometry mapping without altering
 the saved recipe. `StudioPipelinePriority.CropFrameChangesKeepCompletePhotoAndViewport`
 checks crop edits, rotation scale, full source extent and exit/reentry through
-the presenter. QML contracts bind the overlay to the published crop region.
+the presenter. Runtime workflow smoke exercises the overlay against the published
+crop region.
 `PerspectiveTest.CropSurroundIsGrayWithoutReplacingBlackPhotoPixels` checks
 geometry-derived gray fill, preservation of black image content, cancellation
 and mismatched pixel-buffer rejection.
@@ -1538,519 +842,37 @@ full Ravo suite for changes to these worker or repository boundaries
 
 ## Frozen fixture reuse
 
-- `tests/fixtures/fixture_classification_ledger.json` remains exactly aligned
-  with the fixture-ID set in the legacy manifest.
-- Committed RAW, XMP, and `expected.png` are read-only input; store Ravo-owned
-  float/goldens, metadata summaries, and tolerances separately.
-- Ravo CPU compares pixels, NaN/Inf, size/ROI, alpha, colour, metadata, and
-  error state against frozen assets.
-- A removed product capability may be excluded only after its compatibility
-  decision is recorded and tested as a readable structured rejection.
-- One 8-bit PNG alone cannot satisfy operation or colour acceptance.
-- `channelmixerrgb` uses two statically decoded schema-v3 parameter instances
-  from `0085-channelmixerrgb`, identity/single-channel/cross-channel/singular-
-  matrix synthetic inputs, and a `mire1.cr2` channel-sum reference. A bare 3×3
-  cannot replace the CAT/gamut/V3 saturation-lightness path.
-- `temperature` uses statically decoded `0000-nop` schema-v3,
-  `0171-capture-sharpen` schema-v4 late-reference, and `0177-bayer4`
-  fourth-channel coefficients. It covers Bayer/X-Trans/RGB channel mapping,
-  LibRaw as-shot/daylight metadata, manual, late-reference + explicit CAT,
-  missing/zero/nonfinite rejection, cancellation/input immutability,
-  preprocess cache key, `mire1.cr2` default/manual/camera-reference channel
-  sums, and catalog reopen. A Kelvin/tint RGB approximation is not a substitute.
-- `exposure` statically inventories all 158 frozen XMPs: 110 revisions in 73
-  files (v5=5, v6=102, v7=3), with 109 enabled and one disabled. Tests select
-  the greatest `num` independently of XML order, reject conflicting duplicate
-  revisions, and cover the 73 final revisions (v5=4, v6=66, v7=3). Exact
-  default-unmasked singleton state is accepted; mask/custom blend,
-  `multi_priority > 0`, non-empty `multi_name`, and non-frozen lexical state
-  reject structurally. Schema v2 and v1 upgrade tests cover manual/deflicker,
-  black, percentile, target, and both compensation flags.
-- Exposure CPU tests freeze
-  `effective_ev = exposure_ev - clamp(exposure_bias, -5, 5) +
-  clamp(highlight_preservation, -1, 4)` when enabled and
-  `(sample - black) / (exp2(-effective_ev) - black)`. Canon/Fujifilm/Nikon/
-  Olympus/Pentax metadata-priority and clamp cases are pure value tests;
-  missing tags mean zero EV, while file-read failure matters only when
-  compensation is requested. Deflicker uses the original 65,536-bin RAW
-  histogram, double `pixels * percentile / 100`, first cumulative bin at the
-  threshold, and `target_ev - raw_ev`, replacing manual EV and both
-  compensation terms. Synthetic coverage includes finite boundaries,
-  pre/row cancellation, memory budget, source/profile/context immutability, and
-  owned output. Raster manual mode works, while raster deflicker/compensation
-  reject structurally.
-- The exposure `mire1.cr2` reference pins black 1015, white 16224, median bin
-  2535, and display RGB sums near 251749/234182/220350 with tolerance 1500.
-  The source hash, byte size, and mtime remain unchanged. CLI render, Catalog
-  preview/save/reopen/export, Studio presenter/QML smoke, and interactive/full
-  render parity all consume the same engine context; no test treats the GTK
-  area picker as serialized recipe behavior.
-- `colorchecker` statically inventories all 158 frozen XMPs. Exactly one actual
-  record exists, in 0098: enabled v2, priority zero, empty name, blend v11,
-  history `num=8`, default unmasked, and 24 active patches. A minimal document
-  containing that verbatim record is positive evidence; the complete 0098
-  history remains negative because an unrelated earlier operation is not
-  mapped. Synthetic v1 proves only the historical 24-patch source-table upgrade.
-  Disabled state, duplicate entries, non-canonical lexical/multi/name/blend/mask
-  state, bad lengths/counts, and non-finite active patches reject structurally;
-  inactive v2 tail planes are ignored, including stale NaN bits.
-- Color Checker CPU tests use an independent scalar/Gaussian oracle plus fixed
-  goldens for the exact bit-level fast-log kernel, matrix orientation, N=3 float
-  addition, and the verbatim 0098 patch set. A libm substitution perturbation
-  proves that the oracle detects kernel drift. N=0/1/2/3/4, RBF N=5 and N=49,
-  sequential per-channel N=2/N=3 singular fallback, and shared N=4/RBF identity
-  fallback are explicit. The RGB↔XYZ D50↔Lab bridge, dimensions/buffer/profile,
-  denominator and all non-finite states, fit/output resource estimates,
-  pre/row cancellation, Color Checker operation dispatch/mask rejection, owned
-  output, source immutability, and profile/analysis retention are covered.
-- Eight preset bit hashes are checked against the frozen source tables. IT8 and
-  Expanded also match all 295 parsed C-assignment words; Helmholtz/Kohlrausch,
-  Astia, Classic Chrome, Monochrome, Provia, and Velvia each match all 1180
-  decoded frozen bytes. The 0098 operation on pinned `mire1.cr2` has bounded
-  64×48 channel sums near 295886/283466/247458 and leaves source hash, size, and
-  mtime unchanged. Recipe/Develop explicit-default presence, CLI descriptor and
-  render parity, Catalog preview/save/reopen/export pixels, Studio presenter/QML
-  bindings, localization, and offscreen smoke share the same canonical engine
-  and cache path.
-- `colorbalancergb` uses statically decoded `0083-colorbalancergb` schema-v4
-  and `0093-colorbalancergb-ucs` schema-v5 parameters, Filmlight Yrg/grading
-  RGB plus three-zone-opacity synthetic tests, DT UCS gamut/soft clip, JzAzBz
-  92³ LUT/negative-LMS clip, cancellation/no publication on nonfinite values,
-  and a `mire1.cr2` channel-sum reference. Catalog reopen and Studio QML smoke
-  must cover all 32 parameters + formula; lift/gamma/gain is not accepted as a
-  substitute.
-- `colorbalance` uses synthetic exact default-unmasked schema-v3 and schema-v4
-  payloads as its positive importer boundary. The complete 158-XMP census finds
-  four enabled v3 revisions only in 0033/0034; their masks, custom blend, and
-  named priority-one instances make both real fixtures negative evidence.
-  History order does not select processing order, and malformed, duplicate,
-  non-default presentation, or multi-instance state rejects structurally.
-- Legacy Color Balance CPU tests cover all 17 legacy fields and both frozen
-  modes through an independent scalar/matrix Lab D50/XYZ/ProPhoto reference.
-  Each fixed SOP/LGG golden is required to match both the reference and
-  production; a channel-order perturbation proves the reference detects drift.
-  Explicit-default presence survives recipe-to-Develop-to-recipe and Catalog/
-  Studio save/reopen because the default colour-space round trip is observable.
-  Mode-specific contrast epsilon, finite/denominator/power-domain failure,
-  row cancellation, source/profile immutability, and atomic owned output are
-  covered. The `mire1.cr2` regression also pins output channel sums and source
-  hash/size/mtime. CLI render, Catalog preview/save/reopen/export, and Studio
-  presenter/QML smoke share the same engine path and cache identity.
-- Color Correction schema tests lock all seven fields, five numeric hard
-  bounds, finite/float narrowing, explicit presence, atomic strict editing,
-  clamp repair, field/section reset, registry metadata, and canonical Color
-  Balance RGB → Color Correction → Color Contrast order. An explicit default
-  survives recipe-to-Develop-to-recipe and remains distinct from absence.
-- Its independent scalar/D50 oracle and fixed bit goldens lock commit-time float
-  narrowing and `saturation * (input + L * scale + base)` evaluation order.
-  `cbrtf`-dependent RGB bridge references use the shared 1e-5 platform-libm
-  tolerance while requiring bit-exact production/scalar-oracle agreement on
-  each host. Engine tests cover canonical dispatch, dimensions/buffer/profile,
-  non-finite input/output/parameters, disabled and mask states, owned profile
-  plus analysis propagation, source immutability, and pre/row cancellation
-  with no partial publication. Allocation failure maps to a structured engine
-  error, while the generic working-buffer budget gate accounts for publication
-  resources.
-- The complete 158-XMP census finds actual Color Correction records only in
-  0029 and 0092. Strict tests accept their enabled-v1 singleton,
-  priority-zero, unnamed, default-unmasked blend-v9/v11 envelopes and reject
-  unsupported version/enabled, duplicate, mask, custom blend, multi/name/
-  priority, unknown, malformed, and non-finite state. CLI rendering matches the
-  direct engine and preserves RAW hash/size/mtime; Catalog locks explicit-
-  default save/preview/export/close/reopen pixels and cache identity; Studio
-  locks its six-key presenter, five hard-bound generic intents, compiled Chinese
-  strings, and offscreen QML smoke. GTK plane/picker, three presets, OpenCL, and
-  canonical mask attachment are outside this Color Correction contract.
-- The complete 158-XMP census finds one actual Color Contrast record, in 0038:
-  enabled v2, priority zero, empty name, exact default-unmasked blend-v10 state,
-  and a generic history position that does not define processing order. A
-  minimal document containing the verbatim record is positive evidence; the
-  complete 0038 document remains negative because it contains a real mask
-  graph. Synthetic legacy v1 freezes the four-float copy plus `unbound=0`.
-  Disabled, duplicate, custom blend, mask, multi/name/priority, unknown,
-  malformed, non-finite, and unsupported-version state reject structurally.
-- Color Contrast recipe tests lock all seven schema-v2 fields, [0, 5]
-  steepness bounds, full finite-float offsets, explicit presence/default
-  round-trip, field/group reset, canonical Color Correction → Color Contrast →
-  Velvia order, and the former Ravo `amount` v1 mapping including its zero
-  skip. An independent scalar/D50 oracle and fixed bit goldens distinguish
-  axis order, float narrowing/evaluation, bounded ternary clamp, unbounded
-  output, extended/negative values, and the observable default Lab bridge.
-  Engine tests cover canonical dispatch, dimensions/buffer/profile, every
-  parameter/input/output finite failure, Color Contrast mask rejection,
-  pre-cancel and row-deadline cancellation, source immutability,
-  profile/analysis retention, atomic publication, and separately owned output.
-- CLI descriptor/import/render tests, Catalog explicit-default preview/save/
-  export/close/reopen pixels and cache identity, and Studio's six-key presenter,
-  two hard-bounded slopes, two full-float scientific offsets, unbound toggle,
-  generic intents, compiled Chinese strings, and offscreen QML smoke all use
-  the same canonical recipe/engine path. GTK sliders, OpenCL, and canonical
-  mask attachment are not claimed by these Color Contrast tests.
-- Color Harmonizer recipe tests lock schema v1's exact 17 required flat fields,
-  hard bounds, float representability, all nine predefined rule names plus
-  custom, registry metadata, JSON round-trip, and strict legacy
-  mask/custom-blend/presentation rejection. Exact little-endian parameter
-  decodes from frozen 0176 history records 12 and 13 cover the post-
-  initialization default and an edited split-complementary state and feed the
-  accepted singleton importer.
-- Its independent source-order scalar oracle covers both 0176 parameter states
-  through the declared profile matrix, private D50/dt-UCS bridge, S2.1 geometry,
-  frozen negative `fmaxf` clipping, cubic neutral protection, attraction,
-  saturation, and inverse matrix. Production and the oracle must match bits on
-  each host; libm-dependent component references use the recorded 1e-5
-  tolerance, while zero references remain bit-exact. Deliberate no-clip and
-  linear-neutral perturbations compare against the same-host canonical oracle
-  and prove it detects drift. All nine predefined rules and custom node counts
-  two through four also match canonical dispatch. An O3 assembly check verifies
-  contraction-disabled production contains no FMA.
-  `HarmonyGeometryTest.FullTablesMatchIndependentOracleAndReferenceInvariants`
-  also checks that extended negative swatch channels and full table construction
-  raise no `FE_INVALID`. The production inverse dt-UCS transforms and independent
-  oracle preserve scalar exception semantics under optimized Clang, including
-  unused SIMD lanes on macOS x86_64 Release.
-- Engine negatives cover dimensions, RGB length/overflow, missing/non-RGB/
-  matrixless/non-finite/singular profiles, every non-finite input class,
-  non-finite geometry/output, wrong ID/schema, mask state, invalid canonical
-  ROI scale for positive smoothing, pre-cancel, and row-deadline cancellation.
-  Success owns RGB and deep profile storage, retains the shared immutable
-  analysis snapshot, and leaves the source unchanged; failure publishes
-  nothing. Vertical-slice tests cover
-  strict v1 singleton import (including reversed XML, reused-position
-  conflict, and whole-0176 remaining unsupported), explicit Develop
-  presence versus absence, CLI `--set` accept/reject, Catalog
-  preview/save/reopen/export of explicit positive smoothing, and Studio
-  presenter/QML numeric intent bounds. Private S2.2 tests compare an
-  independent scalar source-order oracle and fixed constant/impulse/extended
-  vectors, including the frozen ±1e9 per-read clamp, dimensions/overflow/sigma,
-  and deterministic vertical/horizontal cancellation. Color Harmonizer tests
-  cover exact sigma, pull-width floor,
-  full/downscaled canonical ROI scale, propagation, two-pass oracle,
-  source/profile/analysis ownership, map/Gaussian/apply/prepublication
-  cancellation, and saturated RAW memory estimates. Canonical mask tests cover
-  attachment alpha 0/all/spatial/path/brush behavior, Studio-owned leaf and
-  group creation, overlay composite of exact-zero versus positive alpha, and
-  read-only detach of external/shared attachments. They do not relax the frozen
-  legacy importer or claim historic blend modes, leftover GTK mask-manager
-  deletion, GPU, or C15.
-- `colorreconstruct` census finds one actual record, the enabled-v3
-  priority-zero unnamed default-unmasked singleton in 0052. Its exact 20-byte
-  payload and v10 blend import after the document's exact built-in RAW tuples;
-  disabled, duplicate, mask, custom-blend, multi/name/priority, malformed,
-  non-finite, and other-version state rejects structurally. The complete 0052
-  document becomes positive evidence without making any other history
-  compatible.
-- Color Reconstruction CPU tests freeze all none/chroma/hue precedence modes,
-  the D50 bridge, threshold exclusion and 95% blend ramp, bounded grid shape,
-  x/y/lightness five-tap blur, trilinear slice, and canonical full/downscaled
-  spatial scale. Dimensions/buffer/profile/scale, parameters, every non-finite
-  input/output, grid overflow/allocation, operation mask/schema, and controlled
-  splat/blur/slice/prepublication cancellation publish nothing and preserve the
-  borrowed source/profile/analysis state. The 0052 payload on `mire1.cr2` pins
-  a 42x64 channel-sum reference and unchanged source hash/size/mtime. Catalog
-  covers explicit save, preview cache identity, PNG export, close/reopen pixel
-  equality, and source hash; Studio presenter/QML, compiled translations, and
-  offscreen smoke cover the complete five-parameter surface. These tests do
-  not claim tile-local processing, historic blend modes, GTK/OpenCL, or R2
-  demosaic completion.
-- `sharpen` census finds exactly three enabled-v1 priority-zero unnamed records,
-  all with radius 2, amount 0.5, and threshold 0.5. Two exact v9 and one exact
-  v11 default-unmasked blends map to schema v2; disabled, duplicate, mask,
-  custom-blend, multi/name/priority, malformed, non-finite, and other-version
-  state rejects. The complete 0029 document remains negative because its
-  Filmic RGB operation is not mapped. Fixture 0171 is separate demosaic capture
-  sharpening evidence and does not satisfy F1.
-- Sharpen CPU tests compare every Lab component against an independent frozen
-  scalar oracle for full/downscaled canonical scale, source-order Gaussian
-  normalization and separable convolution, radius cap with retained sigma,
-  strict threshold, unchanged borders/chroma, and small-frame pass-through.
-  Schema-v1 upgrade, dimensions/buffer/profile/scale, non-finite input/output,
-  mask/schema, allocation, RAW memory accounting, and controlled input/
-  vertical/horizontal/output/prepublication cancellation are atomic. A
-  340x512 `mire1.cr2` default reference proves observable source behavior and
-  unchanged source hash/size/mtime. Catalog covers edited preview/cache/save/
-  PNG export/close/reopen pixel equality; Studio covers amount/radius/threshold,
-  translations, and offscreen QML smoke. These tests do not claim demosaic
-  capture sharpening, GTK presets, historic blend modes, or OpenCL.
-- `hazeremoval` census finds exactly two enabled priority-zero unnamed
-  singleton records: v1 strength/distance 0.2 with the exact v9 default blend,
-  and v2 strength 0.9, distance 0.8, adaptive false with the exact v13 default
-  blend. Strict tests reject disabled, duplicate, masks (including the full
-  0026 mask history), custom blend, multi/name/priority, malformed,
-  non-finite, and other-version state.
-- Dehaze CPU tests compare ambient quantiles, distance, adaptive full/downscale
-  windows, max/min transition and every RGB guided-filter result against an
-  independent direct-window covariance oracle. They cover Kahan separable
-  means, tiled overlap, Cramer's-rule/singular solve, negative/positive
-  strength, minimum transmission, source-linear stage, raster/already-working
-  rejection, dimensions/buffer/profile/scale/ambient/non-finite/allocation,
-  RAW memory accounting, and controlled dark/selection/transition/tile/
-  statistics/solve/output/prepublication cancellation with no mutation. The
-  v1 payload on `mire1.cr2` pins an 85x128 reference and source hash/size/mtime;
-  Catalog covers cache/save/PNG export/close/reopen equality and Studio covers
-  strength/distance/adaptive, compiled translations and offscreen smoke. The
-  generic old guided-filter owner remains unclaimed for its other consumers.
-- Retouch tests validate the strict nested region schema, drawable-leaf and
-  unique-mask references, Develop/recipe serialization, ordered clone/heal/
-  Gaussian/bilateral blur/fill execution, original/detail/residual wavelet
-  reconstruction, untouched pixels, source/profile ownership, entry
-  cancellation, and saturating workspace accounting. The four frozen fixture
-  families supply five exact v1 parameter revisions plus v6 circle/ellipse/
-  path/brush/group/source payloads; focused import selects the greatest history
-  revision, while their unrelated unaccepted `rawprepare`/`basecurve` state is
-  not absorbed. Catalog covers preview/cache/save/PNG export/close/reopen pixel
-  equality and original hash; Studio presenter/QML/command registration,
-  translations, and offscreen smoke cover all four modes and add/remove
-  intents. These tests do not claim shared S2/S3 owners, historic whole-document
-  replay, GTK/OpenCL, or GPU execution.
-- Canonical mask graph tests cover schema-v1 `all` upgrade and deterministic
-  v2 serialization; unknown fields/kinds/versions, non-finite/bounded values,
-  duplicate/dangling/cyclic/deep/shared DAGs, node/child/expanded-work limits,
-  invalid enum state, and v1 non-identity rejection. Private evaluator tests
-  freeze pixel-centre exact grids, zero/positive gradient/circle/ellipse
-  transitions, path/brush tessellation, frozen parametric branches for
-  input/output sources, group
-  replace/union/intersection/difference/exclusion ordering with node/edge
-  inversion and opacity, whole-
-  frame versus vertical and inset-stride tiled ROI, invalid ROI/stride/sample/
-  finiteness, pre/node/row cancellation, and owned alpha scratch bounds. Engine
-  tests cover exact normal alpha 0/1 selection, spatial mix, overlay composite,
-  unsupported-operation failure, Color Balance RGB masked mix (ADR-0108),
-  Exposure masked mix (ADR-0109), RGB Curve masked mix (ADR-0110), Tone Curve
-  masked mix (ADR-0111), Highlights/Shadows/Whites/Blacks masked mix and
-  fusion-break (ADR-0112), and RAW
-  saturating masked memory estimates. Studio click placement maps preview
-  coordinates through crop into attached-frame circle/ellipse/gradient fields
-  and rejects Canvas/Perspective/straighten/rotate/flip (ADR-0114). CLI direct render parity and Catalog
-  preview/cache/save/close/reopen tests retain graph/attachments through an
-  ordinary Develop edit; reset_recipe alone clears the stored graph. Failed
-  strict mutations leave Develop/saved/undo/cache state untouched before the
-  existing preview/commit lifecycle is reached.
-- `colorin` uses statically decoded `0107-colorin-gamma`, `0108-colorin-clip`,
-  and `0109-colorin-gamma-and-clip` schema-v7 parameter payloads plus the
-  `0000-nop` enhanced-matrix `mire1.cr2` channel-sum reference. Synthetic
-  coverage includes identity/matrix, 65,536-sample shaper LUT, frozen
-  unbounded extrapolation, all five normalization modes, RAW blue mapping,
-  complex LittleCMS Lab/ICC input, file/embedded ICC, missing/corrupt/singular/
-  non-finite rejection, row cancellation, source immutability, and external
-  ICC cache invalidation. Untagged raster must fail unless the recipe declares
-  a concrete profile; sRGB fallback is not accepted.
-- `profile_gamma` has no enabled history in the 158 frozen XMPs, so tests do
-  not invent a legacy payload or golden. Synthetic coverage freezes the CPU
-  float `fastlog2`, both `2^-16` floors, grey/shadow/dynamic-range boundaries,
-  the 65,536-entry piecewise gamma LUT, negative/index truncation, the exact
-  `x == 1` extrapolation boundary, and values above one. Tagged-raster and
-  `mire1.cr2` references cover both modes before input colour; cancellation,
-  dimension/finite failure, input/profile immutability, scene-linear cache
-  identity, CLI/Catalog pixel parity, and Catalog save/reopen are explicit.
-  Legacy XMP naming the operation rejects structurally. Picker/autotune has no
-  product API and cannot be inferred from display scopes.
-- `colorout` statically decodes every distinct schema-v5 payload from all 158
-  frozen XMPs. Synthetic coverage includes matrix/shaper and frozen unbounded
-  output, matrix-free ICC LUT profiles, RGB/XYZ/Lab, four rendering intents,
-  black-point compensation, built-in/file soft proof, cyan gamut warning,
-  corrupt/missing/singular/non-finite rejection, row cancellation, and working-
-  buffer immutability. `0000-nop` plus `mire1.cr2` has sRGB, Display P3, and
-  file-ICC channel-sum references. CLI PNG and Catalog PNG/JPEG/TIFF verify
-  embedded profile state; output/proof ICC content invalidates final preview
-  cache without invalidating the scene-linear cache. Studio presenter/QML and
-  catalog reopen cover Output & Soft Proof intent forwarding. Relabelling or
-  falling back to sRGB is not accepted. The private final RGB8 packer covers
-  negative, zero, half-rounding, one, super-white, RGB order, invalid dimensions
-  and model, every non-finite sample, row cancellation, source immutability,
-  owned output, and exact sRGB/Display P3/file-ICC state through CLI and Catalog
-  publication without a second transfer curve.
-- Studio's startup QML smoke invokes the production export form for JPEG, PNG
-  and TIFF in original-size, long-edge and width/height modes. It parses each
-  emitted options map with the C++ converter, proving that prefilled inactive
-  dimensions remain zero in requests. Presenter and QML contracts pin suggested
-  sizes, canonical codec defaults, advanced controls and accessible mode labels.
-- JPEG export freezes one typed options value from `ExportRequest` through
-  CatalogService and the raster port to the pinned private encoder. Domain tests
-  cover default quality 95, the 5–100 range, stable enum values and canonical
-  names, and fail-closed quality/subsampling errors. Adapter tests parse JPEG
-  headers to verify automatic 90/91/92/93 thresholds and explicit
-  4:4:4/4:4:0/4:2:2/4:2:0 factors without changing quality-owned quantization,
-  DCT, smoothing, or optimized Huffman behavior. Catalog tests prove default
-  and explicit propagation, unrelated-format isolation, no partial output on
-  validation failure, and source immutability. Existing ICC APP2, 300 dpi,
-  65,500-dimension, resource, and entry/scanline cancellation gates remain.
-  Final bytes use the shared encoded-publication contract. Catalog/CLI JPEG
-  exports independently parse one Exif APP1, one standard XMP APP1, ICC APP2,
-  and optional Photoshop APP13, plus unchanged quantization/subsampling.
-  Dedicated JPEG CLI tests independently parse SOF sampling factors and the first
-  luminance quantizer for defaults and every `auto|444|440|422|420` mode, prove
-  last-value-wins, and reject JPEG flags on PNG/TIFF/original/list before the
-  Catalog opens. Desktop conversion tests freeze the strict Studio payload keys,
-  path/extension policy, and immutable typed `ExportRequest` snapshot; command and
-  QML contracts cover the two-step options dialog without localized-filter parsing.
-- PNG export freezes one typed options value from `ExportRequest` through
-  CatalogService and the raster port to the private libpng encoder. Domain
-  tests cover stable 8/16-bit values and names, the 8-bit/compression-5 default,
-  compression 0–9, and fail-closed option errors. Adapter tests assert the
-  exact zlib level/memory/strategy/window/method/buffer and adaptive-filter
-  configuration, then parse IHDR/chunks and inflate rows to prove opaque,
-  non-interlaced RGB8 pixels. They verify exact sRGB/Display P3/file ICC, known
-  built-in cICP, and that a file ICC whose identifier collides with `srgb` does
-  not acquire false cICP. A separate RGB16 encoder path accepts host-endian
-  16-bit RGB samples that are not 8-to-16 expansions, writes bit-depth-16 IHDR,
-  applies the frozen `png_set_swap` transform where host byte order requires
-  it, and proves exact reconstructed samples plus ICC/cICP. Product PNG16
-  export renders engine-owned RGB16 and independently parses IHDR/chunks/rows;
-  an RGB8 source still returns `reason=unsupported_png_16bit_source` and
-  never expands 8-bit samples.
-  Dimension/source/output/ICC bounds, invalid
-  cICP, mismatched 8/16-bit source/request pairs, entry/row cancellation,
-  deterministic libpng/allocation failure, and source/profile immutability
-  return no encoded result. Catalog tests prove default and explicit
-  propagation, non-PNG isolation, and no file publication for
-  unsupported/invalid options; PNG input and shared encoded-publication
-  regressions keep I6 decode and atomic destination ownership separate.
-  Dedicated CLI tests invoke real Catalog import/export and independently parse
-  PNG chunks. They cover implicit and explicit `png` format, both PNG-qualified
-  flags, canonical values and defaults, argument order, last-value-wins value
-  flags, PNG-only scope, JPEG-option isolation, complete JSON errors, source hashes, and zero
-  publication for invalid options, and successful 16-bit product renders that
-  are not 8-bit expansions.
-  Rendered PNG independently parses one `eXIf` TIFF profile without an
-  `Exif\0\0` prefix and one uncompressed XMP `iTXt`; pHYs remains absent.
-- Shared export-metadata tests cover XML 1.0 character rejection and
-  carriage-return preservation, IPTC-IIM RecordVersion 4 plus dataset-specific
-  byte limits, canonical tag count/order, conservative pre-render packet
-  estimates, word-aligned Exif TIFF offsets, and deterministic owned packets.
-- TIFF export freezes one typed options value from `ExportRequest` through
-  CatalogService and the raster port to a private static LibTIFF built from the
-  pinned source root with only ZLIB Deflate enabled. Domain tests cover stable
-  uint8/uint16/float16/float32 and none/Deflate/predictor values and names,
-  uint8/predictor/level-6/RGB defaults, levels 1–9, conditional grayscale, and
-  fail-closed option errors. Baseline-directory tests additionally freeze
-  resolution default 300 and inclusive 72–9600 bounds, the 16 KiB NUL-free
-  well-formed-UTF-8 document-name boundary, bounded writable UTF-8 values, and
-  fail-closed legacy raster doubles. Adapter tests independently parse classic
-  little-endian IFDs, inflate strips, reverse horizontal prediction, and assert
-  exact top-left opaque RGB8 or conditional-grayscale pixels, per-sample bits
-  and sample-format tags, compression/predictor, requested inch resolution, and
-  exact ICC bytes. The same parser proves exact NUL-terminated DocumentName 269,
-  ImageDescription 270, Artist 315, and Copyright 33432 values; absent fields
-  omit tags, present-empty emits one NUL, and title remains unmapped in Exif.
-  The same parser follows EXIFIFD 34665 and reconstructs XMP 700 plus optional
-  IPTC 33723.
-  The grayscale matrix freezes the greater-than-four dimension gate, ignored
-  border, uint8/uint16 channel-delta thresholds of two/165, and the float 1.01
-  ratio with a 0.001 floor. Source/output/ICC bounds, non-finite float sources,
-  mismatched RGB8/high-precision pairs, entry/scanline/pre-finalize
-  cancellation, real memory-client write/seek/grow/close/finalize failures,
-  and source/profile immutability return no encoded result. Catalog tests prove
-  default and explicit propagation, JPEG/PNG isolation, no file for invalid or
-  invalid options, successful high-precision product renders, atomic conflict
-  behavior, cancellation, and source-hash
-  preservation. Metadata Catalog tests prove one public snapshot after lookup
-  for every rendered JPEG/PNG/TIFF export, TIFF DocumentName only, exact
-  baseline plus packet tags, metadata-stage cancellation and injected tag
-  failure, and unchanged source plus sidecar hashes, sizes, and modification
-  times with no generated sidecar.
-  Dedicated CLI tests invoke real Catalog import/export and
-  independently parse TIFF tags, Deflate strips, horizontal prediction, and
-  exact RGB/grayscale pixels. They cover the `tiff`/`tif` format spellings, all
-  TIFF-qualified flags including `--tiff-resolution-dpi` 72/300/9600, canonical values and defaults, argument order,
-  last-value-wins value flags, duplicate-grayscale rejection, TIFF-only and JPEG-option scope,
-  complete JSON errors, source hashes, successful uint16/float16/float32
-  product renders, and zero publication for invalid requests. I7 input and
-  ADR-0032
-  publication remain separate owners. Domain tests freeze `CaptureDateTime`,
-  `CaptureLocation`, and `CaptureMetadata` validation plus exact export DMS
-  conversion. Engine tests read `mire1.cr2` as local
-  `2007:09:11 13:53:33.18` without inventing an offset or GPS, and independently
-  exercise unsigned-rational bounds and ties, tag precedence/conflicts, hostile
-  PNG chunks, and bounded errors. Catalog tests cover schema v5 additive
-  columns, v4-row NULL preservation, every injected v5 migration stage, v5→v6
-  recovery-state migration, atomic
-  import rollback, strict new-column storage classes, zero/reference reopen,
-  real RAW plus independently built JPEG/PNG/TIFF Exif import, and
-  duplicate-import metadata/revision freeze. Encoder and TIFF tests prove one
-  `PreparedExportMetadata` derivation, conservative packet estimates,
-  JPEG/PNG/TIFF embed, exact TIFF field values, and injected LibTIFF GPS IFD
-  lifecycle failures. Sidecar tests and source snapshots prove directory import
-  skips `.xmp`, explicit legacy conversion never mutates inputs, Catalog edits
-  generate no adjacent file, rendered XMP stays embedded, original-copy remains
-  exact, and source/adjacent-sidecar hash/size/mtime are unchanged (ADR-0063).
-  Separate schema-v6 recovery tests cover catalog-owned `.ravo.json`
-  publication, exact-generation retry/acknowledgement, Develop publication
-  after UI preview queueing, corruption rejection, restart drain, and verified
-  preview-free backups (ADR-0097). Metadata refresh and privacy stripping
-  remain unclaimed S9 work.
-- Capture refresh tests modify committed Exif source bytes after import, then
-  prove Make/Model/numeric/date/GPS re-read. Missing GPSAltitudeRef is tested
-  against Exif's default 0, including import/reopen and source-byte preservation;
-  a reference without an altitude and malformed explicit references still fail.
-  Refresh tests also prove identity refresh, close/reopen, and
-  one revision increment. A forced SQLite revision trigger and entry
-  cancellation preserve the old capture row and revision. Export privacy tests
-  cover domain mode parsing, disabled-snapshot payload rejection, Studio typed
-  conversion/QML/translation, CLI `--metadata`, and JPEG/PNG/TIFF semantic
-  parsing: no-location retains time but no GPS; none contains no public
-  Exif/XMP/IPTC/DocumentName/ExifIFD/GPSIFD while ICC remains. Original-copy
-  rejects stripping and publishes nothing.
-- RecipeStyle tests cover deterministic complete schema-v1 serialization and
-  selective schema-v2 serialization, bounded name/description/file size, exact
-  placeholder identity, complete operation/mask/Retouch/bypass round-trip,
-  target-only identity replacement, and selected-field overlay that preserves
-  every omitted target value. Empty, duplicate, unsorted, unknown, wrong-type,
-  newer, malformed, and legacy-dtstyle state reject structurally. CLI
-  create/validate/apply uses real files, conflict behavior, and explicit target
-  Recipe validation for schema v2. Studio tests pin baseline-relative candidate
-  inventory, an initially empty checkbox selection, **Save…** to the right of
-  **Import…**, managed-folder pre-existing conflict plus atomic complete output,
-  stale-field rejection, and apply through the existing recipe/history/undo
-  transaction rather than a parallel preset store. The same selection dialog
-  and Recipe merge owner cover session Copy/Paste Parameters. CatalogService
-  `apply_develop_selection` tests cover multi-asset overlay, fail-closed
-  preflight without writes, stale catalog revision, cancellation that keeps
-  completed photos, and partial item failure. CLI `catalog develop-apply` and
-  Studio **Paste Parameters to Selection** share that contract (ADR-0107).
-  Translation catalogs and offscreen smoke cover the dialog. ADR-0072 removes all bundled
-  `.dtstyle` examples and their exclusive translation generator; the parser's
-  whole-format rejection remains the test truth rather than per-example
-  conversion tests (ADR-0065/0098).
-- Studio settings tests isolate QSettings storage and prove corrupt persisted
-  language removal, English fallback, alias normalization, synchronous
-  persistence, unsupported-language rejection, and preservation of the prior
-  durable value. Window-geometry tests prove default 1440×900, windowed
-  persist/reload, maximized keeping the last windowed rectangle, invalid-size
-  rejection without writes, and incomplete/malformed key repair (ADR-0066/0115).
-  Panel-layout contracts cover default sizes, destruction/reload, bounded
-  input rejection, malformed settings and failed-write retry. Studio's isolated
-  offscreen smoke invokes the production filmstrip resize intent,
-  checks side-width bindings and preference reload, and verifies that temporary
-  height constraints retain the preferred size.
-  Translation package smoke separately proves every manifest
-  catalog compiles with no active unfinished strings (ADR-0066/0093).
-- Legacy `gamma` census covers all 158 frozen XMPs: each has exactly one enabled
-  schema-v1 instance, zeroed eight-byte payload, one of 12 exact versioned blend
-  tuples, zero `multi_priority`, empty `multi_name`, missing-or-zero
-  `multi_name_hand_edited`, and no mask attributes. Synthetic contracts absorb
-  each exact tuple without emitting a recipe operation and reject modified or
-  missing version, disabled state, payload mutation, duplicate instance,
-  unknown or cross-paired blend state, non-default multi state, and mask state.
-- `primaries` statically decodes the sole enabled schema-v1 instance in
-  `0152-rgb-primaries`. Synthetic coverage includes exact identity, each
-  primary hue/purity, achromatic tint, frozen forward ray/edge intersection,
-  custom RGB→XYZ construction, alternate working profiles, pre-bridge facade
-  scheduling, invalid/singular/backwards geometry, float overflow, row
-  cancellation, and input/profile immutability. CLI render and Catalog preview/
-  export share pixels; `mire1.cr2` has a Ravo-owned channel-sum reference;
-  Studio and Catalog cover all eight values through save/reopen. Generic hue
-  gradients, display-profile state, masks, and a linear-Rec709 substitution are
-  not accepted.
-- `hotpixels` covers strict four-neighbor single points, permissive
-  three-neighbor adjacent points, an unchanged two-pixel boundary, cancellation,
-  raster/X-Trans rejection, decoded-frame immutability, cache-key/reopen, and
-  `mire1.cr2` reference. It must not repair after demosaic or modify service
-  cache in place.
-- `cacorrect` covers the default two-pass `mire1.cr2`, five passes from
-  `0084-cacorrect` + avoid-color-shift, Bayer/raster/X-Trans boundaries,
-  cancellation, memory budget, decoded-frame immutability, cache key, and
-  catalog reopen. A fixed R/B shift cannot meet tile/median/polynomial/
-  interpolation gates.
+- `tests/fixtures/fixture_classification_ledger.json` must remain aligned with the
+  fixture-ID set in the frozen manifest. Do not restore a leftover runner or
+  infer acceptance from fixture counts.
+- Committed RAW, XMP and `expected.png` are read-only inputs. Keep Ravo-owned
+  float goldens, metadata summaries and tolerances separate. Do not regenerate
+  expected results to admit a pixel or performance change.
+- Test operation schemas, parameter defaults/bounds, strict historical mapping,
+  operation order, orientation, size/ROI, alpha, color/profile and error states.
+  One 8-bit PNG cannot establish an operation or color contract.
+- Independent scalar/reference evaluators and fixed bit patterns must detect
+  drift in numerical kernels, matrix orientation and accumulation order. Include
+  signed/HDR, non-finite, tiny/odd/portrait and tile/edge cases where relevant;
+  a test that calls the implementation twice is not an independent oracle.
+- Cover cancellation before dispatch and during owned row work, memory bounds,
+  output ownership, source immutability and profile/analysis retention. Include
+  operation dispatch and masked/unmasked admission, not just standalone kernels.
+- Recipe/CLI/catalog paths must agree through save/reopen/preview/export. Keep
+  transaction failures, immutable image publication and unchanged source hashes
+  alongside numerical checks.
+- Compatibility removals require a recorded scope decision and structured
+  rejection tests. Accepted historical XMP and saved operation rendering remain
+  supported; obsolete stub providers do not define algorithm coverage.
+- Numeric constants, interpolation policies, decoded frozen parameter tables and
+  tolerances belong to the owning operation tests/ADRs and migration ledger.
+  Change those explicitly with independent evidence, rather than maintaining a
+  second numerical specification in this test-policy document.
+
+Use `freeze_legacy_manifest.py --check` and the classification check above.
+Generated fixtures are changed only through their owning generator; inspect its
+source and all dependent tests before regeneration. No live historical process,
+manual Studio observation or cache image is a substitute for frozen evidence.
 
 ## Deterministic mode
 
@@ -2421,10 +1243,9 @@ listing publication after execution failure, using an import-worker-to-GUI
 fence. Work must remain active until placeholders are replaced, and terminal
 notifications must expose the reconciled catalog total. Original cancellation/
 source-loss assertions and timeouts remain unchanged.
-Source-structure checks follow the owning controller
-wiring and keep revision-based destination keys separate from debounced path
-snapshots. Test identities, pixel assertions and failure-injection windows remain
-unchanged. Library paging contracts still validate the shared listing/selection
+Destination-preview tests keep revision-based keys separate from debounced path
+snapshots. Retained runtime identities, pixel assertions and failure-injection
+windows remain unchanged. Library paging contracts still validate the shared listing/selection
 generation across unloaded rows and query replacement.
 Closed-filesystem tests exercise rejected destination and folder dispatch through
 the real workspace/model boundary, retaining an explicit error and clearing
@@ -2461,7 +1282,7 @@ Current labels:
 Added with the desktop product:
 
 - `ravo-catalog`: schema/repository/service integration;
-- `ravo-desktop-smoke`: static command-registry contracts and automatable
+- `ravo-desktop-smoke`: runtime command-registry contracts and automatable
   window-lifecycle/composition smoke. It does not replace Studio manual
   acceptance of command-palette focus, keyboard navigation, confirmation
   dialogs, and text-input isolation.
@@ -2482,7 +1303,7 @@ all hosts. Only macOS requires Metal/IOSurface publication; Windows and Linux
 must return owned CPU RGB and no native surface when that transport is absent.
 Do not skip the complete test or accept arbitrary backends to satisfy CI.
 QML size expressions must use members of the pinned GeoControls API. In
-particular, 48-unit assistant/proposal geometry uses `Fonts.scaledUiSize(48)`;
+particular, 48-unit assistant geometry uses `Fonts.scaledUiSize(48)`;
 there is no `Fonts.size48` token. Undefined arithmetic can become NaN and abort
 Windows Debug Qt during layout even if a release Qt build tolerates it.
 Filesystem browser fixtures explicitly distinguish in-root and out-of-root
@@ -2563,7 +1384,7 @@ the production smoke verifies Import menu bindings and sends a real right-click
 event to a duplicate candidate without enabling its import checkbox.
 Gallery selection is preserved for restore after Import closes. Validation:
 `StudioImportKeyboard.ImportWorkspaceBlocksGallerySelectionCommands` and the
-production Import layout smoke path inside `ravo_studio --smoke`.
+production Import layout path in `ravo_studio_workflow_smoke`.
 
 ## Probe image artifact contract
 

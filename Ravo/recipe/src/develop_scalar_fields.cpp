@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <numbers>
 
 namespace ravo::develop_internal
 {
@@ -14,7 +16,31 @@ struct ScalarField
     double minimum;
     double maximum;
     bool individual_reset;
+    double &(*nested)(DevelopParams &) noexcept = nullptr;
+    bool finite_input = false;
+    std::optional<double> nonfinite_default = std::nullopt;
+    bool degrees_input = false;
+
+    double &value(DevelopParams &params) const noexcept
+    {
+        return member ? params.*member : nested(params);
+    }
 };
+template <auto Parent, auto Member>
+constexpr ScalarField nested_field(const std::string_view name, const double minimum,
+                                   const double maximum, const double nonfinite_default,
+                                   const bool degrees_input = false)
+{
+    return {name,
+            nullptr,
+            minimum,
+            maximum,
+            true,
+            [](DevelopParams &params) noexcept -> double & { return (params.*Parent).*Member; },
+            true,
+            nonfinite_default,
+            degrees_input};
+}
 constexpr auto fields = std::to_array<ScalarField>({
     {"contrast", &DevelopParams::contrast, -1.0, 1.0, true},
     {"highlights", &DevelopParams::highlights, -1.0, 1.0, true},
@@ -62,6 +88,64 @@ constexpr auto fields = std::to_array<ScalarField>({
     {"toneEqMidtones", &DevelopParams::tone_eq_midtones, -4.0, 4.0, true},
     {"toneEqHighlights", &DevelopParams::tone_eq_highlights, -4.0, 4.0, true},
     {"toneEqWhites", &DevelopParams::tone_eq_whites, -4.0, 4.0, true},
+    nested_field<&DevelopParams::profile_gamma, &ProfileGammaParams::linear>(
+        "profileGammaLinear", kProfileGammaLinearMin, kProfileGammaLinearMax,
+        kProfileGammaLinearDefault),
+    nested_field<&DevelopParams::profile_gamma, &ProfileGammaParams::gamma>(
+        "profileGammaGamma", kProfileGammaGammaMin, kProfileGammaGammaMax,
+        kProfileGammaGammaDefault),
+    nested_field<&DevelopParams::profile_gamma, &ProfileGammaParams::dynamic_range>(
+        "profileGammaDynamicRange", kProfileGammaDynamicRangeMin, kProfileGammaDynamicRangeMax,
+        kProfileGammaDynamicRangeDefault),
+    nested_field<&DevelopParams::profile_gamma, &ProfileGammaParams::grey_point>(
+        "profileGammaGreyPoint", kProfileGammaGreyPointMin, kProfileGammaGreyPointMax,
+        kProfileGammaGreyPointDefault),
+    nested_field<&DevelopParams::profile_gamma, &ProfileGammaParams::shadows_range>(
+        "profileGammaShadowsRange", kProfileGammaShadowsRangeMin, kProfileGammaShadowsRangeMax,
+        kProfileGammaShadowsRangeDefault),
+    nested_field<&DevelopParams::profile_gamma, &ProfileGammaParams::security_factor>(
+        "profileGammaSecurityFactor", kProfileGammaSecurityFactorMin,
+        kProfileGammaSecurityFactorMax, kProfileGammaSecurityFactorDefault),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::achromatic_tint_hue>(
+        "primariesAchromaticHueDegrees", kPrimariesHueMin, kPrimariesHueMax, 0.0, true),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::achromatic_tint_purity>(
+        "primariesAchromaticPurity", kPrimariesAchromaticTintPurityMin,
+        kPrimariesAchromaticTintPurityMax, 0.0),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::red_hue>(
+        "primariesRedHueDegrees", kPrimariesHueMin, kPrimariesHueMax, 0.0, true),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::red_purity>(
+        "primariesRedPurity", kPrimariesPrimaryPurityMin, kPrimariesPrimaryPurityMax, 1.0),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::green_hue>(
+        "primariesGreenHueDegrees", kPrimariesHueMin, kPrimariesHueMax, 0.0, true),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::green_purity>(
+        "primariesGreenPurity", kPrimariesPrimaryPurityMin, kPrimariesPrimaryPurityMax, 1.0),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::blue_hue>(
+        "primariesBlueHueDegrees", kPrimariesHueMin, kPrimariesHueMax, 0.0, true),
+    nested_field<&DevelopParams::primaries, &PrimariesParams::blue_purity>(
+        "primariesBluePurity", kPrimariesPrimaryPurityMin, kPrimariesPrimaryPurityMax, 1.0),
+});
+static_assert(
+    []
+    {
+        for (const auto &field : fields)
+            if ((field.member == nullptr) == (field.nested == nullptr))
+                return false;
+        return true;
+    }());
+struct ContextField
+{
+    std::string_view name;
+    double minimum;
+    double maximum;
+};
+constexpr auto contextual_fields = std::to_array<ContextField>({
+    {"cropX", 0.0, 0.99},
+    {"cropY", 0.0, 0.99},
+    {"cropWidth", 0.01, 1.0},
+    {"cropHeight", 0.01, 1.0},
+    {"rgbCurveSplit0", 0.05, 0.90},
+    {"rgbCurveSplit1", 0.10, 0.95},
+    {"rgbCurveSplit2", 0.15, 0.98},
 });
 const ScalarField *find_field(const std::string_view name) noexcept
 {
@@ -75,9 +159,9 @@ bool assign_scalar_develop_field(DevelopParams &params, const std::string_view n
                                  const double value) noexcept
 {
     const auto *field = find_field(name);
-    if (!field)
+    if (!field || (field->finite_input && !std::isfinite(value)))
         return false;
-    params.*field->member = value;
+    field->value(params) = field->degrees_input ? value * std::numbers::pi / 180.0 : value;
     return true;
 }
 
@@ -86,29 +170,44 @@ bool reset_scalar_develop_field(DevelopParams &params, const std::string_view na
     const auto *field = find_field(name);
     if (!field || !field->individual_reset)
         return false;
-    const DevelopParams identity;
-    params.*field->member = identity.*field->member;
+    DevelopParams identity;
+    field->value(params) = field->value(identity);
     return true;
 }
 
 void clamp_scalar_develop_fields(DevelopParams &params) noexcept
 {
     for (const auto &field : fields)
-        params.*field.member = clamp_value(params.*field.member, field.minimum, field.maximum);
+    {
+        double &value = field.value(params);
+        value = field.nonfinite_default && !std::isfinite(value) ?
+                    *field.nonfinite_default :
+                    clamp_value(value, field.minimum, field.maximum);
+    }
 }
 
-void append_scalar_develop_field_names(std::vector<std::string> &names)
+void append_declared_develop_field_names(std::vector<std::string> &names)
 {
     for (const auto &field : fields)
         names.emplace_back(field.name);
+    for (const auto &field : contextual_fields)
+        names.emplace_back(field.name);
 }
 
-std::optional<DevelopSetField> scalar_develop_field_schema(const std::string_view name)
+std::optional<DevelopSetField> declared_develop_field_schema(const std::string_view name)
 {
-    const auto *field = find_field(name);
-    if (!field)
-        return std::nullopt;
-    return DevelopSetField{std::string(name), DevelopSetFieldKind::Number, field->minimum,
-                           field->maximum};
+    if (const auto *field = find_field(name))
+    {
+        const double minimum =
+            field->degrees_input ? field->minimum * 180.0 / std::numbers::pi : field->minimum;
+        const double maximum =
+            field->degrees_input ? field->maximum * 180.0 / std::numbers::pi : field->maximum;
+        return DevelopSetField{std::string(name), DevelopSetFieldKind::Number, minimum, maximum};
+    }
+    for (const auto &field : contextual_fields)
+        if (field.name == name)
+            return DevelopSetField{std::string(name), DevelopSetFieldKind::Number, field.minimum,
+                                   field.maximum, true};
+    return std::nullopt;
 }
 } // namespace ravo::develop_internal

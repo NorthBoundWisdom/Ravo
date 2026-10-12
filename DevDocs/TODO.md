@@ -42,11 +42,11 @@ The explicitly requested video work is bounded by
 [ADR-0165](adr/0165-video-library-and-playback.md). Host, audio and real-corpus
 qualification remains in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
 
-The user-requested architecture refactor is bounded to the existing correctness/
-performance stream. [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md)
-tracks its remaining qualification gaps. Current Import and Inspect ownership
-contracts belong in [ARCHITECTURE.md](ARCHITECTURE.md). The stream admits no
-new capability, renderer, scheduler platform, persistence format or dependency.
+Architecture-refactor qualification shares REL-01, PERF-01, IQ-00 and REL-02.
+Its remaining external gates are consolidated under
+[Cross-cutting qualification gaps](#cross-cutting-qualification-gaps). Current
+Import/Inspect ownership belongs in [ARCHITECTURE.md](ARCHITECTURE.md); this
+stream admits no new capability, renderer, scheduler, schema or dependency.
 
 The explicit user-requested HDR/Panorama work is admitted by
 [ADR-0163](adr/0163-hdr-panorama-derived-assets.md) as a narrow exception to the
@@ -101,24 +101,7 @@ Until GPU/PERF follow-ons and REL-01 corpus reopen evidence are closed (LOCAL-01
 A data-loss, security, catalog-corruption, colour-integrity, or unbounded
 resource defect preempts both streams.
 
-## Current assessment and execution order
-
-LOCAL-01 and EDITIN-01 Studio C2 evidence are on `main`. Recent work on
-CULL-01 keyboard review, PERF-01 instrumentation, and IQ-00 CPU-gold policy
-moves in the intended direction. DISPLAY-01 is C2 with Gallery thumbnail
-monitor convert + macOS GPU native owned-pixel presentation publish landed;
-IQ-00 macOS Metal admitted-stage interactive packed-delta contracts landed
-(Exposure/light/contrast/gamma/vibrance/saturation/velvia/split-toning/colorcontrast/Lab-USM/Sigmoid/RapidRAW);
-other non-admitted interactive ops stay
-CPU hybrid; RAW ROI vs full-export owned packed abs-delta closed within
-interactive ±1 on macOS (tile-aligned demosaic + spatial apron); Metal ROI
-apron owned-surface publish landed (gpu_display_* size-matches owned); scaled
-export same-scale settled-preview crop packed bit-exact with cross-scale ROI
-vs scaled-export as explicit non-compare; Linux monitor discovery remain;
-OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
-INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
-closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
-stub model/probe surfaces are retired under ADR-0181.
+## Execution order
 
 ### Release and correctness lane
 
@@ -131,33 +114,28 @@ stub model/probe surfaces are retired under ADR-0181.
 | 5 | IQ-00 | P0 | Complete preview/reopen/export, ICC, ROI, and CPU/GPU consistency evidence |
 | 6 | REL-02 | P0 | Prove installed packages and backup/restore on supported hosts |
 
-### Product-completion lane
+### Remaining workflow qualification
 
-Do not execute these concurrently. Finish the current row to C2 before starting
-the next one.
+Respect the WIP limit and the dependencies below. Existing C2 workflows are
+accepted baselines; this lane lists their unfinished implementation/evidence gates.
 
 | Order | ID | Priority | Outcome |
 | ---: | --- | --- | --- |
-| 1 | LOCAL-01 | P1 | C2 Studio multi-instance local adjustments/masks; GPU residual after PERF-01 |
-| 2 | EDITIN-01 | P1 | C2 Studio external-editor round trip; Win/Linux package TIFF residual |
-| 3 | CULL-01 | P1 | Keyboard C2; analysis C1+ decode-path/Exact-Near; corpora/index residual |
-| 4 | OFFLINE-01 | P1 | C2 Studio offline-edit proxies; C3 quota/corpus residual |
-| 5 | DISPLAY-01 | P1 | C2 + Gallery/GPU owned present; Linux discovery / HDR residual |
-| 6 | INGEST-01 | P1 | C2 Studio filesystem-card + stub ingest; C3 packaged native adapters/hardware |
-| 7 | IQ-01 | P1 | C2 fixture evaluation workflow; C3 licensed corpus/human review/learned denoise |
+| 1 | LOCAL-01 | P1 | Mixed-corpus mask interaction/recovery; measured GPU follow-up after PERF-01 |
+| 2 | EDITIN-01 | P1 | Windows/Linux installed-package TIFF matrix |
+| 3 | CULL-01 | P1 | Analysis corpus precision/recall and indexed scaling |
+| 4 | OFFLINE-01 | P1 | Quota, collection generation, corpus and delta-preview gates |
+| 5 | DISPLAY-01 | P1 | Linux monitor discovery, host/corpus parity and SDR/HDR policy |
+| 6 | INGEST-01 | P1 | Packaged native adapters and physical-device qualification |
+| 7 | IQ-01 | P1 | Licensed corpus, human review and real denoise admission |
 
 # P0 — Repository, correctness, and release gates
 
 ## CI-01 — Green main under direct-push history safety
 
-**Status:** History safety active. Repository ruleset `22562825`
-(`Ravo main history safety`) is **active** on `refs/heads/main` with
-`deletion` + `non_fast_forward` only (no required_status_checks; empty
-bypass_actors). Direct pushes to `main` are the normal development path for
-this single-developer repository. Every pushed main SHA still receives the
-normal CI matrix as post-push verification. Payload and policy live in
-`DevDocs/Packaging.md` / `DevDocs/TESTING.md`. Remaining: keep the matrix green
-on every main tip; repair forward rather than rewriting published history.
+Follow [direct-main policy](TESTING.md#direct-main-development-loop) and
+[package qualification](Packaging.md). Every new source SHA needs its own CI
+results; previous local repairs do not close the remote-platform gate.
 
 **Remaining work:**
 
@@ -199,39 +177,18 @@ Next vertical scenario only: **source offline → restore → reopen the same
 library** on a real mixed directory with immutable source bytes and persistent
 readback. Do not expand Import page structure further in that tranche.
 
-
-**Status:** macOS host C2-style evidence recorded for candidate
-`07dbb9ef4aad7e23f891fdb1adf6ea0b9d966ff9` — report id
-`20260905_020736` under `~/Documents/RavoEvidence/reports/` (hashed corpus
-manifest, PrivatePhotoManagementReleaseProbe PASS with source SHA-256/size/mtime
-preservation, backup/restore/reopen smoke PASS, scrubbed logs). Follow-on
-packaged-CLI deepen on candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580`
-(report `20260905_023651`): Add vs Copy ingest keeps source SHA-256/size/mtime
-unchanged and copy destination byte-identical; XMP sidecar export/import on a
-writable working copy restores `dc:title`/`dc:creator` with `catalog-newer` →
-sidecar resolve → `identical` (rating-via-XMP closed: `xmp:Rating` 0..5 write/read under ADR-0138; colour label/pick/reject still out of XMP matrix; read-only corpus
-dir fail-closes adjacent `.xmp` write). Further host-local deepen on report
-`20260905_024633` (same package binary + Debug contracts): filesystem-card
-disconnect partial + PTP stub reconnect, folder relink, offline missing-volume
-export fail-closed (`original_missing`) with restore-to-original, catalog import
-Move relocates with destination SHA match, filesystem-card ingest Move rejects
-(`ingest_move_unsupported`), and ENOSPC/`disk_full` markers at encoded-
-publication and original-copy publication boundaries via existing injection
-harnesses. Private corpus still has **0 PNG / 0 TIFF** (not invented). A host
-path alone is still not evidence; Windows/Linux and remaining required scenarios
-(X-Trans, PNG/TIFF-in-corpus, live host disk-full, large-library) remain open.
-Current-schema upgrade fail-injection recoverability is contracted on this SHA
-(`Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`: N-1→N
-schema_info / CHECK-abort inject retains prior catalog, cleared fault upgrades,
-backup/restore republishes retained state). Host upgrade-failure matrix and
-corpus upgrade evidence remain open. Do not claim C3.
+Real mixed-corpus qualification remains open, including X-Trans, PNG/TIFF,
+Windows/Linux, host disk-full, large-library and upgrade-failure scenarios.
+Historical selected-corpus or fixture results do not establish C3. Package
+records belong in [Packaging.md](Packaging.md), not an execution diary here.
 
 Use an explicit read-only mixed RAW/raster corpus in `RAVO_PHOTO_CORPUS`, a
 Release build, and a unique temporary root for every generated catalog,
 preview, recovery mirror, proxy, derived file, backup, and report.
 `RAVO_PHOTO_CORPUS` is the only private photo corpus entry point; do not use a
 separate REL-01-only env var. An availability probe is not REL-01 evidence.
-Bounded opt-in vertical contracted (`PhotoCorpusOfflineRestoreReopenVertical`); not REL-01 C3 complete.
+`PhotoCorpusOfflineRestoreReopenVertical` is an opt-in validation entry point;
+its bounded selection cannot close the full REL-01 corpus gate.
 
 The corpus must cover Bayer and X-Trans cameras, DNG, JPEG, PNG, TIFF, adjacent
 XMP, same-stem RAW+JPEG, malformed/truncated/unsupported inputs, large and
@@ -265,39 +222,20 @@ Do not commit absolute developer-machine paths as evidence.
   destructive command owns the mutation;
 - unresolved conflicts publish no row or artifact;
 - interruption leaves the previous complete state or the new complete state;
-- catalog, recipes, metadata, stacks, proposals, proxies, and provenance remain
+- catalog, recipes, metadata, stacks, proxies, derived assets and provenance remain
   coherent through reopen/upgrade/backup/restore;
 - missing dependencies and unsupported inputs fail structurally;
 - an unset corpus, skipped test, or unshared local report is not evidence.
 
 ## PERF-01 — End-to-end interaction and large-library budgets
 
-**Status:** Measurement harness exists. Host-local **Release** Gallery→viewer→
-Develop + large-library synthetic + PrivatePhoto timings for SHA `bedb55b1…`
-(IQ-00 colorcontrast admit) are filed under evidence `20260905_135210`
-(`PERF-01-host-local-budget-notes.json`) — **observation-only**
-(`mac_clang_release` one-shot `-DBUILD_TESTING=ON` for probe binaries; cache
-restored OFF), not admitted product budgets and **not** a PERF-02 admit.
-Prior Debug deepen remains at `20260905_130706` / `55e2a052`. Observation
-ceilings retained (`mac_clang_release`, warmups=2 / n=8): warm gallery→loupe
-P90 ≤40 ms, adjacent revisit P90 ≤40 ms, loupe→Develop first-frame P90 ≤25 ms,
-warm preview P90 ≤5 ms, page P90 ≤2000 µs, synthetic large-library page-first
-N=1000 P90 ≤3000 µs. Measured this Release SHA (P90): gallery warm ~14.6 ms,
-adjacent ~14.9 ms, loupe→Develop ~5.0 ms, large_library ~0.95 ms, warm preview
-~0.38 ms, page ~398 µs. Persistent-catalog “cold” gallery→loupe ~38 ms (not
-empty-cache cold); PrivatePhoto cold settled preview ~0.78 s P90. Cross-host
-evidence and product budget freeze remain open. Safe pointwise IQ GPU admit
-stream is exhausted after schema v7 colorcontrast; remaining interactive GPU
-residuals are hard. Harness expand:
-`LargeLibrarySyntheticPageObservation` seeds synthetic N metadata assets
-(default 1000, override `RAVO_PERF01_LARGE_LIBRARY_N`) and emits observation-only
-`large_library_page_first` samples — **not** a budget admit and **not** PERF-02.
-Complete LC-00's remaining workload/profile/native-frame qualification in
-[TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md). Further PERF-02
-optimizations require a measured dominant owner and applicable IQ-00 gates;
-the historical observations above do not themselves admit a change. The current
-exact RGB8 display cache and borrowed native GPU input contracts belong to
-ADR-0171/0172 and the architecture/testing authorities.
+Freeze cross-host budgets from current Release reports; historical one-shot
+observations are not accepted budgets or PERF-02 admission. Complete LC-00's
+remaining workload/profile/native-frame qualification in
+[TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md). Performance may wait
+for an idle CPU window under the current user direction. Follow the
+[measurement protocol](TESTING.md#interactive-performance-comparison); its
+interactive matrix requires at least 30 non-no-op samples.
 
 Measure complete user-visible paths with two warmups and at least eight recorded
 samples:
@@ -342,34 +280,11 @@ package-size, or CPU-reference regression.
 
 ## IQ-00 — Rendering and colour consistency gate
 
-**Status:** ADR-0151 CPU-gold policy plus macOS Debug/Release **contract**
-expansions on `main`: persist preview ↔ export RGB8 bit-exact + ICC identity,
-packed ROI crop reopen/export equality, and **interactive Develop GPU
-packed-delta contracts for admitted Metal stages** (Exposure, highlights/
-shadows/whites/blacks, contrast, gamma, vibrance/saturation, velvia,
-split-toning, **colorcontrast**, Lab USM sharpen, linear-sRGB Sigmoid, and
-RapidRAW global tone controls plus Basic display) versus CPU gold
-owned packed RGB8 (`kIqGpuCpuPackedRgb8AbsDelta=1`), with persist/export/reopen
-remaining CPU gold. Non-admitted interactive ops stay CPU hybrid; masked
-admitted ops run CPU prefix then may GPU the
-admitted suffix within the same packed delta. `catalog probe` `iq_consistency`
-schema_version=7 lists `gpu_admitted_interactive_stages` (includes
-`ravo.core.contrast`, `ravo.core.gamma`, `ravo.color.vibrance`,
-`ravo.color.saturation`, `ravo.color.velvia`, `ravo.color.splittoning`,
-`ravo.color.colorcontrast`) and
-`non_admitted_interactive_policy`; host_scope=`macos_debug_release_contract`,
-`win_linux_hosts_claimed=false`. Catalog probe
-`Iq00RawRoiLiveVersusCpuExportDocumentsResidual` keeps settled/reopen/export
-CPU gold, size-matches full-resolution export crop vs RAW viewport owned ROI
-as packed RGB8 within interactive abs-delta (±1) via RCD tile-aligned CPU
-demosaic plus spatial processing apron (`kIqRawRoiVersusExportResidual`);
-Metal ROI display publish crops the same owned window after the apron so
-`gpu_display_*` matches owned packed size when admitted stages publish;
-scaled max_edge export is compared fairly at the same scale as the settled
-preview crop (owned packed bit-exact; probe `iq00_scaled_export_same_scale_packed_bit_exact`);
-cross-scale 1:1 ROI vs scaled-export crop is an explicit non-compare (no resample);
-RAW ROI may report GPU for admitted edit stages. **Not** a full corpus / Win/Linux /
-proof-monitor / multi-instance / Bayer-RCD matrix closure.
+Apply the CPU-gold and admitted-GPU policy in
+[ADR-0151](adr/0151-iq-cpu-gpu-consistency-gate.md) and
+[MIGRATION.md](MIGRATION.md). Existing macOS fixture contracts do not close real
+corpus, Windows/Linux, proof-monitor, multi-instance or full sensor coverage.
+Same-scale comparisons and explicit cross-scale non-comparisons remain required.
 
 Complete a matrix across raster, Bayer, and X-Trans inputs; representative
 global and multi-instance edits; masks and geometry; built-in/file ICC input and
@@ -395,21 +310,10 @@ resource-exhausted, cancelled, and corrupt-profile paths.
   automatic-check preference and confirmed system-browser release handoff.
   Injected network/URL tests do not establish native browser launch.
 
-**Status:** macOS Release DMG tranche recorded (honest C2-style, not C3) for
-candidate `e1a68eeb0ebc4f8aafab45287549f5720e8c2580` — report id
-`20260905_023651` under `~/Documents/RavoEvidence/reports/`. Sanctioned
-`RavoPackage` produced `RavoStudio-0.9.2-arm64-macOS.dmg`; artifact was copied
-away from the build tree before smoke. Installed CLI 18/18: catalog
-create/import (JPEG+ARW+DNG)/preview/probe/rate/snapshot/develop/export/
-reopen/backup/verify/restore + `display-profile status` (system ICC) and probe
-`gpu_backend=metal`. otool/`@loader_path` deps show no `…/Ravo2/build` leakage;
-QSQLITE present, Mimer absent; Studio GUI click smoke skipped (no Computer Use).
-Contract deepen on this SHA: failed current-schema catalog upgrade leaves the
-prior catalog recoverable (transactional retain-prior + backup/restore after
-clearing the fault) via `Rel012FailedCurrentSchemaUpgradeRetainsPriorThenBackupRestores`.
-**Still open:** Windows ZIP; Linux AppImage + DEB; Studio interactive /
-localization / upgrade-failure **host** matrix; notarization/Developer ID claims.
-Do not claim full REL-02 or C3.
+Windows ZIP, Linux AppImage/DEB, native interaction/localization/upgrade-failure
+host matrices and signing/notarization claims require final-artifact evidence.
+Historical macOS package results in [Packaging.md](Packaging.md) do not close
+REL-02 or C3 for a new source candidate.
 
 Validate the final DMG, Windows ZIP, Linux AppImage, and Linux DEB after copying
 each away from the build tree. Smoke Studio and bundled CLI through catalog
@@ -455,21 +359,10 @@ advanced global control, not the primary local-adjustment workflow.
 
 ## EDITIN-01 — Studio external-editor round trip
 
-**Maturity:** C2 on Studio workflow (prepare/return/auto-stack/reopen/abandon,
-backup/restore relocation of working-copy sessions, TIFF sRGB uint8/uint16
-profile/bit-depth/dimensions/naming/conflict service coverage, and clear
-stale/missing/source-conflict Studio states). macOS installed-package TIFF
-matrix closed on report `20260905_024633` using the REL-02 copy-away DMG CLI:
-external-editor working copies + catalog export for sRGB uint8/uint16 with
-matching bit-depth, max-edge dimensions, `working.tif` naming under
-`working-copies/`, session `profile=srgb`, and ICC present (source SHA
-unchanged). Residual toward C3: Windows/Linux installed-package TIFF matrix.
-
 **Remaining work:**
 
 - validate TIFF profile/bit-depth/dimensions/naming equality on installed
-  Windows/Linux packages (macOS package matrix evidenced on `20260905_024633`;
-  service/CLI coverage remains present);
+  Windows/Linux packages (service/CLI coverage is not deployed-host evidence);
 - keep watch-folder auto-import and proprietary scripting out of scope.
 
 **Acceptance gate:** originals remain byte-identical; unchanged, missing,
@@ -478,40 +371,8 @@ atomic; reopen/backup/restore/export work without CLI assembly.
 
 ## CULL-01 — Transactional keyboard review and evaluated assistance
 
-**Maturity:** Keyboard review **C2** on `main` (Pick/Reject/Unflag/rating/colour,
-auto-advance, previous-review undo, filters, Survey compare under paging /
-collapsed stacks / restart; COR-01 atomicity). Analysis **C1+** toward C2:
-bounded non-authoritative aHash with exact-byte vs heuristic `group_kind` in
-reports / Studio suggestion chips (Exact byte duplicate vs Near duplicate
-(heuristic)), one accepted RAW/raster fingerprint decode path, fail-closed
-`max_assets`, incremental fingerprint cache (`{catalog}.cull/`) with
-source-identity invalidation, bounded entries, dismiss-across-reopen, cancel,
-and throttle. Not full analysis C2 (precision/recall corpora; pairwise O(N²)
-still capped rather than indexed).
-
 **Remaining work:**
 
-- [done] COR-01 review atomicity;
-- [done] verify Pick/Reject/Unflag/rating/colour, auto-advance, previous-review
-  undo, filters, Survey comparison under paging, collapsed stacks, and restart
-  (`Cull01ReviewUnderPaging*`, `Cull01UnflagColour*`);
-- [done] first Ready fingerprint/proposal persistence: incremental aHash cache +
-  dismiss under `{catalog}.cull/` with identity invalidation, bound, cancel,
-  throttle (`Cull01FingerprintCache*`);
-- [done] distinguish exact-byte / same-file vs heuristic aHash `group_kind` in
-  service + CLI reports (Studio chips already separate exact vs near vs burst);
-- [done] enforce aHash non-authoritative + fail-closed above `max_assets`;
-- [done] never auto-delete/auto-reject; auto-stack only with `user_initiated`;
-- [done] produce fingerprints through one accepted image resource path for
-  supported RAW/raster orientation and colour
-  (`decode_cull_fingerprint_raster` → `decode_import_candidate_thumbnail`;
-  report `fingerprint_decode_path`; Studio chips label Exact byte vs Near
-  (heuristic); dismiss persists across catalog reopen);
-- [done] Exact vs Near UX/contracts deepened: exclusive `group_kind` labels,
-  per-group `non_authoritative` on heuristic groups; cancel fail-closed with
-  `ErrorCode::kCancelled` including decode-path propagation (no swallow-as-skip);
-  throttle evidence retained. No ADR-aligned indexed near-dup design yet —
-  pairwise remains capped by `max_assets` (ADR-0149);
 - replace pairwise O(N²) with an indexed design beyond the hard asset bound
   only after an accepted ADR (PERF-01);
 - measure precision/recall and false-positive cost on approved corpora.
@@ -520,40 +381,12 @@ still capped rather than indexed).
 cannot be reported as failed; review remains responsive during analysis;
 heuristic thresholds have metrics and known failures; cancel/restart/missing
 source/corrupt decode/stale fingerprint/resource exhaustion are deterministic.
-Keyboard gate: met on `main` via service/Studio contract tests. Analysis gate:
-partial (deterministic cancel/restart/corrupt/stale/bound); metrics open.
+Analysis quality metrics and indexed scaling remain open.
 
 ## OFFLINE-01 — Offline-original editing
 
-**Maturity:** C2 on `main` for Studio create/list/pin/delete/status/reconnect
-and baked-proxy consume. Verified proxies feed Loupe/Develop/Before-After/scopes
-with explicit `media_state=proxy` and `preview_apply_mode=identity_baked`
-(`pixel_provenance=recipe_baked_srgb8`); catalog recipes stay canonical and are
-not double-applied. Reconnect re-renders from the verified original
-(`catalog_recipe`) and may clear the proxy unless pinned. User-initiated
-eviction skips pinned proxies. Export remains fail-closed
-(`proxy_export_forbidden`); ROI inspect while offline stays fail-closed
-(`offline_proxy_roi_unsupported`). Residual toward C3: background/auto quota enablement (still fail-closed without
-user initiation; C3-toward harness on this SHA), collection generation, live
-host disk-full, backup/restore corpus (REL-01), and deferred delta-preview on
-baked pixels.
-
 **Remaining work:**
 
-- [done] COR-01 manifest/publication residuals;
-- [done] baseline-vs-baked: identity consume while `media_state=proxy`; tests
-  prove live Develop params cannot double-grade baked pixels
-  (`OfflineEditProxyBakedIdentityNoDoubleGradeBeforeAfterAndReconnect`);
-- [done] Before/After (`ignore_edits`) and interactive/scope preview consume the
-  verified proxy under `media_state=proxy`;
-- [done] reconnect re-renders from original, compares resolution-dependent
-  cache keys/pixels, optional `--clear-proxy`;
-- [done] Studio create/list/pin/delete/status/reconnect chrome in
-  `OfflineEditDialog.qml` (no Main.qml growth);
-- [done] user-initiated pin + evict (`max_total_bytes`, skip pinned);
-- [done] C3-toward contracts: auto quota fail-closed; ENOSPC inject retain-prior
-  + reconnect; user-initiated cleanup exact retained/evicted set
-  (`Offline01C3Toward*`);
 - retain fail-closed full-resolution export while the original is unavailable;
 - background/auto quota enablement, collection generation, live host disk-full,
   and backup/restore corpus remain REL-01 / C3;
@@ -562,76 +395,29 @@ baked pixels.
 **Acceptance gate:** an offline original can be viewed, graded, saved, reopened,
 and compared in Studio; edits remain canonical recipes; reconnect returns to
 original authority; stale/corrupt proxies are explicit; pinned data survives
-eviction; source bytes remain unchanged. Met on `main` via service/Studio
-contract tests. C3 corpus/package evidence remains open.
+eviction; source bytes remain unchanged. C3 corpus/package evidence remains open.
 
 ## DISPLAY-01 — Per-display ICC presentation
 
-**Maturity:** C2 on macOS Studio workflow: monitor ICC discovery + screen-move
-owner, machine-visible view pixel-kind contracts (Gallery/Loupe/Develop/
-Before-After/comparison/magnifier/scopes/GPU), Loupe/Develop/Before-After/
-comparison CPU paths apply `apply_display_presentation_rgb8` after soft-proof/
-output, and contract tests prove recipe JSON / history / catalog revision /
-export bytes unchanged across discover/refresh/inject. Soft-proof remains
-recipe-owned; display transform is presentation-only. Windows uses best-effort
-ICM (`windows_icm_display_icc` or explicit `windows_*` `fallback_srgb`); Linux
-stays explicit `fallback_srgb` (C2 host discovery macOS-primary with
-cross-platform fallback). Missing/corrupt injected ICC reasons are machine-
-visible.
+**Remaining work:**
 
-**Remaining work (post-C2 residuals, not blocking this C2 claim):**
-
-- [done] Gallery thumbnail monitor convert: Studio applies
-  `apply_display_presentation_rgb8` to browse thumbs (base cache preserved for
-  scopes); view contract `gallery_thumbnail` is `display_transformed`; owned-
-  pixel contract on synthetic matrix inject
-  (`GalleryThumbnailAppliesMonitorPresentation`);
-- [done] macOS GPU native preview presentation parity (owned-pixel): Studio
-  snapshots Engine IOSurface, applies the same `apply_display_presentation_rgb8`
-  contract, and publishes a Studio-owned presented IOSurface to QML (Engine
-  token never exposed). View contract `gpu_native_preview` is
-  `display_transformed`. Contract
-  `GpuNativeOwnedSurfaceAppliesMonitorPresentation` proves synthetic-matrix
-  pixel change + recipe JSON unchanged. Screen-move reapply republishes the
-  presented surface. ROI GPU path uses the same publish helper.
-- Residual: interactive Develop GPU **edit-math** packed-delta for admitted
-  Metal stages is contracted under IQ-00 (presentation already matches
-  Loupe/Develop owned-pixel). Remaining IQ/DISPLAY residuals: non-admitted
-  interactive ops still CPU hybrid (inventory after schema v7 admits: tone/rgb
-  curves + levels, color-balance*/colorbalancergb, color zones/harmonizer/
-  correction/reconstruction, monochrome (Lab+bilateral residual), clarity/
-  texture/dehaze, vignette/grain/bloom/soften/graduatednd, tone/color equalizer,
-  lut3d, masked instances, non-linear-Rec709 sharpen, non-linear-sRGB sigmoid;
-  safe pointwise IQ GPU admit stream exhausted — colorcontrast was the last
-  simple Lab/HSL-style pointwise residual),
-  full corpus / Win-Linux, RAW ROI scaled-export
-  same-scale packed closed (cross-scale explicit non-compare), Linux/non-Metal GPU publish,
-  packaged Linux monitor discovery, multi-display performance, and SDR/HDR
-  policy. RAW ROI vs full-export owned packed abs-delta is closed within
-  interactive ±1 on the macOS contract probe (tile-aligned demosaic + spatial
-  apron). Metal ROI apron owned-surface publish is contracted
-  (`gpu_native_roi_apron_owned_surface_publish_macos_metal`).
-- Linux packaged monitor discovery (or keep fallback claim);
-- CPU/GPU matrix/LUT parity evidence, multi-display performance, SDR/HDR policy.
+- Qualify full-corpus Windows/Linux CPU/GPU matrix/LUT parity, ROI and monitor
+  behavior. Keep same-scale pixel comparisons and explicit cross-scale exclusions
+  from IQ-00; macOS owned-surface fixtures do not close other hosts.
+- Extend non-admitted GPU operations only after PERF-01 identifies measured need,
+  with CPU-gold admission; no blanket GPU port queue is implied.
+- Qualify Linux/non-Metal native publication and packaged Linux monitor discovery,
+  or retain the explicit current fallback claim.
+- Measure multi-display performance and decide SDR/HDR presentation policy.
 
 **Acceptance gate:** display movement changes presentation only; recipe/history/
 catalog/export remain unchanged; every view declares pixel kind; transformed
-pixels are compared directly; unsupported states are visible. Met for C2 Studio
-CPU + macOS GPU owned-pixel presentation surfaces; residuals above remain for
-C3/host breadth.
+pixels are compared directly; unsupported states are visible. Residuals above
+remain for C3/host breadth.
 
 ## INGEST-01 — Packaged native camera transport
 
-**Maturity:** C2 on `main` for Studio + filesystem-card + ptp-stub contract:
-ImportPage transport selector and progress/report chrome (no `Main.qml`
-growth), Copy-only ingest via `execute_ingest_detailed` with selected-path
-filter, structured per-item report (imported/duplicate/skipped/failed), resume
-checkpoint after disconnect/cancel with reconnect tests, idempotent repeated
-ingest reporting duplicates, and fail-closed native PTP/MTP probe
-(`native_ingest_adapter_not_packaged`) so mounts are never mislabeled native.
-Move/camera-delete stay rejected on ingest transports.
-
-**Remaining work (post-C2 residuals → C3):**
+**Remaining work:**
 
 - decide/package ImageCaptureCore, WPD/WinRT, and libmtp ownership, licence,
   notices, and support matrix; flip `native_ingest_adapter_is_packaged()`;
@@ -642,28 +428,10 @@ Move/camera-delete stay rejected on ingest transports.
 
 **Acceptance gate:** each claimed host has a packaged adapter; sessions recover
 from disconnect/cancel/restart; reports are exact; device originals are
-unchanged; filesystem mounts are not mislabeled native. Met for C2 Studio
-filesystem-card + stub; packaged native adapters remain C3.
+unchanged; filesystem mounts are not mislabeled native. Packaged native adapters
+remain unqualified.
 
 ## IQ-01 — Camera/profile and denoise quality admission
-
-**Maturity:** C2 on `main` for fixture evaluation workflow evidence (ADR-0152).
-Photographer-facing support claims can cite deterministic CPU denoise +
-camera-profile probe results via `ravo iq evaluate` / Studio
-`evaluateIqQuality`; missing corpus fail-closes. Aligns with IQ-00 CPU gold
-(`require_cpu_gold_backend` on the denoise path). Learned denoise remains
-blocked. Product camera certification and licensed real corpus = C3 residual.
-
-**Done for C2:**
-
-- [done] Engine `evaluate_iq_fixture_support` bundle with
-  `support_claim_status=fixture_evidence_ready`,
-  `camera_product_support_claimed=false`, `learned_denoise_admitted=false`,
-  denoise `mean/max_abs_delta`, camera document SHA-256 + provenance;
-- [done] in-tree synthetic corpus `Ravo/tests/fixtures/iq_evaluation_corpus/`;
-- [done] CLI `ravo iq evaluate [--corpus] [--strength]` fail-closed without corpus;
-- [done] thin Studio `iqQualityPolicy` + `evaluateIqQuality` (no Main.qml growth);
-- [done] contract/CLI/presenter tests for fixture pass and missing-corpus fail-closed.
 
 **Remaining (C3):**
 
@@ -679,9 +447,8 @@ blocked. Product camera certification and licensed real corpus = C3 residual.
 
 **Acceptance gate:** camera support means image-quality evidence, not decode
 alone; changes carry before/after results and known failures; preview and native
-export are covered; deterministic defaults never change silently. C2 satisfies
-the fixture evaluation workflow portion of this gate; C3 closes licensed corpus
-+ human review + learned-denoise admission.
+export are covered; deterministic defaults never change silently. Licensed corpus,
+human review and learned-denoise admission remain open.
 
 # P2 — Frozen important extensions
 
@@ -778,8 +545,8 @@ closed.
   host, including GeoControls fields and filename-template Select All. Component
   harnesses and offscreen smoke do not establish native packaged interaction.
 - Keep decoder peak RSS separate from bounded model-thumbnail accounting.
-  Corpus, thermal and close/join qualification follow
-  [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md).
+  Corpus, thermal and close/join qualification follow PERF-01 and the
+  cross-cutting gates below.
 - Audit remaining string-valued Import draft inputs before claiming complete
   typed-state admission; preserve strict command validation.
 - Run current-SHA packaged import/reopen tests with AppImage FUSE, DEB install
@@ -788,3 +555,29 @@ closed.
 - Retain instrumented-Qt TSan and private-corpus gaps in their owning
   architecture/release queues. A queued wakeup is not race proof, synthetic PNG
   is not a real corpus, and process lifetime is not catalog reopen.
+
+## Cross-cutting qualification gaps
+
+- Extend independent Release fixture/synthetic evidence to representative corpus
+  and thermal runs under REL-01/PERF-01/IQ-00. Retain comparison baseline
+  `7656ba368732755f94ccd7c2b529e6fa38adb16e`. Measure browse/filter/paging,
+  edit-to-visible latency, thumbnail demand, queue/thread bounds, RSS and close/
+  join latency under the same workload. Do not regenerate pixel gold or enlarge
+  timing windows to accept regressions. Offscreen publication does not qualify
+  native frame presentation, private corpus, ICC/GPU or physical hardware.
+- Qualify Windows/Linux against complete current-source CI job logs. Historical
+  failures and local macOS fixes establish neither a current pass nor a current
+  remote failure. Missing toolchains remain untested.
+- Obtain a matching instrumented Qt SDK for unsuppressed desktop TSan Import,
+  Inspect, command and lifecycle checks. Qt-only queued-handoff reproductions
+  classify a mechanism; joined service/executor tests and ASan do not qualify
+  desktop synchronization. Do not suppress callbacks or skip mandatory smoke.
+- Run installed-package create/import/probe/reopen/backup/restore/relocate checks
+  on actual Windows/Linux/macOS runtimes under REL-02/Packaging. CMake staging
+  does not deploy Qt or establish native display/hardware behavior. Signing and
+  release publication retain separate authorization.
+
+Validation: read-only source-root/fixture/boundary checks, serial affected-target
+build and RavoCodeQuality, focused owner tests, then full applicable suites for
+shared lifecycle/surface changes. Use the commands in [TESTING.md](TESTING.md).
+The external gates above remain unfinished; consolidation does not close them.

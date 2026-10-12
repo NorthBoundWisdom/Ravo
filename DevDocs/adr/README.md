@@ -12,7 +12,11 @@ in regression tests; current algorithm parameter tables and UI specifications
 belong in their existing owning documents. Internal code relocation that keeps
 an accepted decision unchanged updates the current architecture and tests rather
 than duplicating that decision in another ADR. Historical identifiers and accepted
-decision bodies remain stable.
+decision bodies remain stable. The explicit cleanup in
+[ADR-0183](0183-document-authorities-and-runtime-test-coverage.md) removes
+superseded stub-only documents after preserving their durable constraints in
+current owners. Git retains those historical decisions; retired identifiers are
+never reused, and no redirect or empty compatibility document is kept.
 
 | ADR | Status | Decision |
 | --- | --- | --- |
@@ -152,12 +156,9 @@ decision bodies remain stable.
 | [0134](0134-engine-qrhi-gpu-backend.md) | Accepted | One Engine QRhi compute backend replaces per-platform GPU kernels; `ravo_engine` may link Qt Gui for that adapter only. |
 | [0135](0135-exif-lens-name-library-facet.md) | Accepted | Exif LensMake/LensModel capture columns + lens-name facet; keep focal-length proxy; schema v14 |
 | [0136](0136-derived-tree-backup-restore.md) | Accepted | Verified backup/restore packages `{catalog}.ravo/derived/` + `external-editor/` (format v2); originals still excluded |
-| [0137](0137-shoot-consistency-batch-proposals.md) | Accepted | AI-03 shoot-consistency: one proposal per destination; stub copies WB/exposure/tone/colour from reference |
 | [0138](0138-xmp-adjacent-keyword-iptc-location-merge.md) | Accepted | Adjacent XMP keyword/IPTC Core/location merge under ADR-0120 conflict matrix |
 | [0139](0139-external-editor-os-open-and-derived-stack.md) | Accepted | External-editor OS open-with payload + derived-pair auto-stack on register |
 | [0140](0140-iptc-extension-core-subset.md) | Accepted | Bounded IPTC Extension / additional Core writables (schema v15) |
-| [0141](0141-dng-conversion-smart-preview-policy.md) | Accepted | DNG Copy-mode side conversion + Smart Preview browse-only; fail-closed without packaged converter |
-| [0142](0142-ai-metadata-culling-suggestions.md) | Accepted | AI-04 stub keyword/caption/focus/duplicate suggestions; explicit accept; never auto-reject/delete |
 | [0143](0143-crs-process-version-matrix.md) | Accepted | CRS ProcessVersion supported vs fail-closed matrix; xmp-status reports version class |
 | [0144](0144-per-display-icc-presentation.md) | Accepted | Per-display ICC is presentation-only; C++ owns preview→monitor; sRGB fallback; synthetic test profiles |
 | [0145](0145-multi-instance-local-adjustments.md) | Accepted | Multi-instance Exposure/Color Balance RGB; name/bypass/reorder; mask leaves reuse ADR-0043/0116; XMP fail-closed |
@@ -168,7 +169,6 @@ decision bodies remain stable.
 | [0150](0150-cull-keyboard-review-pick-reject.md) | Accepted | Schema v16 picked + transactional cull-review Pick/Reject/rating/colour with auto-advance; no auto-delete |
 | [0151](0151-iq-cpu-gpu-consistency-gate.md) | Accepted | IQ-00 CPU gold for persist/export/reopen; GPU interactive within tolerances or fail-closed; first Ready hooks |
 | [0152](0152-iq-denoise-evaluation-corpus.md) | Accepted | IQ-01 evaluation corpus contract; CPU denoise/camera-profile probes fail-closed without corpus |
-| [0153](0153-specialize-tethered-studio-deferred.md) | Accepted | SPECIALIZE-01: tethered-studio deferred P2 candidate; fail-closed probe stub; HDR/Pano unselected |
 | [0154](0154-external-editor-working-copy-reopen-abandon.md) | Accepted | EDITIN-01 working-copy reopen/abandon + conflict machine states |
 | [0155](0155-cull-burst-stack-compare-pair.md) | Accepted | CULL-01 burst/stack Survey compare pair + adjacent step |
 | [0156](0156-xmp-fail-closed-unrepresentable-multi-instance.md) | Accepted | XMP/CRS fail-closed for unrepresentable multi-instance locals |
@@ -194,3 +194,5 @@ decision bodies remain stable.
 | [0179](0179-exact-clarity-lane-accumulation.md) | Accepted | Independent clarity lane accumulation with unchanged per-pixel float order and bounded row-local stack scratch |
 | [0180](0180-revision-bound-catalog-annotations.md) | Accepted | Shared review/metadata/keyword contracts, transactional revision/cancellation guards and explicit commit/recovery outcomes |
 | [0181](0181-retire-unused-dependencies-and-product-stubs.md) | Accepted | Retire unused roots and stub product surfaces while preserving saved edits, durability and test acceptance |
+| [0182](0182-declared-nested-fields-and-contextual-ranges.md) | Accepted | Shared nested-field descriptors and explicit context-dependent crop/curve metadata without changing edit semantics |
+| [0183](0183-document-authorities-and-runtime-test-coverage.md) | Accepted | Single documentation authorities and runtime UI coverage; retire source-text checks and superseded stub documents |

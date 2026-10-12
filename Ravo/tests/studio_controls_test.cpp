@@ -2,7 +2,7 @@
 
 #include <QColor>
 #include <QAccessible>
-#include <QDirIterator>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -13,7 +13,6 @@
 #include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWindow>
-#include <QRegularExpression>
 #include <gtest/gtest.h>
 
 #include "ravo/desktop/studio_command_controller.h"
@@ -54,31 +53,6 @@ QQuickItem *visual_text_field(QQuickItem *item)
         if (auto *field = visual_text_field(child))
             return field;
     return nullptr;
-}
-
-TEST(StudioControls, ProductionWidgetsAlwaysUseOwnedVisuals)
-{
-    const QRegularExpression trivia(
-        QStringLiteral(R"qml(//[^\n]*|/\*[\s\S]*?\*/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')qml"));
-    const QRegularExpression default_control(QStringLiteral(
-        R"(\b(?:Button|ToolButton|RoundButton|DelayButton|Slider|RangeSlider|Dial|SpinBox|ComboBox|CheckBox|RadioButton|Switch|Menu|MenuBar|MenuBarItem|MenuItem|MenuSeparator|ToolTip|ScrollView|ScrollBar|ScrollIndicator|BusyIndicator|ProgressBar|Popup|Drawer|Dialog|DialogButtonBox|TextField|TextArea|TabBar|TabButton|SplitView|ItemDelegate|SwipeDelegate|CheckDelegate|RadioDelegate|SwitchDelegate|TreeViewDelegate|GroupBox|ToolBar|ToolSeparator|Page|PageIndicator|Label|Pane|Frame|Tumbler|HorizontalHeaderView|VerticalHeaderView)\s*\{|\bToolTip\.(?:visible|text)\s*:)"));
-    QDirIterator files(QStringLiteral(RAVO_REPOSITORY_ROOT "/Ravo/desktop/qml"),
-                       {QStringLiteral("*.qml")}, QDir::Files, QDirIterator::Subdirectories);
-    int scanned = 0;
-    while (files.hasNext())
-    {
-        const auto path = files.next();
-        QFile file(path);
-        ASSERT_TRUE(file.open(QIODevice::ReadOnly | QIODevice::Text)) << path.toStdString();
-        auto source = QString::fromUtf8(file.readAll());
-        source.remove(trivia);
-        const auto match = default_control.match(source);
-        EXPECT_FALSE(match.hasMatch())
-            << path.toStdString() << ": use the GeoControls visual owner for "
-            << match.captured().toStdString();
-        ++scanned;
-    }
-    EXPECT_GT(scanned, 70);
 }
 
 TEST(StudioControls, ImportThumbnailSliderPreservesPointerKeyboardAndDisabledBehavior)

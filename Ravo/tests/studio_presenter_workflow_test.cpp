@@ -60,7 +60,6 @@
 #include "studio_debug_info.h"
 #include "studio_develop_internal.h"
 #include "studio_language_manager.h"
-#include "studio_qml_test_support.h"
 
 #include "studio_test_support.h"
 #include "interactive_perf_report.h"

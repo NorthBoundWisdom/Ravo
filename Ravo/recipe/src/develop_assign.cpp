@@ -15,7 +15,6 @@
 #include <iomanip>
 #include <map>
 #include <new>
-#include <numbers>
 #include <set>
 #include <sstream>
 #include <optional>
@@ -78,66 +77,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.profile_gamma.mode = std::move(*mode);
-
-        return true;
-    }
-    if (name == "profileGammaLinear")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.profile_gamma.linear = value;
-
-        return true;
-    }
-    if (name == "profileGammaGamma")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.profile_gamma.gamma = value;
-
-        return true;
-    }
-    if (name == "profileGammaDynamicRange")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.profile_gamma.dynamic_range = value;
-
-        return true;
-    }
-    if (name == "profileGammaGreyPoint")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.profile_gamma.grey_point = value;
-
-        return true;
-    }
-    if (name == "profileGammaShadowsRange")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.profile_gamma.shadows_range = value;
-
-        return true;
-    }
-    if (name == "profileGammaSecurityFactor")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.profile_gamma.security_factor = value;
 
         return true;
     }
@@ -253,86 +192,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     if (name == "outputBlackPointCompensation")
     {
         params.output_color.black_point_compensation = value >= 0.5;
-
-        return true;
-    }
-    if (name == "primariesAchromaticHueDegrees")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.achromatic_tint_hue = value * std::numbers::pi / 180.0;
-
-        return true;
-    }
-    if (name == "primariesAchromaticPurity")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.achromatic_tint_purity = value;
-
-        return true;
-    }
-    if (name == "primariesRedHueDegrees")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.red_hue = value * std::numbers::pi / 180.0;
-
-        return true;
-    }
-    if (name == "primariesRedPurity")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.red_purity = value;
-
-        return true;
-    }
-    if (name == "primariesGreenHueDegrees")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.green_hue = value * std::numbers::pi / 180.0;
-
-        return true;
-    }
-    if (name == "primariesGreenPurity")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.green_purity = value;
-
-        return true;
-    }
-    if (name == "primariesBlueHueDegrees")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.blue_hue = value * std::numbers::pi / 180.0;
-
-        return true;
-    }
-    if (name == "primariesBluePurity")
-    {
-        if (!std::isfinite(value))
-        {
-            return false;
-        }
-        params.primaries.blue_purity = value;
 
         return true;
     }

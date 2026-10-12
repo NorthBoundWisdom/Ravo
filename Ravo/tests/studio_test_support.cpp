@@ -141,18 +141,4 @@ ScopedEnvironmentVariable::~ScopedEnvironmentVariable()
         return make_error(ErrorCode::kValidation, "CLI response has no data object");
     return *data;
 }
-
-[[nodiscard]] QString qml_model_entry(const QString &source, const char *field)
-{
-    const auto needle = QStringLiteral("\"field\": \"%1\"").arg(QString::fromLatin1(field));
-    const auto field_position = source.indexOf(needle);
-    if (field_position < 0)
-        return {};
-    const auto begin = source.lastIndexOf(QLatin1Char('{'), field_position);
-    const auto end = source.indexOf(QLatin1Char('}'), field_position);
-    if (begin < 0 || end < field_position)
-        return {};
-    return source.mid(begin, end - begin + 1);
-}
-
 } // namespace ravo::studio_test_support

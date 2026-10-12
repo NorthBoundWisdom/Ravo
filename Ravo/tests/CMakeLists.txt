@@ -25,6 +25,7 @@ add_executable(ravo_unit_tests
   recipe_test.cpp
   recipe_develop_test.cpp
   develop_patch_test.cpp
+  develop_field_descriptor_test.cpp
   recipe_style_test.cpp
   local_adjustment_scope_test.cpp
   local_adjustment_multi_instance_test.cpp)
@@ -449,7 +450,6 @@ add_executable(ravo_desktop_command_tests
   studio_mcp_test.cpp
   studio_operation_store_test.cpp
   studio_photo_merge_test.cpp
-  studio_qml_test_support.cpp
   studio_test_support.cpp
   studio_command_test.cpp
   studio_lightroom_test.cpp
@@ -459,10 +459,10 @@ add_executable(ravo_desktop_command_tests
   studio_presenter_workflow_test.cpp
   studio_iq_quality_test.cpp
   studio_gallery_viewer_develop_perf_test.cpp
-  studio_qml_contract_test.cpp
+  studio_command_workflow_test.cpp
   studio_controls_test.cpp
   studio_crop_test.cpp
-  studio_offline_edit_qml_contract_test.cpp
+  studio_offline_edit_command_test.cpp
   studio_live_control_test.cpp
   studio_assistant_test.cpp
   studio_update_test.cpp
@@ -498,38 +498,15 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_CLI_EXECUTABLE="$<TARGET_FILE:ravo>"
   RAVO_REPOSITORY_ROOT="${CMAKE_SOURCE_DIR}"
   RAVO_STUDIO_TRANSLATION_DIR="${CMAKE_BINARY_DIR}/Ravo/desktop/i18n"
-  RAVO_STUDIO_DEVELOP_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPanel.qml"
-  RAVO_STUDIO_DEVELOP_COLOR_SLIDER_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopColorSlider.qml"
-  RAVO_STUDIO_COLOR_GRADE_WHEEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ColorGradeWheel.qml"
-  RAVO_STUDIO_DEVELOP_HISTORY_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopHistoryPanel.qml"
-  RAVO_STUDIO_DEVELOP_PRESET_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopPresetPanel.qml"
-  RAVO_STUDIO_SCOPE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/ScopePanel.qml"
-  RAVO_STUDIO_LIBRARY_SIDE_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibrarySidePanel.qml"
-  RAVO_STUDIO_LIBRARY_FILTER_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/LibraryFilterBar.qml"
-  RAVO_STUDIO_GALLERY_REVIEW_BAR_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/gallery/GalleryReviewBar.qml"
-  RAVO_STUDIO_EXPORT_OPTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ExportOptionsDialog.qml"
-  RAVO_STUDIO_BACKUP_SCHEDULE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsBackupSection.qml"
-  RAVO_STUDIO_SETTINGS_ASSISTANT_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsAssistantSection.qml"
-  RAVO_STUDIO_EDIT_IN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/EditInDialog.qml"
-  RAVO_STUDIO_OFFLINE_EDIT_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/OfflineEditDialog.qml"
-  RAVO_STUDIO_DEVELOP_INSTANCE_CHROME_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopInstanceChrome.qml"
   RAVO_STUDIO_ACTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioActions.qml"
-  RAVO_STUDIO_CONTEXT_MENU_ITEM_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioContextMenuItem.qml"
-  RAVO_STUDIO_PRESET_RENAME_DIALOG_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PresetRenameDialog.qml"
-  RAVO_STUDIO_PRESET_SAVE_DIALOG_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PresetSaveDialog.qml"
-  RAVO_STUDIO_PHOTO_CONTEXT_MENU_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/PhotoContextMenu.qml"
-  RAVO_STUDIO_SETTINGS_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsPage.qml"
   RAVO_STUDIO_IMPORT_PAGE_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportPage.qml"
   RAVO_IMPORT_CANDIDATE_KEYBOARD_HARNESS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_candidate_keyboard_harness.qml"
   RAVO_IMPORT_CANDIDATE_GRID_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/ImportCandidateGrid.qml"
-  RAVO_IMPORT_PHOTO_GRID_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_photo_grid_host.qml"
   RAVO_IMPORT_FOCUS_PUBLICATION_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_focus_publication_host.qml"
   RAVO_IMPORT_SELECT_ALL_TEXT_HOST_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/tests/qml/import_select_all_text_host.qml"
   RAVO_STUDIO_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/Ravo/desktop"
   RAVO_GEOCONTROLS_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/Controls"
-  RAVO_GEOCONTROLS_CONTROLS_SOURCE_DIR="$<TARGET_PROPERTY:GeoControlsControls,SOURCE_DIR>"
   RAVO_GEOCONTROLS_APPSHELL_QML_IMPORT_ROOT="${CMAKE_BINARY_DIR}/_deps/geocontrols/AppShell"
-  RAVO_STUDIO_ASSISTANT_PANEL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AssistantPanel.qml"
   RAVO_STUDIO_MAIN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/Main.qml")
 add_dependencies(ravo_desktop_command_tests ravo ravo_studio ravo_studio_translations)
 ravo_configure_target(ravo_desktop_command_tests)

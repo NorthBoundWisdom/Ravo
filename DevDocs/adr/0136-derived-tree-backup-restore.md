@@ -37,10 +37,11 @@ from backup silently loses derived assets after restore.
   required arrays `derived` and `external_editor` (may be empty). Each entry is
   `{file, bytes, sha256}` where `file` is a relative POSIX path under that tree
   (no `..`, no absolute paths).
-- **Format version 3** (same ADR packaging rule, extended by ADR-0141 support
-  trees) additionally packages `{catalog}.ravo/dng-conversion/` and
+- **Format version 3** additionally packages `{catalog}.ravo/dng-conversion/` and
   `{catalog}.ravo/smart-previews/` as required arrays `dng_conversion` and
-  `smart_previews` (may be empty). New backups always write v3.
+  `smart_previews` (may be empty). New backups always write v3. The producers
+  were retired by ADR-0181; existing trees and URI prefixes retain this
+  backup/restore compatibility contract.
 - Version 1 backups remain **readable for verify/restore of catalog+sidecars
   only**. Version 2 remains readable for catalog+sidecars+derived+external-editor
   only; opening older backups does not invent newer trees.

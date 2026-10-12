@@ -55,6 +55,7 @@ using develop_internal::clamp_legacy_color_balance;
 using develop_internal::clamp_rgb_levels;
 using develop_internal::clamp_temperature;
 using develop_internal::clamp_value;
+using develop_internal::declared_develop_field_schema;
 using develop_internal::develop_set_field_accepts;
 using develop_internal::develop_set_field_extreme;
 using develop_internal::exact_develop_integer;
@@ -77,7 +78,6 @@ using develop_internal::reset_rgb_levels_field;
 using develop_internal::reset_scalar_develop_field;
 using develop_internal::reset_temperature_field;
 using develop_internal::rgb_levels_preserve_names;
-using develop_internal::scalar_develop_field_schema;
 using develop_internal::studio_color_zones_curves;
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -186,7 +186,7 @@ std::vector<DevelopSetField> list_develop_set_fields()
     std::vector<DevelopSetField> fields;
     for (const auto &name : candidate_develop_set_names())
     {
-        if (auto field = scalar_develop_field_schema(name))
+        if (auto field = declared_develop_field_schema(name))
         {
             fields.push_back(std::move(*field));
             continue;
@@ -259,30 +259,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.profile_gamma.mode = identity.profile_gamma.mode;
     }
-    else if (name == "profileGammaLinear")
-    {
-        params.profile_gamma.linear = identity.profile_gamma.linear;
-    }
-    else if (name == "profileGammaGamma")
-    {
-        params.profile_gamma.gamma = identity.profile_gamma.gamma;
-    }
-    else if (name == "profileGammaDynamicRange")
-    {
-        params.profile_gamma.dynamic_range = identity.profile_gamma.dynamic_range;
-    }
-    else if (name == "profileGammaGreyPoint")
-    {
-        params.profile_gamma.grey_point = identity.profile_gamma.grey_point;
-    }
-    else if (name == "profileGammaShadowsRange")
-    {
-        params.profile_gamma.shadows_range = identity.profile_gamma.shadows_range;
-    }
-    else if (name == "profileGammaSecurityFactor")
-    {
-        params.profile_gamma.security_factor = identity.profile_gamma.security_factor;
-    }
     else if (name == "inputProfile" || name == "workingProfile" || name == "renderingIntent" ||
              name == "gamutNormalize" || name == "blueMapping")
     {
@@ -293,38 +269,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
              name == "outputBlackPointCompensation")
     {
         params.output_color = identity.output_color;
-    }
-    else if (name == "primariesAchromaticHueDegrees")
-    {
-        params.primaries.achromatic_tint_hue = identity.primaries.achromatic_tint_hue;
-    }
-    else if (name == "primariesAchromaticPurity")
-    {
-        params.primaries.achromatic_tint_purity = identity.primaries.achromatic_tint_purity;
-    }
-    else if (name == "primariesRedHueDegrees")
-    {
-        params.primaries.red_hue = identity.primaries.red_hue;
-    }
-    else if (name == "primariesRedPurity")
-    {
-        params.primaries.red_purity = identity.primaries.red_purity;
-    }
-    else if (name == "primariesGreenHueDegrees")
-    {
-        params.primaries.green_hue = identity.primaries.green_hue;
-    }
-    else if (name == "primariesGreenPurity")
-    {
-        params.primaries.green_purity = identity.primaries.green_purity;
-    }
-    else if (name == "primariesBlueHueDegrees")
-    {
-        params.primaries.blue_hue = identity.primaries.blue_hue;
-    }
-    else if (name == "primariesBluePurity")
-    {
-        params.primaries.blue_purity = identity.primaries.blue_purity;
     }
     else if (name == "channelMixerRR" || name == "channelMixerRG" || name == "channelMixerRB" ||
              name == "channelMixerGR" || name == "channelMixerGG" || name == "channelMixerGB" ||

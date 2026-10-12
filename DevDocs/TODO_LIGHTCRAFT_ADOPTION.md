@@ -5,7 +5,8 @@
 静态代码审阅视为 Ravo 已实现的能力。
 
 主执行顺序由 [TODO.md](TODO.md) 维护；性能预算归 PERF-01/02，像素正确性归
-IQ-00，现有 RAW/profile、Lightroom、架构重构任务仍归各自 TODO。本文件是跨专题
+IQ-00，RAW/profile 和 Lightroom 任务仍归各自 TODO，架构重构验证归主 TODO 的
+跨层验证门槛。本文件是跨专题
 吸收工作清单，不另建预算、像素基线或第二套产品状态。
 
 ## 顺序与边界

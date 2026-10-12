@@ -54,12 +54,12 @@
         "Ravo/tests/studio_presenter_test.cpp",
         "Ravo/tests/studio_presenter_workflow_test.cpp",
         "Ravo/tests/studio_iq_quality_test.cpp",
-        "Ravo/tests/studio_qml_contract_test.cpp",
+        "Ravo/tests/studio_command_workflow_test.cpp",
         "Ravo/tests/studio_live_control_test.cpp",
         "Ravo/tests/filesystem_browser_model_test.cpp"
       ],
-      "case_count": 125,
-      "case_sha256": "3e0e98393d9164ac62dabe002bd52a1900107191aee75ceb69f797dbb9181f86"
+      "case_count": 82,
+      "case_sha256": "a17ed2c5e86b639e2f57c1dfea6bfdfd63272cfa4bfdfa12479d883e4a1045aa"
     },
     {
       "sources": [

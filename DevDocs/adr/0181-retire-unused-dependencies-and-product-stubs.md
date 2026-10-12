@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-12
-- Supersedes: stub-only scope of ADR-0121/0141/0142/0153 and unused migration-root admission
+- Supersedes: stub-only scope of ADR-0121/0137/0141/0142/0153 and unused migration-root admission
 
 ## Decision
 

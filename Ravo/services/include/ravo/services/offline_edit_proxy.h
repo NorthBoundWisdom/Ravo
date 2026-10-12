@@ -12,7 +12,7 @@
 namespace ravo
 {
 
-// ADR-0146: offline-edit proxy distinct from ADR-0141 browse-only Smart Preview.
+// ADR-0146: offline-edit proxy distinct from historical browse-only Smart Preview.
 inline constexpr std::string_view kOfflineEditProxyContractVersion = "ravo.offline-edit-proxy/v1";
 inline constexpr std::int64_t kOfflineEditProxySchemaVersion = 1;
 inline constexpr std::uint32_t kOfflineEditProxyDefaultMaxEdge = 2048;

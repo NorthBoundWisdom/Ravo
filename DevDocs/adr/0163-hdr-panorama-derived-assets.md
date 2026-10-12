@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-01
-- Supersedes: ADR-0153's unselected HDR/Panorama direction only
+- Scope: HDR/Panorama admitted independently; tethering remains deferred (ADR-0181)
 
 ## Decision
 

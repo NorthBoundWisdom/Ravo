@@ -6,7 +6,7 @@ Only unfinished work remains here. Current retired surfaces, scalar descriptors,
 test-only smoke and historical-input isolation belong to the ADR, architecture,
 capability reference and testing authority.
 
-1. Consolidate remaining nested/enum Develop field metadata and Qt projections
+1. Consolidate remaining enum/indexed Develop field metadata and Qt projections
    where semantics are independent. Remove heuristic range/type inference only
    after specifying context-dependent constraints; do not encode an identity-only
    probe as a universal range. Preserve IDs, units, strict rejection, coupled/group

@@ -23,73 +23,26 @@ It does not duplicate the handbook or serve as a chronological change log.
 | What should happen next? | [TODO.md](TODO.md) |
 | Which broader product questions remain undecided? | [ProductRoadmap.md](ProductRoadmap.md) |
 
-## Current implementation entry points
+## Implementation entry points
 
-The architecture and testing authorities cover:
+Use the architecture and test authorities above for current owners and coverage.
+These decisions explain the larger workflows without duplicating their state here:
 
-- Revision-bound review/metadata/keyword commands with atomic revision/cancellation
-  guards and preserved post-commit warnings
-  ([ADR-0180](adr/0180-revision-bound-catalog-annotations.md)).
-
-- Shared Studio/test font bootstrap and correlated input phase observations
-  ([ADR-0178](adr/0178-shared-studio-font-bootstrap-and-input-timing.md)).
-- Exact independent clarity lane accumulation on existing row tasks
-  ([ADR-0179](adr/0179-exact-clarity-lane-accumulation.md)).
-
-- Catalog durability, explicit XMP interchange, source-safe Add/Copy/Move,
-  staged import planning, duplicate detection and cancellation.
-  Import success/failure becomes idle only after final Gallery publication.
-- Gallery/Inspect/Develop ownership, preview scheduling, immutable CPU/GPU
-  image publication, visible-thumbnail priority, bounded cache repair and shared
-  display-cache accounting, query-wide Cull intersections, revision-bound complete
-  selection snapshots, colour management, masks and revision-bound controls.
-- Video metadata, FFmpeg decoding, SDR frame artifacts, Qt Multimedia playback,
-  mapped frame colour ranges and selection-bound teardown.
-- Settings navigation, per-user language and workspace layout, current-catalog
-  automatic-backup drafts and the existing recovery task owner. Desktop GitHub
-  release checks and confirmed browser handoff follow
-  [ADR-0169](adr/0169-studio-release-update-check.md).
-- Shared menus, shortcuts and controls; complete localisation; local Studio
-  sessions and CLI acceptance without UI automation.
-- Exact RGB8 monitor conversion caching with worker preparation and bounded
-  ownership ([ADR-0171](adr/0171-exact-rgb8-display-transform-cache.md)), and
-  borrowed immutable input for retained native GPU tails
-  ([ADR-0172](adr/0172-borrowed-retained-native-preview.md)).
-- Reproducible Release numeric-control and service-probe measurements through
-  the [interactive performance protocol](TESTING.md#interactive-performance-comparison),
-  including repeated burst and latest-publication traces.
-- Bounded quiet-input preview supersession through the existing owner/executor
-  ([ADR-0176](adr/0176-quiet-interactive-preview-supersession.md)).
-- Bounded catalog CLI/MCP queries and revision-bound explicit Studio selection
-  ([ADR-0177](adr/0177-bounded-library-query-and-machine-selection.md)).
-- Exact CPU spatial data reuse and existing owned row jobs for dehaze, clarity
-  and perspective ([ADR-0173](adr/0173-exact-cpu-spatial-processing.md)).
-- Bounded exact denoise mixing reuse
-  ([ADR-0174](adr/0174-exact-denoise-preview-basis.md)) and source-order RAW
-  preparation work reduction ([ADR-0175](adr/0175-exact-raw-preparation-work.md)).
-- Three-job development CI and five-architecture Release build/test/package
-  jobs, with independent clean-package startup gates and no release Debug stage.
-  Compiler-cache checks share the restored directory with the whole job;
-  Windows packaging preserves OS DLL ownership and builds validated DXBC shaders.
-
-For video scope, begin with
-[ADR-0165](adr/0165-video-library-and-playback.md). Explicit Qt-kit runtime
-resolution and Linux PipeWire/VA-API requirements belong to
-[Dependency Workflow](Dependency_Workflow.md) and [Packaging](Packaging.md).
-
-For source-safe Lightroom Classic import, begin with
-[ADR-0164](adr/0164-lightroom-catalog-reader.md) and
-[ADR-0166](adr/0166-lightroom-data-preservation-and-develop.md).
-[ADR-0167](adr/0167-foreign-conversion-checkpoints.md) specifies durable receipts,
-atomic business commit proofs and conservative resume with member reconciliation. Remaining
-RAWmakase integration gates are in [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md).
-For mask-scoped Develop,
-begin with [ADR-0158](adr/0158-mask-scoped-develop-workspace.md).
-For AI grading and native MCP, see
-[ADR-0168](adr/0168-ai-control-and-mcp.md), the
-[CLI/MCP usage and extension guide](../Ravo/README.md#ai-grading-and-mcp),
-[machine ownership](ARCHITECTURE.md#machine-automation), and
-[contract validation](TESTING.md#ai-grading-and-mcp-contracts).
+- [Local adjustments](adr/0158-mask-scoped-develop-workspace.md) and
+  [HDR/Panorama](adr/0163-hdr-panorama-derived-assets.md).
+- [Lightroom import](adr/0164-lightroom-catalog-reader.md),
+  [data preservation](adr/0166-lightroom-data-preservation-and-develop.md) and
+  [conversion checkpoints](adr/0167-foreign-conversion-checkpoints.md).
+- [Video](adr/0165-video-library-and-playback.md); host/runtime requirements
+  belong in Dependency Workflow and Packaging.
+- [AI control/MCP](adr/0168-ai-control-and-mcp.md),
+  [usage and extension guide](../Ravo/README.md#ai-grading-and-mcp),
+  [machine ownership](ARCHITECTURE.md#machine-automation) and
+  [contract validation](TESTING.md#ai-grading-and-mcp-contracts).
+- [Interactive performance protocol](TESTING.md#interactive-performance-comparison).
+- [Code retirement](adr/0181-retire-unused-dependencies-and-product-stubs.md),
+  [nested field semantics](adr/0182-declared-nested-fields-and-contextual-ranges.md)
+  and [documentation/test scope](adr/0183-document-authorities-and-runtime-test-coverage.md).
 
 ## Execution documents
 
@@ -97,8 +50,7 @@ For AI grading and native MCP, see
 | --- | --- |
 | [TODO.md](TODO.md) | Ordered product, correctness, performance and release gates |
 | [TODO_CODE_RETIREMENT.md](TODO_CODE_RETIREMENT.md) | Remaining parameter projection consolidation and resource-linkage host/package qualification |
-| [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) | Remaining ownership/refactor qualification |
-| [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md) | Render-latency-first investigation, then command/MCP, model, mask, camera/lens and workflow adoption gates |
+| [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md) | Command/MCP, model, mask, camera/lens and workflow adoption; performance qualification in idle-CPU windows |
 | [TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md) | RAW rendering/profile qualification |
 | [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md) | Video host, audio, corpus and package qualification |
 | [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md) | Lightroom data, Develop, offline identity and corpus qualification |
