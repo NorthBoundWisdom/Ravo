@@ -5,6 +5,9 @@
 #include <QImage>
 #include "ravo/adapters/sqlite_catalog.h"
 #include "ravo/domain/uri.h"
+#include "ravo/adapters/filesystem_preview_cache.h"
+#include "ravo/adapters/filesystem_recovery_store.h"
+#include "ravo/adapters/qt_raster_decoder.h"
 namespace ravo::studio_test_support
 {
 void make_paged_catalog(const QTemporaryDir &root, const int count,
@@ -46,6 +49,20 @@ void make_paged_catalog(const QTemporaryDir &root, const int count,
         asset.created_unix_ms = 1000 - i;
         ASSERT_TRUE(repository.value()->commit_imported_asset(asset));
     }
+    // Paging/control fixtures start from a complete catalog. Pending recovery
+    // publication is a separate contract, not an asynchronous setup deadline.
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine);
+    const auto catalog = root.filePath("library.sqlite").toStdString();
+    auto cache = FilesystemPreviewCache::create(catalog + ".preview");
+    ASSERT_TRUE(cache);
+    auto recovery = FilesystemRecoveryStore::create_for_catalog(catalog);
+    ASSERT_TRUE(recovery);
+    CatalogService prepared(engine.value(), std::move(repository).value(),
+                            std::make_unique<QtRasterDecoder>(), std::move(cache).value(),
+                            std::move(recovery).value());
+    ASSERT_TRUE(prepared.recovery().sync_recovery(std::nullopt));
+    ASSERT_TRUE(prepared.close());
 }
 } // namespace ravo::studio_test_support
 namespace ravo::testing

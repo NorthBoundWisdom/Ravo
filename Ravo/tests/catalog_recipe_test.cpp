@@ -1627,13 +1627,17 @@ TEST_F(CatalogServiceTest, Iq00RawRoiLiveVersusCpuExportDocumentsResidual)
     EXPECT_NE(roi_gpu_preview.value().gpu_display_native_surface, 0U);
     RecordProperty("iq00_raw_roi_gpu_only_apron_owned_surface", "true");
 #else
-    ASSERT_TRUE(is_cpu_gold_backend(roi_gpu_preview.value().gpu_backend));
+    const auto available_backend = engine.gpu_backend();
+    if (available_backend == "unavailable")
+        ASSERT_TRUE(is_cpu_gold_backend(roi_gpu_preview.value().gpu_backend));
+    else
+        EXPECT_EQ(roi_gpu_preview.value().gpu_backend, available_backend);
     EXPECT_EQ(roi_gpu_preview.value().rgb.size(),
               static_cast<std::size_t>(roi_gpu_preview.value().width) *
                   roi_gpu_preview.value().height * 3U);
     EXPECT_EQ(roi_gpu_preview.value().gpu_display_generation, 0U);
     EXPECT_EQ(roi_gpu_preview.value().gpu_display_native_surface, 0U);
-    RecordProperty("iq00_raw_roi_gpu_only_apron_owned_surface", "cpu_path_no_native_surface");
+    RecordProperty("iq00_raw_roi_gpu_only_apron_owned_surface", "download_without_native_surface");
 #endif
 }
 

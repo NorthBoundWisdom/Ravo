@@ -265,8 +265,8 @@ TEST(StudioAutomationRegression, PostDispatchTimeoutReportsWhetherMutationCommit
     ASSERT_TRUE(server);
     auto result =
         run_cli_process({"studio", "develop", "--session-id", "review-timeout", "--asset-id",
-                         "ast_page_0", "--set", "exposure=0.5", "--timeout-ms", "100", "--json"},
-                        5000);
+                         "ast_page_0", "--set", "exposure=0.5", "--timeout-ms", "5000", "--json"},
+                        15000);
     ASSERT_TRUE(dispatched);
     EXPECT_NE(result.exit_code, 0);
     ASSERT_TRUE(

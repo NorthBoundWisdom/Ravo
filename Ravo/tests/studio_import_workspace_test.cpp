@@ -308,7 +308,12 @@ TEST(StudioImportWorkspace, DestinationPlanningBlocksImportAndCommandsButCanBeCa
     presenter.imports()->openImportPage();
     EXPECT_TRUE(presenter.imports()->importInteractionBlocked());
     EXPECT_FALSE(presenter.imports()->importReady());
-    ASSERT_TRUE(wait_until([&] { return presenter.imports()->importDestinationPreviewActive(); }));
+    ASSERT_TRUE(wait_until(
+        [&]
+        {
+            return presenter.imports()->importDestinationPreviewActive() &&
+                   !presenter.imports()->importScanActive();
+        }));
     EXPECT_FALSE(presenter.imports()->importInteractionBlocked());
     EXPECT_TRUE(commands.executeCommand(QLatin1String(command::kPhotoSelectAll))
                     .value("accepted")

@@ -1,5 +1,15 @@
 # Ravo Testing Strategy
 
+Library/control fixtures publish their recovery mirrors synchronously before
+timing an asynchronous Studio open; recovery-backfill tests remain separate.
+Import planning assertions wait for enumeration completion as well as active
+destination preparation. The post-dispatch timeout test leaves a five-second
+transport deadline to reach dispatch under CI load, then deliberately holds
+settlement; it still requires a committed receipt. Non-Apple ROI tests bind
+backend assertions to the available Engine adapter and require downloaded pixels
+without a native surface; GPU availability is distinct from native presentation.
+
+
 `StudioUpdateTest.*` exercises the desktop release-check owner through an
 injected QNetworkAccessManager/QNetworkReply and browser opener. Tests never
 access live GitHub or launch a browser. Coverage includes strict numeric version
