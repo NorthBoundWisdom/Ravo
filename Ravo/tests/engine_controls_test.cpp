@@ -373,8 +373,8 @@ TEST(EngineFacadeTest, PhaseOneControlsChangeSyntheticRaster)
                              true,
                              {{"amount", ParameterValue{0.5}}},
                              std::nullopt});
-    ASSERT_FALSE(dehaze);
-    EXPECT_EQ(dehaze.error().context.at("reason"), "dehaze_raster_source_unsupported");
+    ASSERT_TRUE(dehaze) << dehaze.error().message;
+    EXPECT_NE(dehaze.value().rgb, base.value().rgb);
 
     auto straightened = render_op(engine.value(), solid_raster(16, 16, 200, 20, 20),
                                   {"ravo.geometry.straighten",

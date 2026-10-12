@@ -685,6 +685,10 @@ Result<InspectionResult> inspection_from_libraw(LibRaw &decoder, const std::stri
         result.cfa_height = 2U;
         result.default_demosaic_mode = std::string(kDemosaicModeRcd);
     }
+    else if (raw.idata.dng_version != 0U && raw.idata.colors == 3)
+    {
+        result.raw_sensor = "linear_rgb";
+    }
     else
     {
         result.raw_sensor = "unsupported";
@@ -945,8 +949,11 @@ try
     const auto &sizes = raw.sizes;
     const bool xtrans = raw.idata.filters == LIBRAW_XTRANS;
     const bool missing_raw = raw.rawdata.raw_image == nullptr;
+    const bool linear_rgb =
+        raw.idata.dng_version != 0U && raw.idata.filters == 0U && raw.idata.colors == 3 &&
+        (raw.rawdata.color3_image != nullptr || raw.rawdata.color4_image != nullptr);
     const bool bayer = !xtrans && raw.idata.filters != 0 && !missing_raw;
-    if ((!bayer && !xtrans) || missing_raw)
+    if (!linear_rgb && ((!bayer && !xtrans) || missing_raw))
     {
         const char *sensor = "non_bayer";
         if (xtrans)
@@ -958,7 +965,7 @@ try
             sensor = "missing_raw_image";
         }
         return make_error(ErrorCode::kUnsupported,
-                          "The first-frame RAW decoder requires a 16-bit Bayer or X-Trans CFA",
+                          "RAW decode requires 16-bit Bayer, X-Trans or linear RGB DNG samples",
                           {{"input_uri", std::string(input_uri)},
                            {"reason", "unsupported_raw_sensor"},
                            {"sensor", sensor}});
@@ -987,7 +994,8 @@ try
     constexpr std::uint64_t kMaxRawCfaBytes = 512ULL * 1024ULL * 1024ULL;
     const auto pixel_count = saturating_multiply(static_cast<std::uint64_t>(region.value().width),
                                                  region.value().height);
-    const auto cfa_bytes = saturating_multiply(pixel_count, sizeof(std::uint16_t));
+    const auto cfa_bytes =
+        saturating_multiply(pixel_count, (linear_rgb ? 3U : 1U) * sizeof(std::uint16_t));
     if (sizes.width > kMaxRawDimension || sizes.height > kMaxRawDimension ||
         static_cast<std::uint32_t>(sizes.raw_width) > kMaxRawDimension ||
         static_cast<std::uint32_t>(sizes.raw_height) > kMaxRawDimension ||
@@ -1023,7 +1031,7 @@ try
         return make_error(ErrorCode::kValidation, "Invalid RAW black-level repeat grid",
                           {{"reason", "invalid_raw_black_grid"}});
     }
-    const auto channel_min = *std::min_element(black, black + 4);
+    const auto channel_min = *std::min_element(black, black + (linear_rgb ? 3 : 4));
     const auto grid_min =
         black_count == 0U ? 0U : *std::min_element(black + 6, black + 6 + black_count);
     const std::uint64_t common_black =
@@ -1098,6 +1106,60 @@ try
         }
     }
 
+    if (linear_rgb)
+    {
+        result.pixel_layout = RawPixelLayout::kLinearRgb16;
+        // LibRaw uses -999 when BaselineExposure is absent. The value is
+        // copied from the selected IFD even when parsedfields is not retained.
+        const float baseline = raw.color.dng_levels.baseline_exposure;
+        if (baseline != -999.0F)
+        {
+            if (!std::isfinite(baseline) || baseline < -16.0F || baseline > 16.0F)
+                return make_error(ErrorCode::kValidation, "Linear DNG BaselineExposure is invalid",
+                                  {{"reason", "invalid_linear_raw_baseline_exposure"}});
+            result.linear_baseline_exposure_ev = baseline;
+        }
+        const std::size_t channels = raw.rawdata.color3_image != nullptr ? 3U : 4U;
+        const std::size_t row_bytes =
+            static_cast<std::size_t>(sizes.raw_width) * channels * sizeof(std::uint16_t);
+        if (sizes.raw_pitch < row_bytes || sizes.raw_pitch % sizeof(std::uint16_t) != 0U)
+            return make_error(ErrorCode::kValidation, "Linear DNG row stride is invalid",
+                              {{"reason", "invalid_linear_raw_stride"}});
+        const auto *samples = raw.rawdata.color3_image != nullptr ?
+                                  &raw.rawdata.color3_image[0][0] :
+                                  &raw.rawdata.color4_image[0][0];
+        result.pixels.resize(static_cast<std::size_t>(pixel_count) * 3U);
+        const std::size_t pitch = sizes.raw_pitch / sizeof(std::uint16_t);
+        for (std::uint32_t y = 0U; y < result.height; ++y)
+        {
+            active = cancellation.check();
+            if (!active)
+                return active.error();
+            for (std::uint32_t x = 0U; x < result.width; ++x)
+            {
+                const auto active_y = region.value().relative_top + y;
+                const auto active_x = region.value().relative_left + x;
+                const auto grid = black_count == 0U ?
+                                      0U :
+                                      black[6U + (active_y % black_rows) * black_columns +
+                                            active_x % black_columns];
+                const std::size_t source =
+                    (static_cast<std::size_t>(region.value().top) + y) * pitch +
+                    (static_cast<std::size_t>(region.value().left) + x) * channels;
+                const std::size_t target = (static_cast<std::size_t>(y) * result.width + x) * 3U;
+                for (std::size_t channel = 0U; channel < 3U; ++channel)
+                {
+                    const std::uint64_t residual =
+                        static_cast<std::uint64_t>(black[channel] - channel_min) + grid - grid_min;
+                    result.pixels[target + channel] =
+                        residual < samples[source + channel] ?
+                            static_cast<std::uint16_t>(samples[source + channel] - residual) :
+                            0U;
+                }
+            }
+        }
+        return result;
+    }
     result.cfa_width = xtrans ? 6U : 2U;
     result.cfa_height = xtrans ? 6U : 2U;
     result.cfa_channels.reserve(static_cast<std::size_t>(result.cfa_width) * result.cfa_height);
@@ -1173,7 +1235,8 @@ try
     {
         return active.error();
     }
-    const std::uint64_t pixel_count = static_cast<std::uint64_t>(raw.width) * raw.height;
+    const std::uint64_t channels = raw.pixel_layout == RawPixelLayout::kLinearRgb16 ? 3U : 1U;
+    const std::uint64_t pixel_count = static_cast<std::uint64_t>(raw.width) * raw.height * channels;
     if (raw.width == 0U || raw.height == 0U ||
         pixel_count > std::numeric_limits<std::size_t>::max() ||
         raw.pixels.size() != static_cast<std::size_t>(pixel_count))
@@ -1194,6 +1257,14 @@ try
     context->raw_black_level = raw.exposure_deflicker_black_level;
     context->raw_white_level = raw.exposure_deflicker_white_level;
     context->metadata = raw.exposure_metadata;
+    if (raw.pixel_layout == RawPixelLayout::kLinearRgb16)
+    {
+        if (!std::isfinite(raw.linear_baseline_exposure_ev) ||
+            raw.linear_baseline_exposure_ev < -16.0 || raw.linear_baseline_exposure_ev > 16.0)
+            return make_error(ErrorCode::kValidation, "Linear DNG BaselineExposure is invalid",
+                              {{"reason", "invalid_linear_raw_baseline_exposure"}});
+        context->source_baseline_exposure_ev = raw.linear_baseline_exposure_ev;
+    }
     for (std::uint32_t row = 0; row < raw.height; ++row)
     {
         active = cancellation.check();
@@ -1201,8 +1272,8 @@ try
         {
             return active.error();
         }
-        const std::size_t begin = static_cast<std::size_t>(row) * raw.width;
-        const std::size_t end = begin + raw.width;
+        const std::size_t begin = static_cast<std::size_t>(row) * raw.width * channels;
+        const std::size_t end = begin + raw.width * channels;
         for (std::size_t index = begin; index < end; ++index)
         {
             ++context->raw_histogram[raw.pixels[index]];
@@ -1247,6 +1318,12 @@ std::uint64_t estimate_raw_render_memory(const DecodedRaw &raw, const Recipe &re
     add_working_bytes(color_lut_bytes);
     add_working_bytes(raw_bytes);
     add_working_bytes(exposure_analysis_bytes);
+    if (raw.pixel_layout == RawPixelLayout::kLinearRgb16)
+    {
+        // Native RGB normalization, DNG correction/orientation, and ROI/scale
+        // publication may coexist, independent of the requested preview size.
+        add_working_bytes(saturating_multiply(raw_pixels, 3U * sizeof(float)));
+    }
     BayerDemosaicMode bayer_demosaic_mode = BayerDemosaicMode::kRcd;
     XTransDemosaicMode xtrans_demosaic_mode = XTransDemosaicMode::kMarkesteijn3;
     for (const auto &operation : recipe.operations)

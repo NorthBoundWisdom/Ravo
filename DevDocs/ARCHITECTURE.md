@@ -1171,6 +1171,12 @@ the serialized generation; an intervening generation stays pending, while an
 I/O failure reports the committed catalog fact and leaves a restart-safe retry.
 Older generation files are deleted only after exact acknowledgement.
 
+Recovery verification retains historical photo-v1 shapes: a pre-Pick document
+may omit `picked`, and pre-lens capture may omit both lens names. Present flags
+remain typed and mutually exclusive; one missing lens field, unknown keys and
+invalid checksums still fail. Video-v2 requires its complete fields. Verification
+does not rewrite historical bytes or use them to override live SQLite state.
+
 Open, explicit sync, clean close, and backup drain pending generations through
 the serial CatalogService owner. Studio's coalesced Develop save advances the
 database generation, queues the new preview result for the UI, then drains the
@@ -1434,7 +1440,14 @@ while later processed previews drain. Untagged raster browse encodes
 file-native 8-bit RGB as sRGB presentation pixels; Develop and export still
 fail closed when the source has no declared colour profile. A recognized raster error never becomes a RAW inspect except
 `unsupported_tiff_raw_container`. First-frame RAW decode accepts validated
-16-bit RGB Bayer 2×2 and X-Trans 6×6 CFA state.
+16-bit RGB Bayer 2×2 and X-Trans 6×6 CFA state, and three-channel linear RGB DNG
+through the explicit `RawPixelLayout` value. The latter owns three sensor codes
+per pixel, no CFA map, and bounded DNG BaselineExposure normalization. The
+Engine's linear RGB preparation, default opposed/clip highlights, native ROI,
+white-balance sampling and histogram retain the shared colour/recipe/export
+path ([ADR-0186](adr/0186-linear-rgb-dng-decode.md)).
+The owned exposure histogram retains source BaselineExposure so deflicker
+subtracts the normalization already applied to linear RGB; CFA retains zero.
 `.dng` uses the same LibRaw path, but copies OpcodeList2/3 bytes into bounded
 immutable Ravo values before the LibRaw owner is destroyed. Inspect exposes
 supported correction state and optional skips plus CFA family/size and the
@@ -1460,7 +1473,7 @@ embedded JPEG, then writes a PNG at `kThumbnailMaxEdge` under the
 `embedded-jpeg`. It is not editable scene-linear data. Gallery grid cells keep
 that browse thumbnail; Standard/1:1 import drain does not replace it with
 processed RAW. Loupe, Develop, scopes, export, and `request_preview` with
-`prefer_embedded_preview=false` use preview contract v12: full CPU
+`prefer_embedded_preview=false` use preview contract v13: full CPU
 decode/render of the RAW. Its successful decode owns the effective source
 dimensions; settled publication repairs older catalog rows, while transient
 interactive/probe requests remain read-only. Import writes a colour-calibration
@@ -1470,7 +1483,12 @@ correction before white balance/demosaic. Repeat coordinates remain relative
 to the active sensor area, including any default-crop offset. Invalid repeat
 dimensions or a pedestal reaching white fail structurally. Decode owns the
 corrected CFA buffer and checks cancellation per row; source bytes are unchanged.
-Preview v12 invalidates images rendered without that correction. The baseline is:
+Preview v13 retains that correction and invalidates older persisted images
+whose preparation scale could differ from their requested output scale.
+Persistent CPU previews prepare at the planned target dimensions. Interactive
+previews may retain and scale the 1600-pixel basis, but their working-cache
+identity is separate so settled output cannot borrow it (ADR-0187).
+The baseline is:
 opposed highlight reconstruction, as-shot white balance from LibRaw `cam_mul`,
 the camera input matrix (`enhanced_matrix` via input profile `source`),
 `ravo.display.rapidraw-basic`, and `ravo.detail.sharpen` at the accepted Lab USM
@@ -1478,7 +1496,8 @@ defaults (amount 0.5, radius 2, threshold 0.5). Opposed reconstruction evaluates
 the CFA in the resolved white-balance scale and bounds each clip threshold by
 LibRaw's optional per-channel, pre-black `linear_max`; zero means absent, while
 a nonzero value outside the black/white sensor range fails structurally. Opposed
-and clip accept the supported Bayer and X-Trans RGB CFAs; reconstruct-color and
+and clip accept the supported Bayer and X-Trans RGB CFAs and the owned linear
+RGB DNG path (ADR-0186); reconstruct-color and
 LCh remain Bayer-only and never fall back. An older stored RAW recipe which
 lacks the new baseline operation receives it in the effective
 load/preview/export recipe without rewriting history; an explicit highlight
@@ -2059,14 +2078,19 @@ evidenced enabled-v1 singleton records with their exact v9/v11 default-unmasked
 blends. Demosaic capture sharpening in fixture 0171 is a separate R2/S2 owner.
 [ADR-0056](adr/0056-source-exact-lab-sharpen.md) freezes these boundaries.
 
-`ravo.effect.dehaze` schema v2 is a RAW source-preprocess operation with
+`ravo.effect.dehaze` schema v2 is a source-preprocess operation with
 `working_space=source_linear_rgb`, `algorithm=dark_channel_guided_v4`,
 strength, distance, and adaptive window state. It executes after demosaic and
 before profile-gamma/Input Color on the declared camera-matrix RGB buffer.
 `linear_working_from_raw` applies it once, RAW preprocess/cache identity owns
 every parameter, and both engine and services disable it before ordinary RGB
-recipe dispatch. Encoded raster and a caller that tries to run it on an
-already-converted working buffer fail structurally.
+recipe dispatch. Declared raster sources first pass profile-gamma/Input Color,
+then run the same owner on linear Rec.709 or Rec.2020 RGB. Raster direct export
+also disables the consumed operation before ordinary recipe dispatch, while
+preserving downstream white balance and light adjustments. The existing
+preprocess cache key includes every dehaze parameter for either source family.
+Missing profiles and direct nonlinear dispatch fail structurally. Raster
+linearization does not recover the sensor scene ([ADR-0187](adr/0187-declared-raster-linear-dehaze.md)).
 
 The CPU owner computes full-frame dark-channel min windows, deterministic 95%
 hazy/bright quantiles, ambient RGB and characteristic haze distance. It then
@@ -2211,6 +2235,12 @@ assemble the same services, ports, and adapters.
   snapshot; ICC remains part of pixel color state.
 
 ## Desktop boundary
+
+The command controller exposes immutable `shortcutBindings` separately from
+revision-bound `shortcutEnabled` policy. QML instantiates one Shortcut per
+binding and re-evaluates only enablement on command revision changes. Text focus,
+palette/modal suppression and command availability stay in C++; scheduled
+backup/import/selection notifications do not recreate the shortcut objects.
 
 Catalog annotation JSON/schema and orchestration are shared service contracts
 ([ADR-0180](adr/0180-revision-bound-catalog-annotations.md)). The command owner

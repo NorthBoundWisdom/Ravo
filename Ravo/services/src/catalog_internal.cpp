@@ -601,6 +601,22 @@ collect_import_paths(const std::vector<std::string> &inputs, const CancellationT
     return found_preprocess ? key : key + ":linear";
 }
 
+[[nodiscard]] std::string raster_preprocess_key(const Recipe &recipe)
+{
+    std::string key = input_color_preprocess_key(recipe);
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDehazeOperationId)
+            continue;
+        key += ":dehaze";
+        for (const auto &[name, value] : operation.parameters)
+        {
+            key += ":" + name + "=" + parameter_key_part(value);
+        }
+    }
+    return key;
+}
+
 void disable_raw_preprocess(Recipe &recipe)
 {
     for (auto &operation : recipe.operations)

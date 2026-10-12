@@ -41,6 +41,7 @@ These decisions explain the larger workflows without duplicating their state her
   [contract validation](TESTING.md#ai-grading-and-mcp-contracts).
 - [Interactive performance protocol](TESTING.md#interactive-performance-comparison).
 - [Shared Studio resources, QML module output and Windows smoke deployment ordering](ARCHITECTURE.md).
+- [Stable shortcut bindings and C++ command availability](ARCHITECTURE.md#desktop-boundary).
 - [Settings dialog and existing preference/backup owners](ARCHITECTURE.md#catalog-recovery-and-backup).
 - [Code retirement](adr/0181-retire-unused-dependencies-and-product-stubs.md),
   [nested field semantics](adr/0182-declared-nested-fields-and-contextual-ranges.md)
@@ -48,6 +49,12 @@ These decisions explain the larger workflows without duplicating their state her
 - [Explicit AI batch annotations and readback](adr/0184-bounded-ai-batch-annotations.md),
   including the dated Resolve reference assessment and existing-owner boundaries.
 - [Explicit JPEG EXIF colour and preview failure completion](adr/0185-explicit-jpeg-exif-colour-and-preview-failure.md).
+- [Linear RGB DNG ownership and normalization](adr/0186-linear-rgb-dng-decode.md),
+  with historical recovery-file verification in
+  [Architecture](ARCHITECTURE.md#catalog-recovery-and-backup).
+- [Declared raster linear dehaze](adr/0187-declared-raster-linear-dehaze.md),
+  sharing the existing algorithm after Input Color conversion and isolating
+  exact-size settled preparation from the interactive preview basis.
 
 ## Execution documents
 

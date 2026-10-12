@@ -3,6 +3,7 @@
 #include "bayer_demosaic.h"
 #include "dng_opcodes.h"
 #include "xtrans_demosaic.h"
+#include "raw_linear.h"
 
 #include <algorithm>
 #include <array>
@@ -445,6 +446,13 @@ Result<WorkingImage> working_from_raw(const DecodedRaw &raw, const std::uint32_t
     {
         return make_error(ErrorCode::kInvalidArgument, "Render output dimensions must be non-zero");
     }
+    if (raw.pixel_layout == RawPixelLayout::kLinearRgb16)
+    {
+        if (demosaic_mode != kBayerDemosaicModeRcd)
+            return make_error(ErrorCode::kUnsupported, "Linear RGB DNG does not require demosaic",
+                              {{"reason", "demosaic_sensor_mismatch"}, {"sensor", "linear_rgb"}});
+        return working_from_linear_raw(raw, width, height, white_balance, cancellation);
+    }
     const bool bayer = raw.cfa_width == 2U && raw.cfa_height == 2U;
     const bool xtrans = raw.cfa_width == 6U && raw.cfa_height == 6U;
     if (!bayer && !xtrans)
@@ -556,6 +564,14 @@ Result<WorkingImage> working_from_raw_window(const DecodedRaw &raw, const std::u
     if (width == 0 || height == 0)
     {
         return make_error(ErrorCode::kInvalidArgument, "RAW window dimensions must be non-zero");
+    }
+    if (raw.pixel_layout == RawPixelLayout::kLinearRgb16)
+    {
+        if (demosaic_mode != kBayerDemosaicModeRcd)
+            return make_error(ErrorCode::kUnsupported, "Linear RGB DNG does not require demosaic",
+                              {{"reason", "demosaic_sensor_mismatch"}, {"sensor", "linear_rgb"}});
+        return working_from_linear_raw_window(raw, origin_x, origin_y, width, height, white_balance,
+                                              cancellation);
     }
     const bool bayer = raw.cfa_width == 2U && raw.cfa_height == 2U;
     if (!bayer)

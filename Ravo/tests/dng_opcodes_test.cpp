@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -14,6 +15,8 @@
 
 #include <QCoreApplication>
 #include "dng_opcodes.h"
+#include "raw_linear.h"
+#include "raw_temperature.h"
 #include <tiffio.h>
 
 #include "ravo/adapters/filesystem_preview_cache.h"
@@ -166,7 +169,8 @@ vignette_payload(const std::array<double, 5> coefficients = {})
 [[nodiscard]] bool write_synthetic_dng(const std::filesystem::path &path,
                                        const std::span<const std::uint8_t> list2,
                                        const std::span<const std::uint8_t> list3,
-                                       const std::array<float, 4> *black_grid = nullptr)
+                                       const std::array<float, 4> *black_grid = nullptr,
+                                       const bool linear_rgb = false)
 {
     constexpr std::uint32_t width = 32U;
     constexpr std::uint32_t height = 32U;
@@ -196,11 +200,13 @@ vignette_payload(const std::array<double, 5> coefficients = {})
         static_cast<std::uint16_t>(black_grid ? 2U : 1U),
         static_cast<std::uint16_t>(black_grid ? 2U : 1U)};
     const std::array<float, 1> black_level{100.0F};
+    const std::array<float, 3> rgb_black{100.0F, 120.0F, 140.0F};
     const std::array<std::uint32_t, 1> white_level{1100U};
     const std::array<float, 2> default_scale{1.0F, 1.0F};
-    const std::array<float, 2> default_crop_origin{0.0F, 0.0F};
-    const std::array<float, 2> default_crop_size{static_cast<float>(width),
-                                                 static_cast<float>(height)};
+    const std::array<float, 2> default_crop_origin{linear_rgb ? 1.0F : 0.0F,
+                                                   linear_rgb ? 2.0F : 0.0F};
+    const std::array<float, 2> default_crop_size{linear_rgb ? 27.0F : static_cast<float>(width),
+                                                 linear_rgb ? 25.0F : static_cast<float>(height)};
     const std::array<float, 9> color_matrix{1.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, 0.0F, 1.0F};
     const std::array<float, 3> as_shot_neutral{1.0F, 1.0F, 1.0F};
     const std::array<std::uint32_t, 4> active_area{0U, 0U, height, width};
@@ -212,21 +218,34 @@ vignette_payload(const std::array<double, 5> coefficients = {})
     set(TIFFSetField(tiff, TIFFTAG_IMAGELENGTH, height));
     set(TIFFSetField(tiff, TIFFTAG_BITSPERSAMPLE, 16U));
     set(TIFFSetField(tiff, TIFFTAG_COMPRESSION, COMPRESSION_NONE));
-    set(TIFFSetField(tiff, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_CFA));
-    set(TIFFSetField(tiff, TIFFTAG_SAMPLESPERPIXEL, 1U));
+    constexpr std::uint16_t kDngLinearRawPhotometric = 34892U;
+    set(TIFFSetField(tiff, TIFFTAG_PHOTOMETRIC,
+                     linear_rgb ? kDngLinearRawPhotometric : PHOTOMETRIC_CFA));
+    set(TIFFSetField(tiff, TIFFTAG_SAMPLESPERPIXEL, linear_rgb ? 3U : 1U));
     set(TIFFSetField(tiff, TIFFTAG_ROWSPERSTRIP, height));
     set(TIFFSetField(tiff, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG));
     set(TIFFSetField(tiff, TIFFTAG_DNGVERSION, dng_version.data()));
     set(TIFFSetField(tiff, TIFFTAG_DNGBACKWARDVERSION, dng_backward_version.data()));
     set(TIFFSetField(tiff, TIFFTAG_UNIQUECAMERAMODEL, "Ravo Synthetic DNG"));
-    set(TIFFSetField(tiff, TIFFTAG_CFAREPEATPATTERNDIM, cfa_repeat.data()));
-    set(TIFFSetField(tiff, TIFFTAG_CFAPATTERN, static_cast<std::uint16_t>(cfa_pattern.size()),
-                     cfa_pattern.data()));
+    if (!linear_rgb)
+    {
+        set(TIFFSetField(tiff, TIFFTAG_CFAREPEATPATTERNDIM, cfa_repeat.data()));
+        set(TIFFSetField(tiff, TIFFTAG_CFAPATTERN, static_cast<std::uint16_t>(cfa_pattern.size()),
+                         cfa_pattern.data()));
+    }
+    else
+    {
+        set(TIFFSetField(tiff, TIFFTAG_ORIENTATION, ORIENTATION_RIGHTTOP));
+        set(TIFFSetField(tiff, TIFFTAG_BASELINEEXPOSURE, 2.0));
+    }
     set(TIFFSetField(tiff, TIFFTAG_BLACKLEVELREPEATDIM, black_repeat.data()));
-    set(TIFFSetField(
-        tiff, TIFFTAG_BLACKLEVEL,
-        static_cast<std::uint16_t>(black_grid ? black_grid->size() : black_level.size()),
-        black_grid ? black_grid->data() : black_level.data()));
+    set(TIFFSetField(tiff, TIFFTAG_BLACKLEVEL,
+                     static_cast<std::uint16_t>(linear_rgb ? rgb_black.size() :
+                                                black_grid ? black_grid->size() :
+                                                             black_level.size()),
+                     linear_rgb ? rgb_black.data() :
+                     black_grid ? black_grid->data() :
+                                  black_level.data()));
     set(TIFFSetField(tiff, TIFFTAG_WHITELEVEL, static_cast<std::uint16_t>(white_level.size()),
                      white_level.data()));
     set(TIFFSetField(tiff, TIFFTAG_DEFAULTSCALE, default_scale.data()));
@@ -248,14 +267,23 @@ vignette_payload(const std::array<double, 5> coefficients = {})
         set(TIFFSetField(tiff, TIFFTAG_OPCODELIST3, static_cast<std::uint32_t>(list3.size()),
                          list3.data()));
     }
-    std::array<std::uint16_t, width> row{};
+    std::array<std::uint16_t, width * 3U> row{};
     for (std::uint32_t y = 0U; ok && y < height; ++y)
     {
         for (std::uint32_t x = 0U; x < width; ++x)
         {
-            row[x] = black_grid ? static_cast<std::uint16_t>((*black_grid)[(y % 2U) * 2U + x % 2U] +
-                                                             (x < 16U ? 0U : 200U)) :
-                                  static_cast<std::uint16_t>(200U + y * width + x);
+            if (linear_rgb)
+            {
+                for (std::size_t c = 0U; c < 3U; ++c)
+                    row[x * 3U + c] = static_cast<std::uint16_t>(
+                        rgb_black[c] + 200.0F * static_cast<float>(c + 1U) +
+                        static_cast<float>(y * width + x));
+            }
+            else
+                row[x] = black_grid ?
+                             static_cast<std::uint16_t>((*black_grid)[(y % 2U) * 2U + x % 2U] +
+                                                        (x < 16U ? 0U : 200U)) :
+                             static_cast<std::uint16_t>(200U + y * width + x);
         }
         ok = TIFFWriteScanline(tiff, row.data(), y, 0U) >= 0;
     }
@@ -489,83 +517,99 @@ TEST(DngOpcodeTest, CliInspectAndRenderExposeSyntheticFileCorrections)
 TEST(DngOpcodeTest, CatalogPreviewReopenAndExportPreserveSyntheticDngSource)
 {
     ensure_qt_core();
-    std::vector<TestOpcode> gain_maps;
-    for (std::uint32_t parity = 0U; parity < 4U; ++parity)
+    for (const bool linear_rgb : {false, true})
     {
-        gain_maps.push_back(
-            {9U, 0U,
-             gain_map_payload(parity / 2U, parity % 2U, 32U, 32U, {1.0F, 1.0F, 1.0F, 1.0F})});
+        SCOPED_TRACE(linear_rgb ? "linear_rgb" : "cfa");
+        std::vector<TestOpcode> gain_maps;
+        for (std::uint32_t parity = 0U; parity < 4U; ++parity)
+        {
+            gain_maps.push_back(
+                {9U, 0U,
+                 gain_map_payload(parity / 2U, parity % 2U, 32U, 32U, {1.0F, 1.0F, 1.0F, 1.0F})});
+        }
+        SyntheticDngDirectory directory;
+        const auto input = directory.path() / "catalog.dng";
+        const auto database = (directory.path() / "library.sqlite").string();
+        const auto output = directory.path() / "export.png";
+        ASSERT_TRUE(write_synthetic_dng(input, opcode_list(gain_maps),
+                                        opcode_list({{1U, 0U, warp_payload()}}), nullptr,
+                                        linear_rgb));
+        const auto source_hash = file_hash(input);
+        auto engine = EngineFacade::create_phase1();
+        ASSERT_TRUE(engine) << engine.error().message;
+
+        auto make_service = [&](const bool create) -> Result<std::unique_ptr<CatalogService>>
+        {
+            auto repository = create ? SqliteCatalogRepository::create(database) :
+                                       SqliteCatalogRepository::open(database);
+            if (!repository)
+            {
+                return repository.error();
+            }
+            auto cache = FilesystemPreviewCache::create(database + ".preview");
+            if (!cache)
+            {
+                return cache.error();
+            }
+            auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
+            if (!recovery)
+            {
+                return recovery.error();
+            }
+            return std::make_unique<CatalogService>(
+                engine.value(), std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
+                std::move(cache).value(), std::move(recovery).value());
+        };
+
+        auto service_result = make_service(true);
+        ASSERT_TRUE(service_result) << service_result.error().message;
+        auto service = std::move(service_result).value();
+        auto imported = service->import().import_one(input.string(), CancellationToken{});
+        ASSERT_TRUE(imported) << imported.error().message;
+        ASSERT_TRUE(imported.value().asset)
+            << (imported.value().error ? imported.value().error->message : "");
+        const auto asset_id = imported.value().asset->id;
+        PreviewRequest request;
+        request.asset_id = asset_id;
+        request.max_edge = 32U;
+        request.request_revision = 1U;
+        auto preview = service->preview().request_preview(request);
+        ASSERT_TRUE(preview) << preview.error().message;
+        EXPECT_FALSE(preview.value().cache_path.empty());
+        EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
+        auto recipe = service->develop().load_recipe(asset_id);
+        ASSERT_TRUE(recipe) << recipe.error().message;
+        auto params = develop_from_recipe(recipe.value());
+        ASSERT_TRUE(params) << params.error().message;
+        params.value().exposure_ev = 0.25;
+        ASSERT_TRUE(service->develop().save_develop(asset_id, params.value()));
+        ASSERT_TRUE(service->close());
+        service.reset();
+
+        service_result = make_service(false);
+        ASSERT_TRUE(service_result) << service_result.error().message;
+        service = std::move(service_result).value();
+        auto saved = service->develop().load_recipe(asset_id);
+        ASSERT_TRUE(saved) << saved.error().message;
+        auto saved_params = develop_from_recipe(saved.value());
+        ASSERT_TRUE(saved_params) << saved_params.error().message;
+        EXPECT_DOUBLE_EQ(saved_params.value().exposure_ev, 0.25);
+        request.request_revision = 2U;
+        preview = service->preview().request_preview(request);
+        ASSERT_TRUE(preview) << preview.error().message;
+        EXPECT_FALSE(preview.value().cache_path.empty());
+        EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
+        ExportRequest export_request;
+        export_request.asset_id = asset_id;
+        export_request.output_path = output.string();
+        export_request.format = ExportFormat::kPng;
+        export_request.max_edge = 32U;
+        auto exported = service->exports().export_asset(export_request);
+        ASSERT_TRUE(exported) << exported.error().message;
+        EXPECT_TRUE(std::filesystem::exists(output));
+        EXPECT_EQ(file_hash(input), source_hash);
+        ASSERT_TRUE(service->close());
     }
-    SyntheticDngDirectory directory;
-    const auto input = directory.path() / "catalog.dng";
-    const auto database = (directory.path() / "library.sqlite").string();
-    const auto output = directory.path() / "export.png";
-    ASSERT_TRUE(write_synthetic_dng(input, opcode_list(gain_maps),
-                                    opcode_list({{1U, 0U, warp_payload()}})));
-    const auto source_hash = file_hash(input);
-    auto engine = EngineFacade::create_phase1();
-    ASSERT_TRUE(engine) << engine.error().message;
-
-    auto make_service = [&](const bool create) -> Result<std::unique_ptr<CatalogService>>
-    {
-        auto repository = create ? SqliteCatalogRepository::create(database) :
-                                   SqliteCatalogRepository::open(database);
-        if (!repository)
-        {
-            return repository.error();
-        }
-        auto cache = FilesystemPreviewCache::create(database + ".preview");
-        if (!cache)
-        {
-            return cache.error();
-        }
-        auto recovery = FilesystemRecoveryStore::create_for_catalog(database);
-        if (!recovery)
-        {
-            return recovery.error();
-        }
-        return std::make_unique<CatalogService>(
-            engine.value(), std::move(repository).value(), std::make_unique<QtRasterDecoder>(),
-            std::move(cache).value(), std::move(recovery).value());
-    };
-
-    auto service_result = make_service(true);
-    ASSERT_TRUE(service_result) << service_result.error().message;
-    auto service = std::move(service_result).value();
-    auto imported = service->import().import_one(input.string(), CancellationToken{});
-    ASSERT_TRUE(imported) << imported.error().message;
-    ASSERT_TRUE(imported.value().asset)
-        << (imported.value().error ? imported.value().error->message : "");
-    const auto asset_id = imported.value().asset->id;
-    PreviewRequest request;
-    request.asset_id = asset_id;
-    request.max_edge = 32U;
-    request.request_revision = 1U;
-    auto preview = service->preview().request_preview(request);
-    ASSERT_TRUE(preview) << preview.error().message;
-    EXPECT_FALSE(preview.value().cache_path.empty());
-    EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
-    ASSERT_TRUE(service->close());
-    service.reset();
-
-    service_result = make_service(false);
-    ASSERT_TRUE(service_result) << service_result.error().message;
-    service = std::move(service_result).value();
-    request.request_revision = 2U;
-    preview = service->preview().request_preview(request);
-    ASSERT_TRUE(preview) << preview.error().message;
-    EXPECT_FALSE(preview.value().cache_path.empty());
-    EXPECT_TRUE(std::filesystem::exists(preview.value().cache_path));
-    ExportRequest export_request;
-    export_request.asset_id = asset_id;
-    export_request.output_path = output.string();
-    export_request.format = ExportFormat::kPng;
-    export_request.max_edge = 32U;
-    auto exported = service->exports().export_asset(export_request);
-    ASSERT_TRUE(exported) << exported.error().message;
-    EXPECT_TRUE(std::filesystem::exists(output));
-    EXPECT_EQ(file_hash(input), source_hash);
-    ASSERT_TRUE(service->close());
 }
 
 TEST(DngOpcodeTest, ParsesOwnedFourParityGainMapsAndInterpolates)
@@ -876,6 +920,183 @@ TEST(DngOpcodeTest, WarpFailureAndCancellationPublishNothing)
     ASSERT_FALSE(corrected);
     EXPECT_EQ(corrected.error().code, ErrorCode::kCancelled);
     EXPECT_EQ(source.rgb, source_pixels);
+}
+
+TEST(LinearRawTest, DecodesThreeChannelDngCropBlackLevelsOrientationAndCliIdentity)
+{
+    ensure_qt_core();
+    SyntheticDngDirectory directory;
+    const auto path = directory.path() / "linear.dng";
+    ASSERT_TRUE(write_synthetic_dng(path, {}, {}, nullptr, true));
+    const auto source_hash = file_hash(path);
+    auto engine = EngineFacade::create_phase1();
+    ASSERT_TRUE(engine) << engine.error().message;
+    auto inspection = engine.value().inspect(path.string(), CancellationToken{});
+    ASSERT_TRUE(inspection) << inspection.error().message;
+    EXPECT_EQ(inspection.value().raw_sensor, "linear_rgb");
+    EXPECT_EQ(inspection.value().cfa_width, 0U);
+    EXPECT_TRUE(inspection.value().default_demosaic_mode.empty());
+    EXPECT_EQ(inspection.value().width, 25U);
+    EXPECT_EQ(inspection.value().height, 27U);
+    auto decoded = engine.value().decode_raw_frame(path.string(), CancellationToken{});
+    ASSERT_TRUE(decoded) << decoded.error().message;
+    const auto &raw = decoded.value();
+    EXPECT_EQ(raw.pixel_layout, RawPixelLayout::kLinearRgb16);
+    EXPECT_EQ(raw.width, 27U);
+    EXPECT_EQ(raw.height, 25U);
+    ASSERT_EQ(raw.pixels.size(), 27U * 25U * 3U);
+    EXPECT_EQ(raw.black_level, 100);
+    EXPECT_EQ(raw.white_level, 1100U);
+    EXPECT_DOUBLE_EQ(raw.linear_baseline_exposure_ev, 2.0);
+    EXPECT_EQ(raw.pixels[0], 365U);
+    EXPECT_EQ(raw.pixels[1], 565U);
+    EXPECT_EQ(raw.pixels[2], 765U);
+    EXPECT_TRUE(raw.color_profile.has_matrix);
+    EXPECT_TRUE(raw.has_as_shot_white_balance);
+    auto analysis = build_exposure_analysis_context(raw, CancellationToken{});
+    ASSERT_TRUE(analysis) << analysis.error().message;
+    EXPECT_EQ(analysis.value()->raw_pixel_count, raw.pixels.size());
+    EXPECT_EQ(analysis.value()->raw_histogram[365], 1U);
+    EXPECT_DOUBLE_EQ(analysis.value()->source_baseline_exposure_ev, 2.0);
+    WorkingImage sample{1, 1, {0.25F, 0.5F, 0.75F}, raw.color_profile, {}, {}, {}};
+    sample.exposure_analysis = analysis.value();
+    ExposureParams automatic;
+    automatic.mode = std::string(kExposureModeDeflicker);
+    automatic.deflicker_percentile = 100.0;
+    automatic.deflicker_target_ev = -4.0;
+    auto adjusted = apply_exposure(sample, automatic, {});
+    ASSERT_TRUE(adjusted) << adjusted.error().message;
+    const double largest = *std::max_element(raw.pixels.begin(), raw.pixels.end());
+    const double fraction = (largest - analysis.value()->raw_black_level) /
+                            (analysis.value()->raw_white_level - analysis.value()->raw_black_level);
+    const double expected_gain = std::exp2(-4.0 - 2.0) / fraction;
+    for (std::size_t c = 0; c < sample.rgb.size(); ++c)
+        EXPECT_NEAR(adjusted.value().rgb[c], sample.rgb[c] * expected_gain, 1e-6);
+    auto invalid_analysis = std::make_shared<ExposureAnalysisContext>(*analysis.value());
+    invalid_analysis->source_baseline_exposure_ev = std::numeric_limits<double>::quiet_NaN();
+    sample.exposure_analysis = invalid_analysis;
+    adjusted = apply_exposure(sample, automatic, {});
+    ASSERT_FALSE(adjusted);
+    EXPECT_EQ(adjusted.error().context.at("reason"), "invalid_exposure_source_normalization");
+    std::ostringstream output;
+    std::ostringstream error;
+    const CliApplication app(engine.value(), output, error);
+    const std::string name = path.string();
+    const std::array<std::string_view, 3> args{"inspect", name, "--json"};
+    EXPECT_EQ(app.run(args), 0) << error.str();
+    auto json = parse_json(output.str());
+    ASSERT_TRUE(json);
+    EXPECT_EQ(*json.value().find("data")->find("raw_sensor")->string_if(), "linear_rgb");
+    EXPECT_EQ(file_hash(path), source_hash);
+}
+
+TEST(LinearRawTest, PreparesNumericRgbWhiteBalanceAndExactNativeRoi)
+{
+    DecodedRaw raw;
+    raw.pixel_layout = RawPixelLayout::kLinearRgb16;
+    raw.width = 8U;
+    raw.height = 6U;
+    raw.black_level = 100;
+    raw.white_level = 1100U;
+    raw.pixels.resize(raw.width * raw.height * 3U);
+    for (std::size_t i = 0U; i < raw.pixels.size(); ++i)
+        raw.pixels[i] = static_cast<std::uint16_t>(200U + i);
+    const auto original = raw.pixels;
+    constexpr std::array<float, 4> wb{2.0F, 1.0F, 0.5F, 1.0F};
+    auto full = working_from_raw(raw, raw.width, raw.height, wb, CancellationToken{});
+    ASSERT_TRUE(full) << full.error().message;
+    EXPECT_FLOAT_EQ(full.value().rgb[0], 0.2F);
+    EXPECT_FLOAT_EQ(full.value().rgb[1], 0.101F);
+    EXPECT_FLOAT_EQ(full.value().rgb[2], 0.051F);
+    for (const int rotation : {0, 1, 2, 3})
+    {
+        raw.rotate_quarters = rotation;
+        auto roi = working_from_raw_window(raw, 2U, 1U, 3U, 2U, wb, "rcd", CancellationToken{});
+        ASSERT_TRUE(roi) << roi.error().message;
+        auto rotated_full = working_from_raw(raw, rotation % 2 == 0 ? 8U : 6U,
+                                             rotation % 2 == 0 ? 6U : 8U, wb, CancellationToken{});
+        ASSERT_TRUE(rotated_full) << rotated_full.error().message;
+        const std::uint32_t ox = rotation == 0 ? 2U : rotation == 1 ? 3U : rotation == 2 ? 3U : 1U;
+        const std::uint32_t oy = rotation == 0 ? 1U : rotation == 1 ? 2U : rotation == 2 ? 3U : 3U;
+        for (std::uint32_t y = 0U; y < roi.value().height; ++y)
+            for (std::uint32_t x = 0U; x < roi.value().width; ++x)
+                for (std::size_t c = 0U; c < 3U; ++c)
+                    EXPECT_FLOAT_EQ(
+                        roi.value().rgb[(y * roi.value().width + x) * 3U + c],
+                        rotated_full.value()
+                            .rgb[((oy + y) * rotated_full.value().width + ox + x) * 3U + c]);
+    }
+    raw.rotate_quarters = 0;
+    auto scaled = working_from_raw(raw, 4U, 3U, wb, CancellationToken{});
+    ASSERT_TRUE(scaled) << scaled.error().message;
+    EXPECT_TRUE(scaled.value().canonical_roi_scale.valid());
+    auto invalid_mode = working_from_raw(raw, 4U, 3U, wb, "ppg", CancellationToken{});
+    ASSERT_FALSE(invalid_mode);
+    EXPECT_EQ(invalid_mode.error().context.at("reason"), "demosaic_sensor_mismatch");
+    raw.pixels.assign(raw.pixels.size(), 0U);
+    for (std::size_t i = 0U; i < raw.pixels.size(); i += 3U)
+    {
+        raw.pixels[i] = 500U;
+        raw.pixels[i + 1U] = 300U;
+        raw.pixels[i + 2U] = 200U;
+    }
+    auto picked = sample_white_balance_coefficients(raw, WhiteBalancePickRequest{});
+    ASSERT_TRUE(picked) << picked.error().message;
+    EXPECT_NEAR(picked.value()[0], 0.5, 1e-6);
+    EXPECT_NEAR(picked.value()[2], 2.0, 1e-6);
+    EXPECT_EQ(original.size(), raw.pixels.size());
+}
+
+TEST(LinearRawTest, HighlightsCancellationInvalidBuffersAndMemoryAreExplicit)
+{
+    DecodedRaw raw;
+    raw.pixel_layout = RawPixelLayout::kLinearRgb16;
+    raw.width = 3U;
+    raw.height = 3U;
+    raw.black_level = 100;
+    raw.white_level = 1100U;
+    raw.pixels.assign(27U, 400U);
+    raw.pixels[12U] = 950U;
+    raw.pixels[13U] = 1000U;
+    raw.pixels[14U] = 1000U;
+    OperationInstance op{"ravo.raw.highlights",
+                         1,
+                         "hl",
+                         true,
+                         {{"mode", ParameterValue{std::string(kRawHighlightsModeOpposed)}},
+                          {"amount", ParameterValue{1.0}},
+                          {"clip", ParameterValue{0.8}}},
+                         std::nullopt};
+    constexpr std::array<float, 4> wb{1.0F, 1.0F, 1.0F, 1.0F};
+    auto reconstructed = raw;
+    auto applied = apply_linear_raw_highlights(reconstructed, op, wb, CancellationToken{});
+    ASSERT_TRUE(applied) << applied.error().message;
+    EXPECT_EQ(reconstructed.pixels[0], raw.pixels[0]);
+    EXPECT_GT(reconstructed.pixels[12U], raw.pixels[12U]);
+    auto extreme = raw;
+    applied = apply_linear_raw_highlights(extreme, op, {1e-6F, 8.0F, 8.0F, 1.0F}, {});
+    ASSERT_TRUE(applied) << applied.error().message;
+    // Opponent RGB projects above 2^31 sensor codes before quantization.
+    // Saturation must precede conversion to long on LLP64 hosts.
+    EXPECT_EQ(extreme.pixels[12U], 65535U);
+    EXPECT_EQ(extreme.pixels[0U], raw.pixels[0U]);
+    CancellationSource cancelled;
+    ASSERT_TRUE(cancelled.cancel("test"));
+    EXPECT_FALSE(apply_linear_raw_highlights(raw, op, wb, cancelled.token()));
+    EXPECT_EQ(raw.pixels[12U], 950U);
+    auto result = working_from_raw(raw, 3U, 3U, wb, cancelled.token());
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, ErrorCode::kCancelled);
+    const Recipe recipe;
+    const auto estimate = estimate_raw_render_memory(raw, recipe, 1U, 1U);
+    auto cfa = raw;
+    cfa.pixel_layout = RawPixelLayout::kCfa16;
+    EXPECT_GE(estimate - estimate_raw_render_memory(cfa, recipe, 1U, 1U),
+              raw.pixels.size() * 3U * sizeof(float));
+    raw.pixels.pop_back();
+    result = working_from_raw(raw, 3U, 3U, wb, CancellationToken{});
+    ASSERT_FALSE(result);
+    EXPECT_EQ(result.error().code, ErrorCode::kValidation);
 }
 
 } // namespace

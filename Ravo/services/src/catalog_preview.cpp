@@ -998,8 +998,9 @@ PreviewService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     RenderedImage rendered;
     if (is_raw_media_type(working.media_type))
     {
-        auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,
-                                            working_max_edge, request.cancellation, lane);
+        auto linear =
+            cached_linear_working(working, render_path, edit_recipe, width, height,
+                                  working_max_edge, request.cancellation, lane, interactive);
         if (!linear)
         {
             return linear.error();
@@ -1026,11 +1027,17 @@ PreviewService::generate_preview(const AssetRecord &asset, const PreviewRequest 
     }
     else
     {
-        auto linear = cached_linear_working(working, render_path, edit_recipe, width, height,
-                                            working_max_edge, request.cancellation, lane);
+        auto linear =
+            cached_linear_working(working, render_path, edit_recipe, width, height,
+                                  working_max_edge, request.cancellation, lane, interactive);
         if (!linear)
         {
             return linear.error();
+        }
+        for (auto &operation : edit_recipe.operations)
+        {
+            if (operation.id == kDehazeOperationId)
+                operation.enabled = false;
         }
         if (auto prepared = prepare_crop(edit_recipe, linear.value()->buffer); !prepared)
             return prepared.error();
@@ -1212,7 +1219,8 @@ Result<PreviewService::CachedLinearWorking *>
 PreviewService::cached_linear_working(const AssetRecord &asset, const std::string_view path,
                                       const Recipe &recipe, const std::uint32_t width,
                                       const std::uint32_t height, const std::uint32_t max_edge,
-                                      const CancellationToken &cancellation, const PreviewLane lane)
+                                      const CancellationToken &cancellation, const PreviewLane lane,
+                                      const bool allow_scaled_preparation)
 {
     if (engine_ == nullptr)
     {
@@ -1226,8 +1234,9 @@ PreviewService::cached_linear_working(const AssetRecord &asset, const std::strin
     }
     const std::string preprocess_key =
         (is_raw_media_type(asset.media_type) ? raw_preprocess_key(recipe) :
-                                               input_color_preprocess_key(recipe)) +
-        ":" + color_fingerprint.value();
+                                               raster_preprocess_key(recipe)) +
+        ":" + color_fingerprint.value() +
+        (allow_scaled_preparation ? ":scaled-preparation" : ":exact-preparation");
     const auto matches = [&](const CachedLinearWorking &working)
     {
         return working.asset_id == asset.id && working.fingerprint == fingerprint &&
@@ -1263,7 +1272,7 @@ PreviewService::cached_linear_working(const AssetRecord &asset, const std::strin
                 return &*working;
             }
         }
-        if (max_edge <= kInteractivePreviewMaxEdge)
+        if (allow_scaled_preparation && max_edge <= kInteractivePreviewMaxEdge)
         {
             CachedLinearWorking *source = nullptr;
             for (auto &working : linear_working_)
@@ -1315,7 +1324,8 @@ PreviewService::cached_linear_working(const AssetRecord &asset, const std::strin
     std::uint32_t build_width = width;
     std::uint32_t build_height = height;
     std::uint32_t build_edge = max_edge;
-    if (lane == PreviewLane::kForegroundDevelop && max_edge == kInteractivePreviewMaxEdge)
+    if (allow_scaled_preparation && lane == PreviewLane::kForegroundDevelop &&
+        max_edge == kInteractivePreviewMaxEdge)
     {
         std::uint32_t settled_width = 0U;
         std::uint32_t settled_height = 0U;

@@ -44,6 +44,7 @@ class StudioCommandController final : public QObject
     Q_PROPERTY(QVariantMap ids READ ids CONSTANT)
     Q_PROPERTY(QVariantList paletteEntries READ paletteEntries NOTIFY commandsChanged)
     Q_PROPERTY(QVariantList shortcutEntries READ shortcutEntries NOTIFY commandsChanged)
+    Q_PROPERTY(QVariantList shortcutBindings READ shortcutBindings CONSTANT)
     Q_PROPERTY(
         QString paletteQuery READ paletteQuery WRITE setPaletteQuery NOTIFY paletteQueryChanged)
     Q_PROPERTY(bool paletteOpen READ paletteOpen WRITE setPaletteOpen NOTIFY paletteOpenChanged)
@@ -65,6 +66,8 @@ public:
     [[nodiscard]] QVariantMap ids() const;
     [[nodiscard]] QVariantList paletteEntries() const;
     [[nodiscard]] QVariantList shortcutEntries() const;
+    [[nodiscard]] QVariantList shortcutBindings() const;
+    Q_INVOKABLE bool shortcutEnabled(const QString &action_id, const QString &sequence) const;
     [[nodiscard]] QString paletteQuery() const;
     [[nodiscard]] bool paletteOpen() const noexcept;
     [[nodiscard]] bool textInputActive() const noexcept;

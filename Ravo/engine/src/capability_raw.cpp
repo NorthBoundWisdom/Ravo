@@ -19,6 +19,7 @@
 #include "ravo/recipe/develop.h"
 
 #include "capability_ops_internal.h"
+#include "raw_linear.h"
 
 namespace ravo
 {
@@ -206,6 +207,8 @@ Result<void> apply_raw_highlights(DecodedRaw &raw, const OperationInstance &oper
                                   const CancellationToken &cancellation)
 try
 {
+    if (raw.pixel_layout == RawPixelLayout::kLinearRgb16)
+        return apply_linear_raw_highlights(raw, operation, white_balance, cancellation);
     const bool bayer = raw.cfa_width == 2U && raw.cfa_height == 2U && raw.cfa_channels.size() == 4U;
     const bool xtrans =
         raw.cfa_width == 6U && raw.cfa_height == 6U && raw.cfa_channels.size() == 36U;

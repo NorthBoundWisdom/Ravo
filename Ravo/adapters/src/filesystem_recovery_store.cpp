@@ -578,8 +578,15 @@ require_optional_integer(const JsonValue::Object &object, const std::string_view
     return std::optional<double>{value};
 }
 
-[[nodiscard]] Result<CaptureMetadata> validate_recovery_capture(const JsonValue::Object &object)
+[[nodiscard]] Result<CaptureMetadata> validate_recovery_capture(JsonValue::Object object,
+                                                                const std::int64_t version)
 {
+    // Both lens fields were added after the original photo v1 writer.
+    if (version == 1 && !object.contains("lens_make") && !object.contains("lens_model"))
+    {
+        object.emplace("lens_make", nullptr);
+        object.emplace("lens_model", nullptr);
+    }
     auto keys = expect_exact_keys(object,
                                   {"aperture", "camera_make", "camera_model", "captured_datetime",
                                    "captured_unix_s", "focal_length_mm", "iso", "lens_make",
@@ -848,32 +855,20 @@ struct VerifiedAsset
     bool has_edits = false;
 };
 
-[[nodiscard]] Result<VerifiedAsset> validate_recovery_asset(const JsonValue::Object &object)
+[[nodiscard]] Result<VerifiedAsset> validate_recovery_asset(const JsonValue::Object &object,
+                                                            const std::int64_t version)
 {
     auto core = object;
     core.erase("video");
-    auto keys = expect_exact_keys(core,
-                                  {"capture",
-                                   "color_label",
-                                   "content_fingerprint",
-                                   "created_unix_ms",
-                                   "error_code",
-                                   "error_message",
-                                   "has_edits",
-                                   "height",
-                                   "id",
-                                   "import_state",
-                                   "media_type",
-                                   "metadata",
-                                   "mtime_unix_ms",
-                                   "normalized_uri",
-                                   "picked",
-                                   "rating",
-                                   "rejected",
-                                   "size_bytes",
-                                   "tags",
-                                   "width"},
-                                  "payload.asset");
+    // Photo v1 predates Pick. Validate that historical shape without changing
+    // the checksummed payload; video v2 and all present flags remain strict.
+    core.erase("picked");
+    auto keys = expect_exact_keys(
+        core,
+        {"capture", "color_label", "content_fingerprint", "created_unix_ms", "error_code",
+         "error_message", "has_edits", "height", "id", "import_state", "media_type", "metadata",
+         "mtime_unix_ms", "normalized_uri", "rating", "rejected", "size_bytes", "tags", "width"},
+        "payload.asset");
     if (!keys)
         return keys.error();
     auto id = require_string(object, "id", 180U);
@@ -898,7 +893,8 @@ struct VerifiedAsset
     auto rating = require_integer<int>(object, "rating", 0, 5);
     auto color_label = require_string(object, "color_label", 16U);
     auto has_edits = require_boolean(object, "has_edits");
-    auto picked = require_boolean(object, "picked");
+    auto picked = version == 1 && !object.contains("picked") ? Result<bool>{false} :
+                                                               require_boolean(object, "picked");
     auto rejected = require_boolean(object, "rejected");
     if (!id)
         return id.error();
@@ -982,7 +978,7 @@ struct VerifiedAsset
         return metadata.error();
     if (!tags)
         return tags.error();
-    auto capture_valid = validate_recovery_capture(*capture.value());
+    auto capture_valid = validate_recovery_capture(*capture.value(), version);
     if (!capture_valid)
         return capture_valid.error();
     auto metadata_valid = validate_recovery_metadata(*metadata.value());
@@ -1154,7 +1150,7 @@ struct VerifiedDocument
     if (version.value() != (asset.value()->contains("video") ? 2 : kRecoverySidecarSchemaVersion))
         return recovery_error(ErrorCode::kValidation, "Recovery sidecar version is invalid",
                               "invalid_recovery_sidecar_version");
-    auto verified_asset = validate_recovery_asset(*asset.value());
+    auto verified_asset = validate_recovery_asset(*asset.value(), version.value());
     if (!verified_asset)
         return verified_asset.error();
     auto verified_history = validate_recovery_history(*history.value());

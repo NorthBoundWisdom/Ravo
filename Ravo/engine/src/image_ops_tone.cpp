@@ -939,13 +939,18 @@ Result<void> apply_rapidraw_basic_tone(WorkingImage &image, const OperationInsta
 {
     if (!input.exposure_analysis)
     {
-        return make_error(
-            ErrorCode::kUnsupported,
-            "Exposure deflicker requires the original single-channel uint16 RAW histogram",
-            {{"operation_id", std::string(kExposureOperationId)},
-             {"reason", "exposure_deflicker_requires_raw_histogram"}});
+        return make_error(ErrorCode::kUnsupported,
+                          "Exposure deflicker requires the original uint16 RAW sample histogram",
+                          {{"operation_id", std::string(kExposureOperationId)},
+                           {"reason", "exposure_deflicker_requires_raw_histogram"}});
     }
     const auto &analysis = *input.exposure_analysis;
+    if (!std::isfinite(analysis.source_baseline_exposure_ev) ||
+        analysis.source_baseline_exposure_ev < -16.0 || analysis.source_baseline_exposure_ev > 16.0)
+    {
+        return make_error(ErrorCode::kValidation, "Exposure source normalization is invalid",
+                          {{"reason", "invalid_exposure_source_normalization"}});
+    }
     if (analysis.raw_histogram.size() != kExposureRawHistogramBins ||
         analysis.raw_pixel_count == 0U)
     {
@@ -998,7 +1003,8 @@ Result<void> apply_rapidraw_basic_tone(WorkingImage &image, const OperationInsta
     const std::int64_t bounded_raw = std::max<std::int64_t>(black_relative, 1);
     const double raw_ev =
         -std::log2(static_cast<double>(raw_range)) + std::log2(static_cast<double>(bounded_raw));
-    const double effective = params.deflicker_target_ev - raw_ev;
+    const double effective =
+        params.deflicker_target_ev - raw_ev - analysis.source_baseline_exposure_ev;
     if (!std::isfinite(raw_ev) || !std::isfinite(effective))
     {
         return make_error(ErrorCode::kValidation, "Exposure deflicker correction is not finite",

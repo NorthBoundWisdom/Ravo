@@ -750,6 +750,39 @@ TEST_F(CatalogServiceTest, RecoverySidecarStrictlyRejectsChecksumValidMalformedN
 
     using Mutation = std::pair<std::string, std::function<void(JsonValue::Object &)>>;
     const std::vector<Mutation> mutations{
+        {"invalid-pick-type",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.insert_or_assign("picked", "false");
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"conflicting-review-flags",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.insert_or_assign("picked", true);
+             asset.insert_or_assign("rejected", true);
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"video-missing-pick",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             asset.erase("picked");
+             asset.emplace("video", JsonValue::Object{});
+             payload.insert_or_assign("version", JsonValue::number("2"));
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
+        {"incomplete-lens-pair",
+         [](JsonValue::Object &payload)
+         {
+             auto asset = *payload.at("asset").object_if();
+             auto capture = *asset.at("capture").object_if();
+             capture.erase("lens_make");
+             asset.insert_or_assign("capture", JsonValue{std::move(capture)});
+             payload.insert_or_assign("asset", JsonValue{std::move(asset)});
+         }},
         {"unknown-asset-field",
          [](JsonValue::Object &payload)
          {

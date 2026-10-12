@@ -28,7 +28,8 @@ baseline and build/command entry points. Published releases may lag `main`.
 ### Photo processing and colour
 
 The Engine covers Bayer RCD/PPG and standard Fujifilm X-Trans Markesteijn
-demosaic, RAW preparation and repair, profile denoise, white balance and camera
+demosaic, owned 16-bit linear RGB DNG including Apple ProRAW, RAW preparation
+and repair, profile denoise, white balance and camera
 calibration, ICC input/working/output profiles, proofing, exposure and tonal
 controls, RGB/Lab curves, colour grading, texture/sharpening, lens and
 perspective correction, clone/heal/blur/fill retouch, canvas, framing and output
@@ -38,6 +39,8 @@ photographic adjustments.
 JPEG source colour uses embedded ICC first, then an explicit EXIF sRGB
 declaration. Untagged/uncalibrated inputs require an explicit input-profile
 choice; a failed preview stops loading and retains its error.
+Declared raster sources support dehaze after Input Color conversion into
+linear Rec.709 or Rec.2020; RAW retains its camera-linear processing stage.
 
 Discover the exact installed operation and parameter schemas with:
 
@@ -69,7 +72,9 @@ This does not change cold RAW preparation or export quality.
 
 - JPEG, PNG, supported TIFF/BigTIFF layouts, BMP, GIF and WebP.
 - RAW files accepted by the pinned LibRaw provider with validated Bayer 2×2 or
-  standard X-Trans 6×6 data. Embedded JPEG availability does not establish full
+  standard X-Trans 6×6 data, plus three-channel 16-bit linear RGB DNG (including
+  Apple ProRAW). Linear DNG uses its declared BaselineExposure independently
+  of user exposure and requires no demosaic. Embedded JPEG availability does not establish full
   RAW decode support.
 - Primary HEIC/HEIF photos through native ImageIO on macOS 14+. Windows/Linux
   do not claim that provider.

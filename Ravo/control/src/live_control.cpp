@@ -964,6 +964,10 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
             break;
         }
         connect_error = socket.errorString();
+#if defined(Q_OS_WIN)
+        // Only Windows named pipes can be temporarily unavailable while the
+        // preceding client disconnects. A missing Unix socket is stale, so
+        // retrying it would spend the full deadline on every crash descriptor.
         const auto error = socket.error();
         if ((error != QLocalSocket::ServerNotFoundError &&
              error != QLocalSocket::ConnectionRefusedError) ||
@@ -973,6 +977,9 @@ Result<JsonValue> LocalControlClient::request(const LiveSessionDescriptor &descr
         }
         socket.abort();
         QThread::msleep(5);
+#else
+        break;
+#endif
     }
     if (!connected)
     {

@@ -205,6 +205,9 @@ struct ExposureAnalysisContext
     std::uint32_t raw_black_level = 0;
     std::uint32_t raw_white_level = 0;
     RawExposureMetadata metadata;
+    // Source normalization already applied to linear RGB, independently of
+    // user exposure. Deflicker must subtract this gain from its correction.
+    double source_baseline_exposure_ev = 0.0;
 };
 
 // Spatial masks remain attached to the photo-content frame when a geometry
@@ -348,8 +351,17 @@ inline void apply_display_rotation_to_size(std::uint32_t &width, std::uint32_t &
     }
 }
 
+enum class RawPixelLayout
+{
+    kCfa16,
+    kLinearRgb16,
+};
+
 struct DecodedRaw
 {
+    RawPixelLayout pixel_layout = RawPixelLayout::kCfa16;
+    // DNG-defined normalization for pre-demosaiced RGB, separate from user EV.
+    double linear_baseline_exposure_ev = 0.0;
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     int rotate_quarters = 0;
@@ -375,6 +387,8 @@ struct DecodedRaw
     // cross decode_raw_frame or survive the decoder which supplied them.
     std::shared_ptr<const DngOpcodeMetadata> dng_opcodes;
     std::vector<std::uint8_t> cfa_channels;
+    // CFA owns one code per pixel; linear RGB owns three interleaved codes.
+    // Both retain the scalar black/white range and no provider-owned pointers.
     std::vector<std::uint16_t> pixels;
 };
 

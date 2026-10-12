@@ -81,6 +81,7 @@ add_executable(ravo_contract_tests
   color_reconstruction_test.cpp
   color_zones_test.cpp
   dehaze_test.cpp
+  raster_dehaze_test.cpp
   dng_opcodes_test.cpp
   film_development_research_test.cpp
   mask_graph_test.cpp
@@ -148,6 +149,8 @@ add_executable(ravo_catalog_tests
   catalog_test_support.cpp
   catalog_test.cpp
   catalog_recovery_test.cpp
+  catalog_recovery_compatibility_test.cpp
+  catalog_raster_dehaze_test.cpp
   mixed_corpus_reopen_recovery_test.cpp
   catalog_library_test.cpp
   catalog_recipe_test.cpp

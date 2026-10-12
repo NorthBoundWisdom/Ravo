@@ -316,18 +316,23 @@ void oriented_to_sensor(const double u, const double v, const std::uint32_t sens
 Result<std::array<double, kTemperatureChannelCount>>
 sample_white_balance_coefficients(const DecodedRaw &raw, const WhiteBalancePickRequest &request)
 {
-    if (raw.width < 2U || raw.height < 2U || raw.pixels.size() !=
-                                                 static_cast<std::size_t>(raw.width) * raw.height ||
-        raw.cfa_width == 0 || raw.cfa_height == 0 ||
-        raw.cfa_channels.size() != static_cast<std::size_t>(raw.cfa_width) * raw.cfa_height)
+    const bool linear_rgb = raw.pixel_layout == RawPixelLayout::kLinearRgb16;
+    const std::size_t channels = linear_rgb ? 3U : 1U;
+    if (raw.width < 2U || raw.height < 2U ||
+        raw.pixels.size() != static_cast<std::size_t>(raw.width) * raw.height * channels ||
+        (!linear_rgb &&
+         (raw.cfa_width == 0 || raw.cfa_height == 0 ||
+          raw.cfa_channels.size() != static_cast<std::size_t>(raw.cfa_width) * raw.cfa_height)))
     {
-        return make_error(ErrorCode::kValidation, "White-balance sample requires a Bayer CFA frame");
+        return make_error(ErrorCode::kValidation,
+                          "White-balance sample requires a Bayer CFA frame");
     }
     if (!std::isfinite(request.preview_x) || !std::isfinite(request.preview_y) ||
         request.preview_x < 0.0 || request.preview_x > 1.0 || request.preview_y < 0.0 ||
-        request.preview_y > 1.0 || !std::isfinite(request.crop_x) || !std::isfinite(request.crop_y) ||
-        !std::isfinite(request.crop_width) || !std::isfinite(request.crop_height) ||
-        request.crop_width <= 0.0 || request.crop_height <= 0.0)
+        request.preview_y > 1.0 || !std::isfinite(request.crop_x) ||
+        !std::isfinite(request.crop_y) || !std::isfinite(request.crop_width) ||
+        !std::isfinite(request.crop_height) || request.crop_width <= 0.0 ||
+        request.crop_height <= 0.0)
     {
         return make_error(ErrorCode::kInvalidArgument,
                           "White-balance pick coordinates must be finite in [0, 1]");
@@ -339,37 +344,39 @@ sample_white_balance_coefficients(const DecodedRaw &raw, const WhiteBalancePickR
     std::uint32_t sy = 0;
     oriented_to_sensor(u, v, raw.width, raw.height, normalized_rotate_quarters(raw.rotate_quarters),
                        sx, sy);
-    const int radius = static_cast<int>(
-        std::max<std::uint32_t>(2U, std::min(raw.width, raw.height) / 64U));
+    const int radius =
+        static_cast<int>(std::max<std::uint32_t>(2U, std::min(raw.width, raw.height) / 64U));
     const float denominator = static_cast<float>(
         std::max<std::int64_t>(1, static_cast<std::int64_t>(raw.white_level) - raw.black_level));
     std::array<double, kTemperatureChannelCount> sums{};
     std::array<std::uint32_t, kTemperatureChannelCount> counts{};
     for (int offset_y = -radius; offset_y <= radius; ++offset_y)
     {
-        const int y = std::clamp(static_cast<int>(sy) + offset_y, 0, static_cast<int>(raw.height) - 1);
+        const int y =
+            std::clamp(static_cast<int>(sy) + offset_y, 0, static_cast<int>(raw.height) - 1);
         for (int offset_x = -radius; offset_x <= radius; ++offset_x)
         {
             const int x =
                 std::clamp(static_cast<int>(sx) + offset_x, 0, static_cast<int>(raw.width) - 1);
-            const auto channel =
-                raw.cfa_channels[(static_cast<std::uint32_t>(y) % raw.cfa_height) * raw.cfa_width +
-                                 (static_cast<std::uint32_t>(x) % raw.cfa_width)];
-            if (channel >= kTemperatureChannelCount)
+            const auto pixel =
+                static_cast<std::size_t>(y) * raw.width + static_cast<std::size_t>(x);
+            for (std::size_t c = 0U; c < channels; ++c)
             {
-                continue;
+                const auto channel =
+                    linear_rgb ? static_cast<std::uint8_t>(c) :
+                                 raw.cfa_channels[(static_cast<std::uint32_t>(y) % raw.cfa_height) *
+                                                      raw.cfa_width +
+                                                  (static_cast<std::uint32_t>(x) % raw.cfa_width)];
+                if (channel >= kTemperatureChannelCount)
+                    continue;
+                const float sample = (static_cast<float>(raw.pixels[pixel * channels + c]) -
+                                      static_cast<float>(raw.black_level)) /
+                                     denominator;
+                if (!std::isfinite(sample) || sample <= 0.0F)
+                    continue;
+                sums[channel] += static_cast<double>(sample);
+                ++counts[channel];
             }
-            const float sample =
-                (static_cast<float>(
-                     raw.pixels[static_cast<std::size_t>(y) * raw.width + static_cast<std::size_t>(x)]) -
-                 static_cast<float>(raw.black_level)) /
-                denominator;
-            if (!std::isfinite(sample) || sample <= 0.0F)
-            {
-                continue;
-            }
-            sums[channel] += static_cast<double>(sample);
-            ++counts[channel];
         }
     }
     if (counts[0] == 0 || counts[1] == 0 || counts[2] == 0)

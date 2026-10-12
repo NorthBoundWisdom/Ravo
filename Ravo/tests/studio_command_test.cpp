@@ -25,8 +25,11 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QKeySequence>
+#include <QLocalSocket>
 #include <QMetaType>
 #include <QProcess>
+#include <QQmlComponent>
+#include <QQmlEngine>
 #include <QSize>
 #include <QThread>
 #include <QTranslator>
@@ -112,6 +115,56 @@ TEST(StudioCommands, LightroomCommonShortcutsRouteAndRespectFocus)
         EXPECT_EQ(count, 1) << sequence.toStdString();
         return result;
     };
+    const auto bindings = controller.shortcutBindings();
+    QQmlEngine shortcuts_engine;
+    QQmlComponent shortcuts_component(
+        &shortcuts_engine,
+        QUrl::fromLocalFile(QFileInfo(QStringLiteral(RAVO_STUDIO_MAIN_QML))
+                                .dir()
+                                .filePath(QStringLiteral("chrome/StudioCommandShortcuts.qml"))));
+    ASSERT_TRUE(shortcuts_component.isReady()) << shortcuts_component.errorString().toStdString();
+    std::unique_ptr<QObject> shortcuts(shortcuts_component.createWithInitialProperties(
+        {{QStringLiteral("controller"), QVariant::fromValue(&controller)}}));
+    ASSERT_NE(shortcuts, nullptr) << shortcuts_component.errorString().toStdString();
+    const auto shortcut_objects = [&]
+    {
+        QList<QObject *> result;
+        for (auto *child : shortcuts->findChildren<QObject *>())
+            if (child->inherits("QQuickShortcut"))
+                result.push_back(child);
+        return result;
+    };
+    const auto delegates = shortcut_objects();
+    ASSERT_EQ(delegates.size(), bindings.size());
+    const auto check_shortcut_availability = [&]
+    {
+        QCoreApplication::processEvents();
+        EXPECT_EQ(shortcut_objects(), delegates);
+        EXPECT_EQ(controller.shortcutBindings(), bindings);
+        qsizetype delegate_index = 0;
+        for (const auto &value : controller.shortcutEntries())
+        {
+            const auto entry = value.toMap();
+            EXPECT_EQ(
+                controller.shortcutEnabled(entry.value(QStringLiteral("actionId")).toString(),
+                                           entry.value(QStringLiteral("sequence")).toString()),
+                entry.value(QStringLiteral("enabled")).toBool());
+            EXPECT_EQ(delegates.at(delegate_index++)->property("enabled").toBool(),
+                      entry.value(QStringLiteral("enabled")).toBool());
+        }
+        EXPECT_FALSE(controller.shortcutEnabled(QStringLiteral("unknown"), QStringLiteral("G")));
+    };
+    check_shortcut_availability();
+    controller.setTextInputActive(true);
+    check_shortcut_availability();
+    controller.setTextInputActive(false);
+    controller.setModalOpen(true);
+    check_shortcut_availability();
+    controller.setModalOpen(false);
+    controller.setPaletteOpen(true);
+    check_shortcut_availability();
+    controller.setPaletteOpen(false);
+    check_shortcut_availability();
     const auto press = [&](const QString &sequence)
     {
         const auto entry = entry_for(sequence);
@@ -457,11 +510,30 @@ TEST(StudioLiveControlTest, DiscoveryIsMultiSessionAwareAndDescriptorsDisappearW
     ASSERT_GT(stale.write("{broken"), 0);
     stale.close();
 
+#if !defined(Q_OS_WIN)
+    // Well-formed crash residue must not consume a connection deadline per
+    // descriptor on Unix. Keep the live sessions in the same discovery pass.
+    for (int index = 0; index < 8; ++index)
+    {
+        const auto id = QStringLiteral("stale-%1").arg(index);
+        auto json = live_session_descriptor_to_json(make_descriptor(id));
+        ASSERT_TRUE(json) << json.error().message;
+        QFile residue(directory.filePath(id + QStringLiteral(".json")));
+        ASSERT_TRUE(residue.open(QIODevice::WriteOnly | QIODevice::NewOnly));
+        const auto bytes = QByteArray::fromStdString(serialize_json(json.value()));
+        ASSERT_EQ(residue.write(bytes), bytes.size());
+    }
+    QElapsedTimer discovery_timer;
+    discovery_timer.start();
+#endif
     const auto listed = run_cli_process(
         {QStringLiteral("studio"), QStringLiteral("sessions"), QStringLiteral("--workspace-root"),
          QStringLiteral(RAVO_REPOSITORY_ROOT), QStringLiteral("--timeout-ms"),
          QStringLiteral("5000"), QStringLiteral("--json")});
     ASSERT_EQ(listed.exit_code, 0) << listed.standard_error.constData();
+#if !defined(Q_OS_WIN)
+    EXPECT_LT(discovery_timer.elapsed(), 4000);
+#endif
     auto data = cli_data(listed.standard_output);
     ASSERT_TRUE(data) << data.error().message;
     const auto *sessions = data.value().find("sessions");
@@ -478,6 +550,39 @@ TEST(StudioLiveControlTest, DiscoveryIsMultiSessionAwareAndDescriptorsDisappearW
             << ambiguous.standard_output.constData() << ambiguous.standard_error.constData();
         EXPECT_NE(ambiguous.standard_output.indexOf("session_ids"), -1)
             << ambiguous.standard_output.constData() << ambiguous.standard_error.constData();
+    }
+
+    // A fast client may finish sending before the GUI thread accepts it.
+    // Readiness is an event, so accepting an already-readable socket must also
+    // consume its buffered request rather than wait for another byte to arrive.
+    for (int attempt = 0; attempt < 16; ++attempt)
+    {
+        QLocalSocket eager;
+        eager.connectToServer(QString::fromStdString(first.value()->descriptor().server_name));
+        ASSERT_TRUE(eager.waitForConnected(1000)) << eager.errorString().toStdString();
+        const LiveControlRequest request{"eager-" + std::to_string(attempt), "state",
+                                         JsonValue::Object{}};
+        auto bytes =
+            QByteArray::fromStdString(serialize_json(live_control_request_to_json(request)));
+        bytes.append('\n');
+        ASSERT_EQ(eager.write(bytes), bytes.size());
+        eager.flush();
+        // Deliberately hold the server's event loop after the write.
+        QThread::msleep(2);
+        QByteArray response;
+        ASSERT_TRUE(wait_until(
+            [&]
+            {
+                response.append(eager.readAll());
+                return response.contains('\n');
+            },
+            2000))
+            << "request " << attempt;
+        auto parsed = parse_json(response.toStdString());
+        ASSERT_TRUE(parsed) << parsed.error().message;
+        ASSERT_TRUE(*parsed.value().find("ok")->boolean_if());
+        EXPECT_EQ(*parsed.value().find("request_id")->string_if(), request.request_id);
+        eager.abort();
     }
 
     const auto first_path = first.value()->descriptor_path();

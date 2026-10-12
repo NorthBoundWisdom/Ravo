@@ -172,6 +172,13 @@ of duplicating operation-by-operation prose here.
 
 ### AI grading and MCP contracts
 
+`StudioCommands.LightroomCommonShortcutsRouteAndRespectFocus` also compares
+stable shortcut bindings and C++ enablement with the existing command projection
+across text focus, modal and palette states, and loads the production shortcut
+component to prove that delegate object identities survive those revisions.
+Studio QML smoke loads the stable bindings; native packaged interaction remains
+a separate host check.
+
 `StudioAutomationRegression` pins pending-selection busy/rejection, retained
 off-page primary metadata, rank after sort replacement, strict preview recipe
 fences and post-dispatch timeout outcome context. `DevelopPatchTest` and the
@@ -478,6 +485,19 @@ tests still validate business outcomes.
 
 ## Catalog contract
 
+`PrePickPhotoRecoveryBacksUpRestoresAndReopensWithoutRewritingSidecar` retains
+checksum-valid pre-Pick/pre-lens photo v1 bytes through backup, restore and
+reopen. Nested-state rejection covers wrong flag types, dual flags, incomplete
+lens pairs and video-v2 missing flags.
+
+`LinearRawTest` exercises synthetic three-channel DNG black offsets, DefaultCrop,
+orientation, camera profile, BaselineExposure, CLI sensor identity, native RGB
+histogram, source-normalized deflicker, exact rotated ROI overlap, numeric white balance, bounded memory and
+cancellation/malformed buffers. The DNG catalog round trip runs both CFA and
+linear RGB through edit/save/reopen/PNG export with immutable originals.
+Real Apple files and all available platform toolchains remain separate corpus
+qualification; synthetic support is not a claim of full camera colour quality.
+
 Mutation regression coverage preserves monotonic operation-instance IDs,
 revision-bound recipe saves, atomic mask-graph clones and exclusive-node
 cleanup. Review changes and the catalog revision publish in one transaction;
@@ -765,7 +785,7 @@ full Ravo suite for changes to these worker or repository boundaries
   at the pre-commit seam (ADR-0067).
 - RAW and raster jointly validate orientation, target size, alpha, colour
   description, NaN/Inf, and memory budget.
-- RAW preview contract v12 validates complete decode, explicit input/output
+- RAW preview contract v13 validates complete decode, explicit input/output
   profiles, default opposed highlight reconstruction, and default Sigmoid tone; the raster baseline must not receive a second display transform.
   Synthetic DNG black-level tests cover uniform and unequal 2×2 pedestals,
   exact zero-signal and illuminated CFA values, and source-byte preservation.
@@ -924,6 +944,16 @@ timings do not make the normal contract suite flaky.
 
 <a id="interactive-performance-comparison"></a>
 ### Interactive performance comparison
+
+`RasterDehazeTest` verifies declared raster Input Color conversion precedes
+dehaze in linear Rec.709 and Rec.2020, scaled source geometry, downstream
+exposure and exactly-once export. A 960-pixel service case warms the larger
+interactive basis before requiring exact settled/export pixels after save and
+reopen, including cache invalidation for both signs of strength.
+Missing profiles, direct nonlinear input,
+cancellation and immutable raster bytes remain explicit contracts
+([ADR-0187](adr/0187-declared-raster-linear-dehaze.md)). Existing RAW references
+and independent atmospheric/guided-filter oracles retain their pixel contracts.
 
 The CPU spatial optimizations in
 [ADR-0173](adr/0173-exact-cpu-spatial-processing.md) retain all dehaze oracle and

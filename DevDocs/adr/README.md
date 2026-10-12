@@ -198,3 +198,5 @@ never reused, and no redirect or empty compatibility document is kept.
 | [0183](0183-document-authorities-and-runtime-test-coverage.md) | Accepted | Single documentation authorities and runtime UI coverage; retire source-text checks and superseded stub documents |
 | [0184](0184-bounded-ai-batch-annotations.md) | Accepted | Shared bounded annotation readback and explicit per-item AI batch edits with partial/cancel/unknown receipts |
 | [0185](0185-explicit-jpeg-exif-colour-and-preview-failure.md) | Accepted | Honour explicit JPEG EXIF sRGB without overriding ICC; failed progressive previews clear loading |
+| [0186](0186-linear-rgb-dng-decode.md) | Accepted | Owned 16-bit linear RGB DNG, source BaselineExposure, shared colour/ROI/edit/export and explicit CFA-only applicability |
+| [0187](0187-declared-raster-linear-dehaze.md) | Accepted | Declared raster Input Color conversion before shared linear dehaze, with exactly-once preview/export and preserved RAW ordering |

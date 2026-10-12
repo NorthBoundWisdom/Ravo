@@ -506,12 +506,9 @@ QVariantList StudioCommandController::shortcutEntries() const
     QVariantList result;
     for (const auto &definition : impl_->actions)
     {
-        const auto state = action(definition.id);
         for (const auto &shortcut : definition.shortcuts)
         {
-            const bool enabled = state.value(QStringLiteral("enabled")).toBool() &&
-                                 !palette_open_ && !modal_open_ &&
-                                 (!shortcut.requires_non_text_input || !text_input_active_);
+            const bool enabled = shortcutEnabled(definition.id, shortcut.sequence);
             result.push_back(
                 QVariantMap{{QStringLiteral("actionId"), definition.id},
                             {QStringLiteral("sequence"), shortcut.sequence},
@@ -520,6 +517,34 @@ QVariantList StudioCommandController::shortcutEntries() const
         }
     }
     return result;
+}
+
+QVariantList StudioCommandController::shortcutBindings() const
+{
+    QVariantList result;
+    for (const auto &definition : impl_->actions)
+        for (const auto &shortcut : definition.shortcuts)
+            result.push_back(QVariantMap{{QStringLiteral("actionId"), definition.id},
+                                         {QStringLiteral("sequence"), shortcut.sequence}});
+    return result;
+}
+
+bool StudioCommandController::shortcutEnabled(const QString &action_id,
+                                              const QString &sequence) const
+{
+    if (palette_open_ || modal_open_)
+        return false;
+    for (const auto &definition : impl_->actions)
+    {
+        if (definition.id != action_id)
+            continue;
+        for (const auto &shortcut : definition.shortcuts)
+            if (shortcut.sequence == sequence)
+                return (!shortcut.requires_non_text_input || !text_input_active_) &&
+                       action(action_id).value(QStringLiteral("enabled")).toBool();
+        return false;
+    }
+    return false;
 }
 
 QVariantMap StudioCommandController::executeAction(const QString &action_id, const QString &source)

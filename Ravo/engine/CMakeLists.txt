@@ -84,6 +84,7 @@ target_sources(ravo_engine
     src/raw_denoise.cpp
     src/raw_denoise.h
     src/raw_pipeline.cpp
+    src/raw_linear.cpp
     src/rapidraw_tone_controls.cpp
     src/rapidraw_tone_controls.h
     src/raw_metadata.cpp

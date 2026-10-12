@@ -889,15 +889,6 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
     profiled.color_profile = std::move(encoded.value().color_profile);
     profiled.canonical_roi_scale = encoded.value().canonical_roi_scale;
     profiled.mask_attached_frame = encoded.value().mask_attached_frame;
-    for (const auto &operation : recipe.operations)
-    {
-        if (operation.enabled && operation.id == kDehazeOperationId)
-        {
-            return make_error(
-                ErrorCode::kUnsupported, "Dehaze requires a source-linear RAW buffer",
-                {{"operation_id", operation.id}, {"reason", "dehaze_raster_source_unsupported"}});
-        }
-    }
     if (profile_gamma.value())
     {
         auto corrected = apply_profile_gamma(profiled, *profile_gamma.value(), cancellation);
@@ -907,7 +898,27 @@ EngineFacade::linear_working_from_raster(const RasterBuffer &raster, const Recip
         }
         profiled = std::move(corrected).value();
     }
-    return apply_input_color(profiled, input_color.value(), cancellation);
+    auto working = apply_input_color(profiled, input_color.value(), cancellation);
+    if (!working)
+    {
+        return working.error();
+    }
+    // Encoded sources must pass their declared transfer/profile transform before
+    // the shared linear RGB algorithm. RAW retains its camera-RGB source stage.
+    for (const auto &operation : recipe.operations)
+    {
+        if (!operation.enabled || operation.id != kDehazeOperationId)
+        {
+            continue;
+        }
+        auto dehazed = apply_dehaze(working.value(), operation, cancellation);
+        if (!dehazed)
+        {
+            return dehazed.error();
+        }
+        working = std::move(dehazed);
+    }
+    return working;
 }
 
 Result<LinearWorkingBuffer>
@@ -1706,7 +1717,13 @@ Result<RenderedExportImage> EngineFacade::render_to_export_image(const RenderReq
         {
             return working.error();
         }
-        return render_linear_working_export(working.value(), request.recipe, sample_kind,
+        Recipe remaining = request.recipe;
+        for (auto &operation : remaining.operations)
+        {
+            if (operation.id == kDehazeOperationId)
+                operation.enabled = false;
+        }
+        return render_linear_working_export(working.value(), remaining, sample_kind,
                                             request.cancellation);
     }
     auto decoded = decode_raw_frame(request.asset.input_uri, request.cancellation);

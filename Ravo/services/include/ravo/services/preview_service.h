@@ -141,7 +141,8 @@ private:
     [[nodiscard]] Result<CachedLinearWorking *>
     cached_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                           std::uint32_t width, std::uint32_t height, std::uint32_t max_edge,
-                          const CancellationToken &cancellation, PreviewLane lane);
+                          const CancellationToken &cancellation, PreviewLane lane,
+                          bool allow_scaled_preparation);
     [[nodiscard]] Result<CachedRoiLinearWorking *>
     cached_roi_linear_working(const AssetRecord &asset, std::string_view path, const Recipe &recipe,
                               std::uint32_t origin_x, std::uint32_t origin_y, std::uint32_t width,
