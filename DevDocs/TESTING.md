@@ -63,7 +63,7 @@ selection-bound teardown and structured unsupported states. The separate
 `ravo_video_software_playback` case forces the software decoder path; it does
 not replace the ordinary hardware-capable run. Generator-owned video fixtures
 are updated only through their owning script. Audio/device/4K/private-corpus
-qualification remains in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
+qualification remains in [TODO.md](TODO.md#video-qualification-gaps).
 
 Opt-in probes use explicit read-only inputs and isolated catalogs. Missing input
 means UNTESTED, not pass. In addition to the performance procedures below:

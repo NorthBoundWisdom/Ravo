@@ -26,8 +26,8 @@ correctness reference.
 The current user-authorized AI control tranche extends LC-03 through ADR-0184;
 it reuses existing owners without admitting new inference models. The code
 retirement queue remains tracked below rather than implicitly closed by it.
-[TODO_CODE_RETIREMENT.md](TODO_CODE_RETIREMENT.md) owns the ordered removals and
-validation gates; [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md)
+[Cross-cutting qualification gaps](#cross-cutting-qualification-gaps) own the
+remaining consolidation and validation; [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md)
 protects stored edits and durability while retiring unused roots and stubs.
 
 The user-requested LightCraft adoption queue is
@@ -42,7 +42,7 @@ models/formats; those expansion items retain explicit decision gates.
 
 The explicitly requested video work is bounded by
 [ADR-0165](adr/0165-video-library-and-playback.md). Host, audio and real-corpus
-qualification remains in [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
+qualification remains under [Video qualification gaps](#video-qualification-gaps).
 
 Architecture-refactor qualification shares REL-01, PERF-01, IQ-00 and REL-02.
 Its remaining external gates are consolidated under
@@ -558,7 +558,29 @@ closed.
   architecture/release queues. A queued wakeup is not race proof, synthetic PNG
   is not a real corpus, and process lifetime is not catalog reopen.
 
+## Video qualification gaps
+
+- Qualify real iPhone SDR, HLG/PQ and supported Dolby Vision base layers,
+  including long recordings, variable frame rate, rotation and interrupted files
+  under REL-01/IQ-00. Synthetic clips do not establish corpus quality.
+- Measure native-resolution and 1600-edge playback latency, dropped frames and
+  sustained A/V synchronization under PERF-01; retain separate 4K/60 evidence.
+- Verify audible output, device removal/recovery, display ICC moves and HDR-to-SDR
+  appearance on native desktop sessions. Muted/offscreen frames do not qualify audio.
+- Qualify installed Windows/Linux/macOS packages with the admitted Qt/FFmpeg
+  7.1.5 runtime, standard ProRes availability and 4:2:2/10-bit mapped playback
+  under REL-02. Keep unsupported Dolby Vision profiles/transforms explicit.
+
 ## Cross-cutting qualification gaps
+
+- Consolidate remaining enum/indexed Develop metadata and Qt projections only
+  where semantics are independent. Preserve IDs, units, context-dependent bounds,
+  coupled/group resets, multi-instances and masks. Gate: complete CLI field
+  inventories, unchanged recipe/fixtures and full service/CLI/desktop contracts.
+- Qualify testing-off Windows/Linux builds for shared static QML resources and
+  test-only smoke isolation, including native linker/type registration, runtime
+  deployment and localization. Testing-on CI does not establish testing-off or
+  installed-package startup/video acceptance; retain those under REL-02.
 
 - Extend independent Release fixture/synthetic evidence to representative corpus
   and thermal runs under REL-01/PERF-01/IQ-00. Retain comparison baseline

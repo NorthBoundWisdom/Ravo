@@ -54,10 +54,8 @@ These decisions explain the larger workflows without duplicating their state her
 | Document | Unfinished work |
 | --- | --- |
 | [TODO.md](TODO.md) | Ordered product, correctness, performance and release gates |
-| [TODO_CODE_RETIREMENT.md](TODO_CODE_RETIREMENT.md) | Remaining parameter projection consolidation and resource-linkage host/package qualification |
 | [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md) | Command/MCP, model, mask, camera/lens and workflow adoption; performance qualification in idle-CPU windows |
 | [TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md) | RAW rendering/profile qualification |
-| [TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md) | Video host, audio, corpus and package qualification |
 | [TODO_LIGHTROOM_IMPORT.md](TODO_LIGHTROOM_IMPORT.md) | Lightroom data, Develop, offline identity and corpus qualification |
 | [ProductRoadmap.md](ProductRoadmap.md) | Product-level questions requiring a bounded decision |
 

@@ -17,7 +17,7 @@ Package templates copy the FFmpeg LGPL notice alongside existing notices.
 The isolated checker requires video import, no-replace frame artifact and
 Qt playback stages. Its muted frame test does not establish audible output or
 real iPhone HDR quality; those qualifications remain in
-[TODO_VIDEO_SUPPORT.md](TODO_VIDEO_SUPPORT.md).
+[TODO.md](TODO.md#video-qualification-gaps).
 
 Ravo has one release packaging graph for local FreeCM Package actions and
 GitHub Actions. Configure remains explicit; packaging never initializes source
