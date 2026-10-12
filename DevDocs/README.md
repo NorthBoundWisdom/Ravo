@@ -27,6 +27,9 @@ It does not duplicate the handbook or serve as a chronological change log.
 
 The architecture and testing authorities cover:
 
+- Exact independent clarity lane accumulation on existing row tasks
+  ([ADR-0179](adr/0179-exact-clarity-lane-accumulation.md)).
+
 - Catalog durability, explicit XMP interchange, source-safe Add/Copy/Move,
   staged import planning, duplicate detection and cancellation.
   Import success/failure becomes idle only after final Gallery publication.

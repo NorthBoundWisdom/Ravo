@@ -638,18 +638,34 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
                          [&](const std::uint32_t row)
                          {
                              const std::size_t base = static_cast<std::size_t>(row) * width;
-                             for (std::uint32_t column = 0U; column < width; ++column)
+                             std::uint32_t column = 0U;
+                             const auto scalar = [&](const std::uint32_t x)
                              {
                                  float sum = 0.0F;
                                  for (int offset = -8; offset <= 8; ++offset)
                                  {
-                                     const auto x = static_cast<std::uint32_t>(std::clamp(
-                                         static_cast<std::int64_t>(column) + offset,
-                                         std::int64_t{0}, static_cast<std::int64_t>(width) - 1));
-                                     sum += plane[base + x];
+                                     const auto sample = static_cast<std::uint32_t>(std::clamp(
+                                         static_cast<std::int64_t>(x) + offset, std::int64_t{0},
+                                         static_cast<std::int64_t>(width) - 1));
+                                     sum += plane[base + sample];
                                  }
-                                 temporary[base + column] = sum / 17.0F;
+                                 temporary[base + x] = sum / 17.0F;
+                             };
+                             for (; column < std::min(width, 8U); ++column)
+                                 scalar(column);
+                             constexpr std::uint32_t lanes = 8U;
+                             for (; width - column >= lanes + 8U; column += lanes)
+                             {
+                                 std::array<float, lanes> sums{};
+                                 const float *source = plane.data() + base + column - 8U;
+                                 for (std::uint32_t offset = 0; offset < 17U; ++offset)
+                                     for (std::uint32_t lane = 0; lane < lanes; ++lane)
+                                         sums[lane] += source[offset + lane];
+                                 for (std::uint32_t lane = 0; lane < lanes; ++lane)
+                                     temporary[base + column + lane] = sums[lane] / 17.0F;
                              }
+                             for (; column < width; ++column)
+                                 scalar(column);
                          });
         if (!horizontal)
         {
@@ -660,21 +676,32 @@ void box_blur(WorkingImage &image, const int radius, const int passes)
             [&](const std::uint32_t row)
             {
                 float *destination = plane.data() + static_cast<std::size_t>(row) * width;
-                std::fill_n(destination, width, 0.0F);
+                std::array<const float *, 17> sources{};
                 for (int offset = -8; offset <= 8; ++offset)
                 {
                     const auto y = static_cast<std::uint32_t>(
                         std::clamp(static_cast<std::int64_t>(row) + offset, std::int64_t{0},
                                    static_cast<std::int64_t>(height) - 1));
-                    const float *source = temporary.data() + static_cast<std::size_t>(y) * width;
-                    for (std::uint32_t column = 0U; column < width; ++column)
-                    {
-                        destination[column] += source[column];
-                    }
+                    sources[static_cast<std::size_t>(offset + 8)] =
+                        temporary.data() + static_cast<std::size_t>(y) * width;
                 }
-                for (std::uint32_t column = 0U; column < width; ++column)
+                constexpr std::uint32_t lanes = 32U;
+                std::uint32_t column = 0;
+                for (; width - column >= lanes; column += lanes)
                 {
-                    destination[column] /= 17.0F;
+                    std::array<float, lanes> sums{};
+                    for (const auto *source : sources)
+                        for (std::uint32_t lane = 0; lane < lanes; ++lane)
+                            sums[lane] += source[column + lane];
+                    for (std::uint32_t lane = 0; lane < lanes; ++lane)
+                        destination[column + lane] = sums[lane] / 17.0F;
+                }
+                for (; column < width; ++column)
+                {
+                    float sum = 0.0F;
+                    for (const auto *source : sources)
+                        sum += source[column];
+                    destination[column] = sum / 17.0F;
                 }
             });
         if (!vertical)

@@ -2240,6 +2240,19 @@ CTest discovers these two keyboard timing cases separately with `RUN_SERIAL`:
 their 50 ms focus / 100 ms page-scroll ceilings and samples stay unchanged,
 while other render/import tests cannot run concurrently on the same worker.
 
+`EngineSpatialCpuTest.MeasuresExactClarityStagesWithOwnedRows` is an opt-in
+Release observation of the two-pass blur and complete clarity operation on
+1600×1069 synthetic linear RGB. It creates one existing row owner, performs two
+actual warm operations and records at least 30 samples. Operation scratch and
+row joins are timed; caller input copies and final float fingerprints are outside
+the boundary. Its `ravo.clarity-stages/v1` workload records dimensions, amount,
+CPU backend, worker count and final float fingerprint. It measures neither RAW
+preparation nor ICC/publication and is not a whole-editor budget.
+
+```sh
+RAVO_CLARITY_PERF=1 RAVO_INTERACTIVE_PERF_RECORDED_SAMPLES=30 RAVO_INTERACTIVE_PERF_REPORT_PATH=/tmp/ravo-clarity-unique.jsonl build/mac_clang_release/Ravo/tests/ravo_contract_tests --gtest_filter=EngineSpatialCpuTest.MeasuresExactClarityStagesWithOwnedRows
+```
+
 Set `RAVO_INTERACTIVE_PERF_REPORT_PATH` to append JSONL rows; optional
 `RAVO_INTERACTIVE_PERF_WARMUPS` (default 2) and
 `RAVO_INTERACTIVE_PERF_RECORDED_SAMPLES` (default 8) select the protocol.

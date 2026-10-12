@@ -91,6 +91,10 @@ void apply_contrast(WorkingImage &image, double amount);
 [[nodiscard]] Result<void> apply_vibrance_saturation(WorkingImage &image, double vibrance,
                                                      double saturation,
                                                      const CancellationToken &cancellation);
+// Mutable plane is borrowed only until the synchronous owned row passes join.
+[[nodiscard]] Result<void> blur_clarity_lightness(std::vector<float> &plane, std::uint32_t width,
+                                                  std::uint32_t height,
+                                                  const CancellationToken &cancellation);
 [[nodiscard]] Result<void> apply_clarity(WorkingImage &image, double amount,
                                          const CancellationToken &cancellation);
 void apply_soften(WorkingImage &image, double amount);

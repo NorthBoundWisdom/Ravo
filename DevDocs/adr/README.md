@@ -188,3 +188,4 @@ decision bodies remain stable.
 | [0173](0173-exact-cpu-spatial-processing.md) | Accepted | Exact contiguous dehaze lanes, single-plane clarity and reuse of perspective weights/intersections |
 | [0174](0174-exact-denoise-preview-basis.md) | Accepted | Bounded unblended denoise basis for exact strength/chroma mixing within the existing interactive prefix owner |
 | [0175](0175-exact-raw-preparation-work.md) | Accepted | Exact CFA lookup and opposed-highlight work reduction with preserved sequential reconstruction and row cancellation |
+| [0179](0179-exact-clarity-lane-accumulation.md) | Accepted | Independent clarity lane accumulation with unchanged per-pixel float order and bounded row-local stack scratch |

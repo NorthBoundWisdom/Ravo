@@ -2304,7 +2304,10 @@ Dehaze box means batch independent contiguous lanes without changing each
 lane's Kahan recurrence, source order or tile geometry. Clarity keeps one
 lightness plane and the original two radius-eight clamped float blur passes;
 Lab conversion, blur and mixing use the existing synchronous render-owned row
-executor. Its five float scratch planes enter RAW memory preflight. Jobs borrow
+executor. Interior horizontal and vertical clarity sums batch independent lanes
+while preserving each pixel's scalar addition order
+([ADR-0179](adr/0179-exact-clarity-lane-accumulation.md)).
+Its five float scratch planes enter RAW memory preflight. Jobs borrow
 buffers until the pass joins, allocate on the caller, and propagate cancellation
 or worker errors without publishing a partial image. Perspective keeps Lanczos
 and safe-crop mathematics while reusing each pixel's horizontal weights and

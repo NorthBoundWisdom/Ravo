@@ -4,6 +4,8 @@
 #include <array>
 #include <bit>
 #include <cstdint>
+#include <chrono>
+#include <cstdlib>
 #include <utility>
 #include <vector>
 
@@ -13,6 +15,7 @@
 #include "image_ops_internal.h"
 #include "parallel_rows.h"
 #include "raw_pipeline.h"
+#include "interactive_perf_report.h"
 
 namespace ravo
 {
@@ -83,8 +86,20 @@ TEST(EngineSpatialCpuTest, SinglePlaneClarityMatchesSerialRgbFloatBits)
 {
     auto rows = detail::ScopedParallelRowSession::create();
     ASSERT_TRUE(rows) << rows.error().message;
-    for (const auto [width, height] : std::array<std::pair<std::uint32_t, std::uint32_t>, 5>{
-             {{1U, 1U}, {3U, 2U}, {17U, 31U}, {65U, 37U}, {33U, 97U}}})
+    for (const auto [width, height] :
+         std::array<std::pair<std::uint32_t, std::uint32_t>, 13>{{{1U, 1U},
+                                                                  {3U, 2U},
+                                                                  {8U, 9U},
+                                                                  {16U, 7U},
+                                                                  {17U, 31U},
+                                                                  {23U, 17U},
+                                                                  {24U, 17U},
+                                                                  {25U, 18U},
+                                                                  {31U, 19U},
+                                                                  {32U, 19U},
+                                                                  {33U, 20U},
+                                                                  {65U, 37U},
+                                                                  {33U, 97U}}})
     {
         WorkingImage input;
         input.width = width;
@@ -117,6 +132,79 @@ TEST(EngineSpatialCpuTest, SinglePlaneClarityMatchesSerialRgbFloatBits)
         ASSERT_FALSE(clarified);
         EXPECT_EQ(clarified.error().code, ErrorCode::kCancelled);
         EXPECT_EQ(actual.rgb, input.rgb);
+    }
+}
+
+TEST(EngineSpatialCpuTest, MeasuresExactClarityStagesWithOwnedRows)
+{
+    if (!std::getenv("RAVO_CLARITY_PERF"))
+        GTEST_SKIP() << "set RAVO_CLARITY_PERF for the explicit Release stage observation";
+    const auto runs = interactive_perf_report::recorded_samples_from_env(30U);
+    ASSERT_GE(runs, 30U);
+    ASSERT_LE(runs, 1000U);
+    auto rows = detail::ScopedParallelRowSession::create();
+    ASSERT_TRUE(rows);
+    WorkingImage source;
+    source.width = 1600;
+    source.height = 1069;
+    const auto pixels = static_cast<std::size_t>(source.width) * source.height;
+    source.rgb.resize(pixels * 3);
+    std::vector<float> plane(pixels);
+    for (std::size_t i = 0; i < source.rgb.size(); ++i)
+        source.rgb[i] =
+            static_cast<float>((static_cast<std::uint32_t>(i) * 1664525U + 1013904223U) % 65521U) /
+            65521.0F;
+    for (std::size_t i = 0; i < pixels; ++i)
+        plane[i] = source.rgb[i * 3];
+    const auto fingerprint = [](const std::vector<float> &values)
+    {
+        std::uint64_t hash = 1469598103934665603ULL;
+        for (const auto value : values)
+            hash = (hash ^ std::bit_cast<std::uint32_t>(value)) * 1099511628211ULL;
+        return std::to_string(hash);
+    };
+    for (const bool blur_only : {true, false})
+    {
+        std::vector<std::int64_t> samples;
+        std::string result_hash;
+        for (std::size_t run = 0; run < runs + 2; ++run)
+        {
+            // Input copies are outside the stage boundary; all operation-owned
+            // scratch allocation/free and row joins remain inside it.
+            auto input = source;
+            auto lightness = plane;
+            const auto started = std::chrono::steady_clock::now();
+            auto applied = blur_only ? image_ops_internal::blur_clarity_lightness(
+                                           lightness, source.width, source.height, {}) :
+                                       image_ops_internal::apply_clarity(input, .5, {});
+            const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                                     std::chrono::steady_clock::now() - started)
+                                     .count();
+            ASSERT_TRUE(applied);
+            if (run >= 2)
+                samples.push_back(elapsed);
+            if (run + 1 == runs + 2)
+                result_hash = fingerprint(blur_only ? lightness : input.rgb);
+        }
+        interactive_perf_report::CaseMeta meta;
+        meta.case_id = blur_only ? "engine_clarity_lightness_blur" : "engine_clarity_owned_rows";
+        meta.path = "engine_owned_rows";
+        meta.source_kind = "synthetic_linear_rgb";
+        meta.cache_state = "row_owner_warm_no_pixel_cache";
+        meta.unit = "us";
+        meta.warmups = 2;
+        meta.recorded_samples = runs;
+        meta.workers = detail::parallel_row_workers(source.height);
+        meta.gpu_backend = "cpu";
+        meta.workload = {{"schema", "ravo.clarity-stages/v1"},
+                         {"width", JsonValue::number(std::to_string(source.width))},
+                         {"height", JsonValue::number(std::to_string(source.height))},
+                         {"result_float_fingerprint", result_hash},
+                         {"amount", JsonValue::number("0.5")},
+                         {"includes_input_copy", false},
+                         {"includes_operation_scratch", true},
+                         {"includes_native_frame_swap", false}};
+        interactive_perf_report::emit_case(meta, samples);
     }
 }
 
