@@ -35,6 +35,11 @@ Settings, curves and merge assertions belong to BUILD_TESTING-only
 Both remain in CTest. Root QML or registry failures fail smoke, with subprocess
 and CTest deadlines; Windows smoke requires a usable font directory and fatal
 Qt diagnostics must fail immediately rather than open a crash dialog.
+Windows offscreen CTest also requires `QT_QPA_FONTDIR` before QGuiApplication
+construction. CI preserves an explicit directory or binds the Windows `Fonts`
+directory, validates its existence and fails before testing if it is absent.
+For local offscreen Windows runs, set that environment variable before CTest;
+an empty font inventory must remain a failed contract, not a skipped test.
 
 Desktop tests isolate both QSettings scopes and use the shared Qt/font bootstrap.
 Use controlled worker gates and completion predicates to establish ordering;
@@ -382,6 +387,13 @@ existing display owner's publication boundary, not an alternate converter. Share
 frame-test helpers construct only matching owner slots and immutable input data.
 Live-control and progressive-preview tests retain independent current/saved/displayed
 Recipe guards and the original rapid-intent publication timing.
+The functional rapid-intent case keeps changed input active until the first
+publication, then stops and sends a distinct final value. It requires another
+publication, ordered revisions, matching timing signals and the exact latest
+pixel/profile hash under the original deadlines. A finite synchronous quiet burst
+may publish only its latest frame under ADR-0176; it cannot establish continuous
+input progress by requiring a hardware-dependent intermediate frame count.
+Controlled quiet-supersession cases retain finite-burst coalescing coverage.
 
 Comparison coverage checks the accepted source/profile pair across display changes
 with an independent channel-swap pixel oracle. The composed command test sends

@@ -617,14 +617,18 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
     std::vector<qulonglong> published_revisions;
     std::vector<qulonglong> timed_revisions;
     QUrl last_url = presenter.inspect()->previewUrl();
+    QTimer updates;
+    updates.setTimerType(Qt::PreciseTimer);
+    updates.setInterval(1);
     QObject::connect(presenter.develop(), &StudioDevelopPresenter::interactivePreviewPublished,
-                     &presenter,
+                     &updates,
                      [&](const qulonglong revision, const qlonglong intent_to_image_us)
                      {
                          EXPECT_GT(intent_to_image_us, 0);
                          timed_revisions.push_back(revision);
+                         updates.stop();
                      });
-    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &presenter,
+    QObject::connect(presenter.inspect(), &StudioInspectPresenter::previewChanged, &updates,
                      [&]
                      {
                          const QUrl current = presenter.inspect()->previewUrl();
@@ -640,15 +644,30 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
 
     presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), -0.2);
     constexpr int kIntentCount = 40;
-    for (int index = 1; index < kIntentCount; ++index)
+    for (int index = 1; index < kIntentCount - 1; ++index)
     {
         presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"),
                                                   -0.2 + static_cast<double>(index) * 0.02);
     }
     const double latest_exposure = -0.2 + static_cast<double>(kIntentCount - 1) * 0.02;
-
-    ASSERT_TRUE(wait_until([&] { return published_revisions.size() >= 2U; }, 10000))
+    // A finite quiet burst may legitimately supersede its first frame. Keep
+    // changed intents flowing until progress is observed, then require a
+    // distinct final value that was never sent by the progress stream.
+    int stream_index = 0;
+    QObject::connect(&updates, &QTimer::timeout, &updates,
+                     [&]
+                     {
+                         presenter.develop()->previewDevelopNumber(
+                             QStringLiteral("exposure"),
+                             -0.2 + static_cast<double>(stream_index) * 0.02);
+                         stream_index = (stream_index + 1) % (kIntentCount - 1);
+                     });
+    updates.start();
+    ASSERT_TRUE(wait_until([&] { return !published_revisions.empty(); }, 10000))
         << presenter.errorText().toStdString();
+    updates.stop();
+    const auto progress_frames = published_revisions.size();
+    presenter.develop()->previewDevelopNumber(QStringLiteral("exposure"), latest_exposure);
     ASSERT_TRUE(wait_until(
         [&]
         {
@@ -668,9 +687,11 @@ TEST(StudioPresenterTest, RapidDevelopIntentsPublishProgressAndLatestExactIdenti
         10000))
         << presenter.errorText().toStdString();
 
-    EXPECT_EQ(published_revisions.size(), 2U);
+    EXPECT_GE(published_revisions.size(), 2U);
+    EXPECT_GT(published_revisions.size(), progress_frames);
     EXPECT_EQ(timed_revisions, published_revisions);
-    EXPECT_LT(published_revisions.front(), published_revisions.back());
+    for (std::size_t index = 1; index < published_revisions.size(); ++index)
+        EXPECT_LT(published_revisions[index - 1], published_revisions[index]);
     EXPECT_NEAR(presenter.develop()->editExposure(), latest_exposure, 1e-9);
 
     const auto state = live.value()->snapshot();

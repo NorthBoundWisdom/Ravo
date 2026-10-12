@@ -26,6 +26,21 @@ runs:
           throw "Qt bin directory is missing: $qtBin"
         }
         $env:Path = "$qtBin;$hostBin;$env:Path"
+        # The offscreen QPA plugin does not enumerate Windows system fonts.
+        # Bind the same explicit directory used by Studio's smoke launcher.
+        if ([string]::IsNullOrWhiteSpace($env:QT_QPA_FONTDIR)) {
+          $windowsRoot = $env:WINDIR
+          if ([string]::IsNullOrWhiteSpace($windowsRoot)) {
+            $windowsRoot = $env:SystemRoot
+          }
+          if ([string]::IsNullOrWhiteSpace($windowsRoot)) {
+            throw "Windows root is missing; cannot configure offscreen fonts"
+          }
+          $env:QT_QPA_FONTDIR = Join-Path $windowsRoot "Fonts"
+        }
+        if (-not (Test-Path -LiteralPath $env:QT_QPA_FONTDIR -PathType Container)) {
+          throw "Qt offscreen font directory is missing: $env:QT_QPA_FONTDIR"
+        }
         ctest --test-dir "build/${{ inputs.preset }}" --no-tests=error --output-on-failure --parallel 4
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
