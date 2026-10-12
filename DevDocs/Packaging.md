@@ -127,11 +127,13 @@ The macOS bundle places the CLI at `Ravo Studio.app/Contents/MacOS/ravo`.
 Windows and Linux place `ravo` beside `ravo_studio` in the deployed binary
 directory.
 
-Windows deployment leaves CNG's `bcrypt.dll` to the OS; FreeCM classifies it as a
-system dependency during transitive FFmpeg DLL scanning. It is not copied into
-the payload or resolved by adding System32 to SDK search paths. Missing
-non-system DLLs still fail deployment. Windows builds require the SDK's `fxc`
-on PATH so Engine QSB assets contain validated DXBC before packaging.
+Windows deployment leaves CNG's `bcrypt.dll`, the multimedia scheduler's
+`avrt.dll`, and the property system's `propsys.dll` to the OS. FreeCM classifies
+them as system dependencies during transitive FFmpeg and Qt DLL scanning. They
+are not copied into the payload or resolved by adding System32 to SDK search
+paths. Missing non-system DLLs still fail deployment. Windows builds require
+the SDK's `fxc` on PATH so Engine QSB assets contain validated DXBC before
+packaging.
 
 Linux publishes both an AppImage and a Debian package from the same FreeCM-owned
 AppDir payload. CI uses pinned appimagetool 1.9.1 and type2 runtime 20251108
