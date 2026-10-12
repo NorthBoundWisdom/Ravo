@@ -74,7 +74,7 @@ public:
     }
     static void protectSave(StudioDevelopPresenter &owner)
     {
-        owner.state_.pending_save_.emplace();
+        owner.state_.pending_save_ = StudioDevelopPresenter::PendingDevelopWork{};
         owner.state_.pending_save_->save = true;
     }
     static void protectComparison(StudioDevelopPresenter &owner)
