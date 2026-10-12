@@ -23,6 +23,10 @@ StudioDevelopPresenter::StudioDevelopPresenter(Context context, Host host, QObje
 {
     connect(this, &StudioDevelopPresenter::editChanged, this,
             &StudioDevelopPresenter::sync_local_edit_scope);
+    quiet_preview_timer_.setSingleShot(true);
+    quiet_preview_timer_.setInterval(8);
+    connect(&quiet_preview_timer_, &QTimer::timeout, this,
+            &StudioDevelopPresenter::supersede_quiet_preview);
     local_overlay_resume_timer_.setSingleShot(true);
     connect(&local_overlay_resume_timer_, &QTimer::timeout, this,
             [this]
@@ -61,6 +65,7 @@ void StudioDevelopPresenter::shutdown()
 
 void StudioDevelopPresenter::selectionInvalidated()
 {
+    reset_quiet_preview();
     ++recipe_load_generation_;
     local_overlay_resume_timer_.stop();
     local_overlay_suppressed_ = false;
@@ -74,6 +79,7 @@ void StudioDevelopPresenter::selectionInvalidated()
 void StudioDevelopPresenter::catalogSessionInvalidated()
 {
     Q_ASSERT(QThread::currentThread() == thread());
+    reset_quiet_preview();
     ++catalog_session_generation_;
     ++recipe_load_generation_;
     state_.develop_loaded_ = false;

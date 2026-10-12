@@ -2448,6 +2448,12 @@ selection. The root supplies specific worker-thread Develop/Preview/Recovery
 capabilities and explicit presentation/progress callbacks. Work uses the existing
 foreground executor and original commit, supersession, progress and recovery
 order. Command/control consumers read a const edit-state view on the GUI thread.
+Interactive intents coalesce behind an active frame. A GUI-owned eight-millisecond
+quiet timer may cancel the older interactive pixel job, once between accepted
+publications, to shorten finite slow-RAW bursts without starving continuous input.
+It uses the existing request generation/executor and cannot interrupt saves or
+comparison work; identity changes and shutdown stop it
+([ADR-0176](adr/0176-quiet-interactive-preview-supersession.md)).
 
 `StudioInspectPresenter` owns accepted frame/base/comparison pixels, viewport
 extent, zoom/restore state, decoded-preview cache, ROI request/cancellation and

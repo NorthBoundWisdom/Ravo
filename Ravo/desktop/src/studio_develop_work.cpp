@@ -204,6 +204,7 @@ void StudioDevelopPresenter::commit_develop(DevelopParams params, const bool pus
     const auto intent_started_at = std::chrono::steady_clock::now();
     clamp_develop(params);
     const auto previous = state_.saved_develop_;
+    reset_quiet_preview();
     const auto history_head_before = state_.loaded_recipe_history_head_;
     const bool same_control = push_history && params != state_.saved_develop_ &&
                               history_write == RecipeHistoryWrite::kAppendIfNew &&
@@ -362,8 +363,13 @@ void StudioDevelopPresenter::preview_develop(DevelopParams params)
                                      !state_.pending_save_.has_value();
     if (!finish_active_frame)
     {
+        quiet_preview_timer_.stop();
         request_revision =
             state_.develop_preview_owner_.supersede("interactive_preview_superseded");
+    }
+    else if (!quiet_preview_superseded_)
+    {
+        quiet_preview_timer_.start();
     }
     state_.pending_preview_ = PendingDevelopWork{
         .interactive = true,
@@ -387,6 +393,28 @@ void StudioDevelopPresenter::preview_develop(DevelopParams params)
     // Start the pixel job before notifying the broad inspector property set. QML may reevaluate
     // many edit bindings synchronously, while the owner-managed worker can render in parallel.
     emit editChanged();
+}
+
+void StudioDevelopPresenter::reset_quiet_preview()
+{
+    quiet_preview_timer_.stop();
+    quiet_preview_superseded_ = false;
+}
+
+void StudioDevelopPresenter::supersede_quiet_preview()
+{
+    quiet_preview_timer_.stop();
+    if (stopped_ || quiet_preview_superseded_ || !state_.develop_job_in_flight_ ||
+        !state_.develop_interactive_job_in_flight_ || state_.pending_save_ ||
+        !state_.pending_preview_ || !state_.pending_preview_->interactive ||
+        state_.pending_preview_->save || state_.pending_preview_->comparison_before ||
+        state_.pending_preview_->asset_id != utf8_from_qstring(selected_asset_id_))
+        return;
+    // At most one interruption between accepted frames. Otherwise a regular
+    // input cadence just beyond the quiet interval could cancel every RAW job.
+    quiet_preview_superseded_ = true;
+    state_.pending_preview_->request_revision =
+        state_.develop_preview_owner_.supersede("interactive_preview_quiet_superseded");
 }
 
 bool StudioDevelopPresenter::mutate_develop(DevelopParams next, const DevelopEdit edit,
@@ -455,6 +483,7 @@ bool StudioDevelopPresenter::mutate_develop(DevelopParams next, const DevelopEdi
 
 void StudioDevelopPresenter::enqueue_preview()
 {
+    reset_quiet_preview();
     if (selected_asset_id_.isEmpty())
     {
         host_.preview_loading(false);
@@ -521,6 +550,7 @@ void StudioDevelopPresenter::kick_develop_work()
     {
         return;
     }
+    quiet_preview_timer_.stop();
     PendingDevelopWork job;
     bool starting_comparison_before = false;
     if (state_.pending_save_.has_value())
@@ -861,6 +891,7 @@ void StudioDevelopPresenter::kick_develop_work()
                     inspect_.observeDisplayedDevelop(job.ignore_edits ?
                                                          std::optional<DevelopParams>{} :
                                                          std::optional<DevelopParams>{job.params});
+                    reset_quiet_preview();
                     if (job.interactive &&
                         job.intent_started_at != std::chrono::steady_clock::time_point{})
                     {

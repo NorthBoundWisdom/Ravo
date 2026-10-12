@@ -27,6 +27,9 @@ It does not duplicate the handbook or serve as a chronological change log.
 
 The architecture and testing authorities cover:
 
+- Bounded quiet-input preview supersession through the existing owner/executor
+  ([ADR-0176](adr/0176-quiet-interactive-preview-supersession.md)).
+
 - Exact independent clarity lane accumulation on existing row tasks
   ([ADR-0179](adr/0179-exact-clarity-lane-accumulation.md)).
 

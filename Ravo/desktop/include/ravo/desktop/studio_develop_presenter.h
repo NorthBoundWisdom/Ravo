@@ -558,6 +558,8 @@ public:
                         RecipeHistoryWrite history_write = RecipeHistoryWrite::kAppendIfNew,
                         std::optional<std::string> history_coalesce_key = {});
     void preview_develop(DevelopParams params);
+    void supersede_quiet_preview();
+    void reset_quiet_preview();
     void break_history_coalescing();
     [[nodiscard]] bool controlSaveQueued(std::string_view id) const
     {
@@ -688,6 +690,8 @@ private:
     using CopiedDevelopParameters = State::CopiedDevelopParameters;
     State state_;
     QTimer local_overlay_resume_timer_;
+    QTimer quiet_preview_timer_;
+    bool quiet_preview_superseded_ = false;
     bool local_overlay_suppressed_ = false;
     Host host_;
     std::string control_operation_id_;

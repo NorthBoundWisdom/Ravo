@@ -31,6 +31,63 @@ namespace testing
 class StudioPipelineTestControl
 {
 public:
+    static std::unique_ptr<StudioDevelopPresenter>
+    quietPreviewOwner(StudioPresenter &presenter, const QString &asset, const QString &catalog)
+    {
+        StudioDevelopPresenter::Host host;
+        host.refresh_roi = [] {};
+        auto owner = std::unique_ptr<StudioDevelopPresenter>(
+            new StudioDevelopPresenter({asset, catalog, presenter.browse_mode_, presenter.busy_,
+                                        presenter.catalog_operation_active_, presenter.busy_,
+                                        presenter.observed_catalog_revision_, presenter.assets_,
+                                        presenter.inspect_, presenter.engine_, presenter.executor_},
+                                       std::move(host), nullptr));
+        owner->state_.develop_job_in_flight_ = true;
+        owner->state_.develop_interactive_job_in_flight_ = true;
+        return owner;
+    }
+    static CancellationToken activeToken(StudioDevelopPresenter &owner)
+    {
+        return owner.state_.develop_preview_owner_.begin();
+    }
+    static std::uint64_t previewRevision(StudioDevelopPresenter &owner)
+    {
+        return owner.state_.develop_preview_owner_.revision();
+    }
+    static void queueExposure(StudioDevelopPresenter &owner, const double exposure)
+    {
+        auto params = owner.state_.develop_;
+        params.exposure_ev = exposure;
+        owner.preview_develop(std::move(params));
+    }
+    static void expireQuiet(StudioDevelopPresenter &owner)
+    {
+        owner.supersede_quiet_preview();
+    }
+    static bool quietArmed(StudioDevelopPresenter &owner)
+    {
+        return owner.quiet_preview_timer_.isActive();
+    }
+    static void acceptFrame(StudioDevelopPresenter &owner)
+    {
+        owner.reset_quiet_preview();
+    }
+    static void protectSave(StudioDevelopPresenter &owner)
+    {
+        owner.state_.pending_save_.emplace();
+        owner.state_.pending_save_->save = true;
+    }
+    static void protectComparison(StudioDevelopPresenter &owner)
+    {
+        owner.state_.develop_interactive_job_in_flight_ = false;
+    }
+    static void expectLatestBound(StudioDevelopPresenter &owner, const double exposure)
+    {
+        ASSERT_TRUE(owner.state_.pending_preview_);
+        EXPECT_EQ(owner.state_.pending_preview_->params.exposure_ev, exposure);
+        EXPECT_EQ(owner.state_.pending_preview_->request_revision,
+                  owner.state_.develop_preview_owner_.revision());
+    }
     static void load(StudioPresenter &presenter)
     {
         presenter.develop()->load_develop_for_selection();
@@ -164,6 +221,122 @@ bool ready(StudioPresenter &presenter)
     return !presenter.inspect()->previewLoading() && !presenter.inspect()->previewImage().isNull();
 }
 } // namespace
+
+TEST(StudioPipelinePriority, QuietPreviewSupersedesLatestOnceBetweenPublications)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    const QString asset = QStringLiteral("asset"), catalog = QStringLiteral("catalog");
+    auto owner = testing::StudioPipelineTestControl::quietPreviewOwner(presenter, asset, catalog);
+    const auto old = testing::StudioPipelineTestControl::activeToken(*owner);
+    testing::StudioPipelineTestControl::queueExposure(*owner, 0.1);
+    testing::StudioPipelineTestControl::queueExposure(*owner, 0.2);
+    EXPECT_TRUE(testing::StudioPipelineTestControl::quietArmed(*owner));
+    EXPECT_FALSE(old.is_cancellation_requested());
+    testing::StudioPipelineTestControl::expireQuiet(*owner);
+    EXPECT_TRUE(old.is_cancellation_requested());
+    EXPECT_EQ(old.reason(), "interactive_preview_quiet_superseded");
+    EXPECT_FALSE(testing::StudioPipelineTestControl::quietArmed(*owner));
+    testing::StudioPipelineTestControl::expectLatestBound(*owner, 0.2);
+
+    const auto next = testing::StudioPipelineTestControl::activeToken(*owner);
+    testing::StudioPipelineTestControl::queueExposure(*owner, 0.3);
+    EXPECT_FALSE(testing::StudioPipelineTestControl::quietArmed(*owner));
+    testing::StudioPipelineTestControl::expireQuiet(*owner);
+    EXPECT_FALSE(next.is_cancellation_requested());
+    testing::StudioPipelineTestControl::acceptFrame(*owner);
+    testing::StudioPipelineTestControl::queueExposure(*owner, 0.4);
+    EXPECT_TRUE(testing::StudioPipelineTestControl::quietArmed(*owner));
+    testing::StudioPipelineTestControl::expireQuiet(*owner);
+    EXPECT_TRUE(next.is_cancellation_requested());
+    testing::StudioPipelineTestControl::expectLatestBound(*owner, 0.4);
+}
+
+TEST(StudioPipelinePriority, QuietPreviewDoesNotInterruptSaveOrComparison)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    const QString asset = QStringLiteral("asset"), catalog = QStringLiteral("catalog");
+    for (const bool save : {false, true})
+    {
+        auto owner =
+            testing::StudioPipelineTestControl::quietPreviewOwner(presenter, asset, catalog);
+        const auto token = testing::StudioPipelineTestControl::activeToken(*owner);
+        testing::StudioPipelineTestControl::queueExposure(*owner, 0.1);
+        if (save)
+            testing::StudioPipelineTestControl::protectSave(*owner);
+        else
+            testing::StudioPipelineTestControl::protectComparison(*owner);
+        testing::StudioPipelineTestControl::expireQuiet(*owner);
+        EXPECT_FALSE(token.is_cancellation_requested());
+    }
+}
+
+TEST(StudioPipelinePriority, QuietPreviewTimerStopsAtIdentityAndLifetimeBoundaries)
+{
+    ensure_qt_core();
+    StudioPresenter presenter;
+    const QString asset = QStringLiteral("asset"), catalog = QStringLiteral("catalog");
+    for (int boundary = 0; boundary < 3; ++boundary)
+    {
+        auto owner =
+            testing::StudioPipelineTestControl::quietPreviewOwner(presenter, asset, catalog);
+        testing::StudioPipelineTestControl::queueExposure(*owner, 0.1);
+        ASSERT_TRUE(testing::StudioPipelineTestControl::quietArmed(*owner));
+        if (boundary == 0)
+            owner->selectionInvalidated();
+        else if (boundary == 1)
+            owner->catalogSessionInvalidated();
+        else
+            owner->shutdown();
+        EXPECT_FALSE(testing::StudioPipelineTestControl::quietArmed(*owner));
+    }
+}
+
+TEST(StudioPipelinePriority, QuietCancelledQueuedPreviewPublishesOnlyLatestAndDoesNotSave)
+{
+    ensure_qt_core();
+    init_logging("ravo-desktop-command-tests");
+    QTemporaryDir directory;
+    const auto source = directory.filePath("first.png");
+    ASSERT_TRUE(write_photo(source, 0));
+    StudioPresenter presenter;
+    presenter.createCatalogFromPath(directory.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    presenter.imports()->importFilePaths({source});
+    ASSERT_TRUE(
+        wait_until([&] { return !presenter.busy() && presenter.assets()->rowCount() == 1; }));
+    presenter.setBrowseMode("develop");
+    ASSERT_TRUE(wait_until(
+        [&] { return ready(presenter) && testing::StudioPipelineTestControl::loaded(presenter); }));
+    testing::StudioPipelineTestControl::drain(presenter);
+    const auto before = testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString());
+    ASSERT_TRUE(before);
+    int publications = 0;
+    QObject::connect(presenter.develop(), &StudioDevelopPresenter::interactivePreviewPublished,
+                     [&] { ++publications; });
+    ImportGate gate;
+    ASSERT_TRUE(
+        testing::StudioPipelineTestControl::blockPreview(presenter, gate.entered, gate.released));
+    ASSERT_EQ(gate.started.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    presenter.develop()->previewDevelopNumber("exposure", 0.1);
+    const auto old_revision =
+        testing::StudioPipelineTestControl::previewRevision(*presenter.develop());
+    presenter.develop()->previewDevelopNumber("exposure", 0.2);
+    presenter.develop()->previewDevelopNumber("exposure", 0.3);
+    testing::StudioPipelineTestControl::expireQuiet(*presenter.develop());
+    ASSERT_GT(testing::StudioPipelineTestControl::previewRevision(*presenter.develop()),
+              old_revision);
+    gate.open();
+    ASSERT_TRUE(wait_until([&] { return publications == 1 && !presenter.previewWorkActive(); }));
+    ASSERT_TRUE(presenter.inspect()->displayedDevelop());
+    EXPECT_EQ(presenter.inspect()->displayedDevelop()->exposure_ev, 0.3);
+    const auto after = testing::StudioPipelineTestControl::recipe(
+        presenter, presenter.selectedAssetId().toStdString());
+    ASSERT_TRUE(after);
+    EXPECT_EQ(serialize_recipe(after.value()).value(), serialize_recipe(before.value()).value());
+}
 
 TEST(StudioPipelinePriority, RecipeLoadRejectsOldAAfterABAAndSessionReplacement)
 {

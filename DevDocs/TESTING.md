@@ -872,6 +872,8 @@ hash/recipe/history/preview preservation, immutable resource hashes, exactly-onc
 candidate replay, stale rejection, cancellation before commit and after commit,
 mask/local trial and drawn geometry, history restore, selected batch receipts and
 EOF and Studio-close cancellation/resource teardown. No UI automation or screenshots are used.
+`StudioPipelinePriority.Quiet*` pins cancellation and publication order with a
+controlled executor gate, plus timer invalidation and the one-interruption limit.
 
 ```sh
 cmake --build --preset mac_clang_debug --target ravo_unit_tests ravo_catalog_tests ravo_desktop_command_tests RavoCodeQuality
