@@ -377,7 +377,7 @@ if(BUILD_TESTING)
   ravo_configure_target(ravo_studio_workflow_smoke)
   ravo_copy_windows_runtime_dlls(ravo_studio_workflow_smoke)
   ravo_deploy_windows_qt_runtime(ravo_studio_workflow_smoke
-    "${CMAKE_CURRENT_SOURCE_DIR}/qml")
+    QML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/qml")
   add_test(NAME ravo_studio_workflow_smoke
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"
             "$<TARGET_FILE:ravo_studio_workflow_smoke>")
