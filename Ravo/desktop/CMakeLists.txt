@@ -231,6 +231,7 @@ ravo_configure_target(ravo_studio_resources)
 qt_add_qml_module(ravo_studio_resources
   URI Ravo.Studio
   VERSION 1.0
+  OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Ravo/Studio"
   NO_PLUGIN
   DEPENDENCIES
     GeoControls
@@ -296,7 +297,8 @@ qt_add_qml_module(ravo_studio_resources
     qml/chrome/PhotoMergeDialog.qml
     qml/chrome/OfflineEditDialog.qml
     qml/chrome/ExportOptionsDialog.qml
-    qml/chrome/SettingsPage.qml
+    qml/chrome/SettingsDialog.qml
+    qml/chrome/SettingsPanel.qml
     qml/chrome/SettingsBackupSection.qml
     qml/chrome/SettingsAssistantSection.qml
     qml/chrome/ImportPage.qml

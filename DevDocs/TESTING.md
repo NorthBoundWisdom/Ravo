@@ -35,6 +35,9 @@ Settings, curves and merge assertions belong to BUILD_TESTING-only
 Both remain in CTest. Root QML or registry failures fail smoke, with subprocess
 and CTest deadlines; Windows smoke requires a usable font directory and fatal
 Qt diagnostics must fail immediately rather than open a crash dialog.
+Settings workflow smoke checks the bounded modal at narrow and wide sizes,
+initially expanded panels, section scrolling, close/Escape state synchronization,
+reopening a collapsed target, and persisted startup-update preference changes.
 Windows offscreen CTest also requires `QT_QPA_FONTDIR` before QGuiApplication
 construction. CI preserves an explicit directory or binds the Windows `Fonts`
 directory, validates its existence and fails before testing if it is absent.

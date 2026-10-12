@@ -1300,17 +1300,14 @@ ApplicationWindow {
         commands: studioActions
     }
 
-    SettingsPage {
-        anchors.fill: parent
-        visible: window.settingsOpen
-        z: 28
+    SettingsDialog {
+        parentItem: window.contentItem
         presenter: studio
         commands: studioActions
         languageManager: studioLanguage
         assistant: studioAssistant
         updates: studioUpdates
         panelLayout: studioLayout
-        onCloseRequested: studioCommands.settingsOpen = false
         onChooseBackupFolderRequested: {
             backupScheduleFolderDialog.currentFolder = studio.defaultCatalogFolder;
             backupScheduleFolderDialog.openDialog();

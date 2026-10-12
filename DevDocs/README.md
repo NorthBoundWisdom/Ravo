@@ -40,7 +40,8 @@ These decisions explain the larger workflows without duplicating their state her
   [machine ownership](ARCHITECTURE.md#machine-automation) and
   [contract validation](TESTING.md#ai-grading-and-mcp-contracts).
 - [Interactive performance protocol](TESTING.md#interactive-performance-comparison).
-- [Shared Studio resources and Windows smoke deployment ordering](ARCHITECTURE.md).
+- [Shared Studio resources, QML module output and Windows smoke deployment ordering](ARCHITECTURE.md).
+- [Settings dialog and existing preference/backup owners](ARCHITECTURE.md#catalog-recovery-and-backup).
 - [Code retirement](adr/0181-retire-unused-dependencies-and-product-stubs.md),
   [nested field semantics](adr/0182-declared-nested-fields-and-contextual-ranges.md)
   and [documentation/test scope](adr/0183-document-authorities-and-runtime-test-coverage.md).

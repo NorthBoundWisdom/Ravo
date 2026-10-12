@@ -10,7 +10,7 @@ ColumnLayout {
     required property var model
     signal chooseFolderRequested
     readonly property var status: presenter.backupScheduleStatus
-    spacing: Fonts.size16
+    spacing: Fonts.size8
 
     function timeText(value) {
         return value > 0 ? new Date(value).toLocaleString(Qt.locale(), Locale.ShortFormat) : qsTr("Never");
@@ -23,11 +23,6 @@ ColumnLayout {
         if (value < 1024 * 1024)
             return qsTr("%1 KiB").arg((value / 1024).toFixed(1));
         return qsTr("%1 MiB").arg((value / (1024 * 1024)).toFixed(1));
-    }
-    CustomLabel {
-        text: qsTr("Automatic backups")
-        font.bold: true
-        font.pixelSize: Fonts.size18
     }
     CustomLabel {
         Layout.fillWidth: true
@@ -78,6 +73,7 @@ ColumnLayout {
             }
         }
         RowLayout {
+            Layout.fillWidth: true
             CustomLabel {
                 Layout.fillWidth: true
                 text: qsTr("Interval (minutes)")
@@ -95,6 +91,7 @@ ColumnLayout {
             }
         }
         RowLayout {
+            Layout.fillWidth: true
             CustomLabel {
                 Layout.fillWidth: true
                 text: qsTr("Backups to keep")
@@ -112,12 +109,19 @@ ColumnLayout {
             }
         }
     }
-    RowLayout {
+    GridLayout {
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        columnSpacing: Fonts.size8
+        rowSpacing: Fonts.size8
+        columns: root.width >= saveButton.implicitWidth + reloadButton.implicitWidth + columnSpacing ? 2 : 1
         Item {
+            Layout.fillWidth: true
             implicitWidth: saveButton.implicitWidth
             implicitHeight: saveButton.implicitHeight
             CustomButton {
                 id: saveButton
+                anchors.fill: parent
                 objectName: "settingsBackupSave"
                 text: root.model.saving ? qsTr("Saving…") : qsTr("Save backup settings")
                 enabled: root.model.canApply
@@ -135,6 +139,8 @@ ColumnLayout {
             }
         }
         CustomButton {
+            id: reloadButton
+            Layout.fillWidth: true
             text: qsTr("Reload saved settings")
             enabled: !root.model.saving && (root.model.dirty || root.model.lastError.length > 0)
             onClicked: root.model.reload()

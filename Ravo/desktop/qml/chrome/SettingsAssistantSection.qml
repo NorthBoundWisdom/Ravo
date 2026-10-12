@@ -6,12 +6,7 @@ ColumnLayout {
     id: root
     objectName: "settingsAssistantSection"
     required property var assistant
-    spacing: Fonts.size16
-    CustomLabel {
-        text: qsTr("Assistant")
-        font.bold: true
-        font.pixelSize: Fonts.size18
-    }
+    spacing: Fonts.size8
     CustomLabel {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap

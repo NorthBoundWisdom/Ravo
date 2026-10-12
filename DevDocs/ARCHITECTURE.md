@@ -13,6 +13,9 @@ types/functions live in `legacy_develop.h`, separate from normal Develop fields;
 canonical recipe values and accepted operation rendering do not depend on it.
 
 Studio's QML/GPU-item resources have one static `ravo_studio_resources` owner.
+Its generated QML module files live under the build directory's `Ravo/Studio`
+path, matching the module URI so Qt tools can derive the import root. Runtime
+loading uses the embedded module resources.
 Shipping Studio and the BUILD_TESTING-only `ravo_studio_workflow_smoke` executable
 link that same module. Heavy import/settings/curve/merge assertions live under
 `Ravo/tests/desktop_smoke`; shipping `--smoke`, native startup and video acceptance
@@ -1207,6 +1210,13 @@ without owning retention policy (ADR-0101).
 
 Studio Settings groups application language, persisted panel dimensions,
 current-catalog automatic backups, and assistant connection preferences.
+Desktop presents these in a centered, size-bounded modal with the same
+`CustomEditPanel` style as Develop. All four panels start expanded in one
+vertical scroll area. Section intents expand and reveal the requested panel;
+close and Escape synchronize the existing C++ open state. Resizing retains
+access to every panel without a second navigation sidebar.
+Settings and Develop reserve a stable right gutter for their vertical scrollbar,
+so panel borders and controls do not extend underneath it.
 `StudioCommandController` owns Settings navigation and a GUI-thread
 `StudioBackupSettings` draft. The draft observes persisted policy, preserves
 failed inputs, rejects concurrent policy changes, and invalidates outstanding

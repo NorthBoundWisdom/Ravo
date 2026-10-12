@@ -4526,10 +4526,6 @@
     <context>
         <name>SettingsAssistantSection</name>
         <message>
-            <source>Assistant</source>
-            <translation>助手</translation>
-        </message>
-        <message>
             <source>OpenAI-compatible endpoint used by the floating Assistant panel. The default is the xAI API.</source>
             <translation>浮動助手面板使用的 OpenAI 兼容端點。預設為 xAI API。</translation>
         </message>
@@ -4571,10 +4567,6 @@
         <message>
             <source>%1 MiB</source>
             <translation>%1 MiB</translation>
-        </message>
-        <message>
-            <source>Automatic backups</source>
-            <translation>自動備份</translation>
         </message>
         <message>
             <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
@@ -4660,10 +4652,6 @@
             <translation>目錄庫與備份</translation>
         </message>
         <message>
-            <source>Back</source>
-            <translation>返回</translation>
-        </message>
-        <message>
             <source>Settings</source>
             <translation>設定</translation>
         </message>
@@ -4698,6 +4686,10 @@
         <message>
             <source>Reset panel sizes</source>
             <translation>重設面板尺寸</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>關閉</translation>
         </message>
         <message>
             <source>Language</source>

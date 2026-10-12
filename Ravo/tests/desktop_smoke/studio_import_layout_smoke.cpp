@@ -1541,6 +1541,12 @@ bool smoke_import_layout(QQmlApplicationEngine &engine)
             return false;
         }
     }
+    auto *panel_contents = window->findChild<QQuickItem *>(QStringLiteral("developPanelContents"));
+    if (!panel_contents || panel_contents->width() >= tool_scroll->width())
+    {
+        LOG_ERROR(logger(), "Develop panels must leave a gutter for the vertical scrollbar");
+        return false;
+    }
     if (tool_bar->x() + tool_bar->width() > tool_bar->parentItem()->width() + .1)
     {
         LOG_ERROR(logger(), "Develop toolbar exceeds the inspector width");

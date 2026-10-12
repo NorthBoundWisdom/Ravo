@@ -4526,10 +4526,6 @@
     <context>
         <name>SettingsAssistantSection</name>
         <message>
-            <source>Assistant</source>
-            <translation>어시스턴트</translation>
-        </message>
-        <message>
             <source>OpenAI-compatible endpoint used by the floating Assistant panel. The default is the xAI API.</source>
             <translation>플로팅 어시스턴트 패널에서 사용하는 OpenAI 호환 엔드포인트입니다. 기본값은 xAI API입니다.</translation>
         </message>
@@ -4571,10 +4567,6 @@
         <message>
             <source>%1 MiB</source>
             <translation>%1 MiB</translation>
-        </message>
-        <message>
-            <source>Automatic backups</source>
-            <translation>자동 백업</translation>
         </message>
         <message>
             <source>These settings apply to the current catalog. Backups include the catalog and edit history, but exclude original media and preview caches. Scheduled backups run while Studio is open.</source>
@@ -4660,10 +4652,6 @@
             <translation>카탈로그 및 백업</translation>
         </message>
         <message>
-            <source>Back</source>
-            <translation>뒤로</translation>
-        </message>
-        <message>
             <source>Settings</source>
             <translation>설정</translation>
         </message>
@@ -4698,6 +4686,10 @@
         <message>
             <source>Reset panel sizes</source>
             <translation>패널 크기 초기화</translation>
+        </message>
+        <message>
+            <source>Close</source>
+            <translation>닫기</translation>
         </message>
         <message>
             <source>Language</source>

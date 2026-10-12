@@ -160,7 +160,8 @@ Rectangle {
 
             ColumnLayout {
                 id: column
-                width: parent.width
+                objectName: "developPanelContents"
+                width: Math.max(0, developScroller.width - developScroller.ScrollBar.vertical.width - Fonts.size4)
                 spacing: Fonts.smallSpacing
 
                 PhotoInfoPanel {
