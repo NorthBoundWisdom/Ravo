@@ -375,6 +375,11 @@ if(BUILD_TESTING)
   endif()
   set_target_properties(ravo_studio_workflow_smoke PROPERTIES AUTOMOC ON)
   ravo_configure_target(ravo_studio_workflow_smoke)
+  if(WIN32)
+    # Both executables share runtime DLLs in this directory. Studio's
+    # POST_BUILD smoke must exit before workflow deployment rewrites them.
+    add_dependencies(ravo_studio_workflow_smoke ravo_studio)
+  endif()
   ravo_copy_windows_runtime_dlls(ravo_studio_workflow_smoke)
   ravo_deploy_windows_qt_runtime(ravo_studio_workflow_smoke
     QML_DIR "${CMAKE_CURRENT_SOURCE_DIR}/qml")

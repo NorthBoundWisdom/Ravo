@@ -17,6 +17,10 @@ Shipping Studio and the BUILD_TESTING-only `ravo_studio_workflow_smoke` executab
 link that same module. Heavy import/settings/curve/merge assertions live under
 `Ravo/tests/desktop_smoke`; shipping `--smoke`, native startup and video acceptance
 remain available without the heavyweight implementations or a second UI.
+On Windows both executables share a runtime output directory. The workflow-smoke
+target depends on shipping Studio, including its deployment and POST_BUILD smoke,
+so no Qt DLL is rewritten while that smoke process still holds the module open.
+Deployment errors remain fatal; no copy retry or ignored failure is introduced.
 
 Unused dependency roots and deterministic AI/DNG/Smart Preview/tethering stub
 surfaces are retired by [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md).
