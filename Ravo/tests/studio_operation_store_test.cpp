@@ -5,6 +5,35 @@
 namespace ravo
 {
 using studio_test_support::json_string;
+TEST(StudioOperationStoreTest, UnresolvedOutcomePreservesKnownCommitAndCannotRestart)
+{
+    StudioOperationStore store;
+    auto reserved = store.reserve("session");
+    ASSERT_TRUE(reserved);
+    const auto id = json_string(reserved.value(), "operation_id");
+    const JsonValue request = JsonValue::Object{{"kind", "annotation"}};
+    ASSERT_TRUE(store.begin(id, request));
+    store.unresolved(id, make_error(ErrorCode::kIo, "Committed revision unavailable",
+                                    {{"catalog_committed", "true"}}));
+    auto receipt = store.get(id);
+    ASSERT_TRUE(receipt);
+    EXPECT_EQ(json_string(receipt.value(), "phase"), "unknown");
+    EXPECT_TRUE(*receipt.value().find("mutation_applied")->boolean_if());
+    EXPECT_EQ(receipt.value().find("catalog_revision"), nullptr);
+    auto cancelled = store.cancel(id);
+    ASSERT_TRUE(cancelled);
+    EXPECT_EQ(serialize_json(cancelled.value()), serialize_json(receipt.value()));
+    auto replay = store.begin(id, request);
+    ASSERT_TRUE(replay);
+    EXPECT_FALSE(replay.value());
+    auto uncertain = store.reserve("session");
+    ASSERT_TRUE(uncertain);
+    const auto other = json_string(uncertain.value(), "operation_id");
+    ASSERT_TRUE(store.begin(other, request));
+    store.unresolved(other, make_error(ErrorCode::kIo, "Outcome unavailable"));
+    EXPECT_TRUE(store.get(other).value().find("mutation_applied")->is_null());
+}
+
 TEST(StudioOperationStoreTest, ReservationIsRequiredAndReplayDoesNotStartAnotherWrite)
 {
     StudioOperationStore store;

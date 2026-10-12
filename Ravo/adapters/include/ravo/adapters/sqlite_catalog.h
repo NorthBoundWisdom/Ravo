@@ -140,7 +140,8 @@ public:
                                                      const ReviewState &review) override;
     [[nodiscard]] Result<std::int64_t>
     commit_review_patch(std::string_view asset_id, const ReviewPatch &patch,
-                        std::optional<std::int64_t> expected_revision = {}) override;
+                        std::optional<std::int64_t> expected_revision = {},
+                        const CancellationToken &cancellation = {}) override;
     [[nodiscard]] Result<void> remove_asset(std::string_view asset_id) override;
     [[nodiscard]] Result<std::optional<std::string>>
     load_recipe_json(std::string_view asset_id) const override;
@@ -183,13 +184,15 @@ public:
     [[nodiscard]] Result<KeywordMembershipMutation>
     replace_assets_tags(const std::vector<std::string> &asset_ids,
                         const std::vector<std::string> &tag_paths,
-                        std::optional<std::int64_t> expected_revision) override;
+                        std::optional<std::int64_t> expected_revision,
+                        const CancellationToken &cancellation = {}) override;
     [[nodiscard]] Result<void> upsert_writable_metadata(std::string_view asset_id,
                                                         const WritableMetadata &metadata) override;
     [[nodiscard]] Result<WritableMetadataMutation>
     patch_assets_writable_metadata(const std::vector<std::string> &asset_ids,
                                    const WritableMetadataPatch &patch,
-                                   std::optional<std::int64_t> expected_revision) override;
+                                   std::optional<std::int64_t> expected_revision,
+                                   const CancellationToken &cancellation = {}) override;
     [[nodiscard]] Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const override;
     [[nodiscard]] Result<std::optional<RecipeHistoryEntry>>

@@ -67,20 +67,13 @@ function(ravo_require_migration_source_root output_variable environment_variable
   set(${output_variable} "${_source_root}" PARENT_SCOPE)
 endfunction()
 
-# These approved migration inputs are materialized and validated so metadata,
-# lens-database, and codec adapters cannot fall back to host-selected source.
-# Each owning migration item links only the source required by its private
-# adapter contract.
+# Validate source roots consumed by the private metadata and codec adapters.
 ravo_require_migration_source_root(
   RAVO_EXIV2_SOURCE_ROOT EXIV2_SOURCE_ROOT include/exiv2/exiv2.hpp)
 ravo_require_migration_source_root(
   RAVO_LIBJPEG_TURBO_SOURCE_ROOT LIBJPEG_TURBO_SOURCE_ROOT src/jpeglib.h)
 ravo_require_migration_source_root(
-  RAVO_LENSFUN_SOURCE_ROOT LENSFUN_SOURCE_ROOT data/db/timestamp.txt)
-ravo_require_migration_source_root(
   RAVO_LIBTIFF_SOURCE_ROOT LIBTIFF_SOURCE_ROOT libtiff/tiffio.h)
-ravo_require_migration_source_root(
-  RAVO_RAWSPEED_SOURCE_ROOT RAWSPEED_SOURCE_ROOT src/librawspeed/RawSpeed-API.h)
 
 # libjpeg-turbo intentionally rejects add_subdirectory integration. Build the
 # pinned source root in an isolated ExternalProject and import only its static

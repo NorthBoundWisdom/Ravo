@@ -9,6 +9,18 @@ settlement; it still requires a committed receipt. Non-Apple ROI tests bind
 backend assertions to the available Engine adapter and require downloaded pixels
 without a native surface; GPU availability is distinct from native presentation.
 
+Retirement contracts (ADR-0181) reject removed stub commands before opening a
+catalog and preserve pre-existing side files. Real DNG/RAW decode, offline proxy,
+XMP, schema migration, backup/restore and revision-bound CLI/MCP contracts remain
+acceptance surfaces. Tests for retired deterministic providers and absent
+encoders are removed with those APIs rather than retained as unsupported shells.
+
+`DevelopSetFieldsTest` pins the continuous 0.9–1.1 lens TCA schema, fractional
+assignment, atomic out-of-range rejection and unchanged lens-group reset.
+`ravo_studio_workflow_smoke` retains the moved import/settings/curve/merge assertions
+and uses the same QML resource module as shipping startup/video smoke. Build it
+with BUILD_TESTING=ON and run `ctest -R '^ravo_studio_(qml|workflow)_smoke$'`;
+BUILD_TESTING=OFF must contain no workflow-smoke target.
 
 `StudioUpdateTest.*` exercises the desktop release-check owner through an
 injected QNetworkAccessManager/QNetworkReply and browser opener. Tests never
@@ -872,8 +884,26 @@ hash/recipe/history/preview preservation, immutable resource hashes, exactly-onc
 candidate replay, stale rejection, cancellation before commit and after commit,
 mask/local trial and drawn geometry, history restore, selected batch receipts and
 EOF and Studio-close cancellation/resource teardown. No UI automation or screenshots are used.
+`RealCatalogListPagesAreBoundedRevisionCheckedAndStrict` exercises actual CLI
+pages, strict query documents, continuation, stale revision and read neutrality.
+Explicit-selection MCP tests cover query→selection→evaluation/commit, unloaded
+assets, unknown/stale/draft rejection, queued cancellation and concurrent manual
+navigation/query replacement and close/EOF. Nonresident selection retains its
+current-query rank for subsequent navigation. The same operation ID must return
+its old receipt without reselecting.
 `StudioPipelinePriority.Quiet*` pins cancellation and publication order with a
 controlled executor gate, plus timer invalidation and the one-interruption limit.
+`AssetAnnotationContract` / `CatalogServiceTest.Annotation*` cover strict payloads,
+bounded state, source/recipe/history preservation, atomic selection rollback,
+held-writer cancellation and competing revision, recovery failure and a recovery
+port that cancels only after the database commit. Annotation MCP cases exercise
+the real CLI child path, null clears, keyword replacement, flags, exact replay,
+stale/draft/unknown-field rejection, competing clients, changed selection, EOF
+and close/join. Direct desktop annotation intents must reject pending page
+selection. A recovery-port exception after commit must retain an unknown outcome,
+and a multi-selection must not widen a primary-only annotation target.
+`StudioOperationStoreTest.Unresolved*` preserves unknown/known-commit
+facts without inventing a revision or restarting the write.
 
 ```sh
 cmake --build --preset mac_clang_debug --target ravo_unit_tests ravo_catalog_tests ravo_desktop_command_tests RavoCodeQuality
@@ -2241,6 +2271,26 @@ after `processEvents`, not frame presentation; they are not PERF-02/C3 admits.
 CTest discovers these two keyboard timing cases separately with `RUN_SERIAL`:
 their 50 ms focus / 100 ms page-scroll ceilings and samples stay unchanged,
 while other render/import tests cannot run concurrently on the same worker.
+Studio and desktop tests share GUI font bootstrap before QML loading. Input
+rows include `ravo.perf01.input-phases/v1` workload arrays correlated one-to-one
+with complete wall samples: pre-dispatch focus/events, synchronous dispatch,
+post-dispatch events and optional process CPU microseconds. CPU includes all
+process threads, may exceed wall time, and never replaces the wall budget.
+The workload records actual font families, QPA and window dimensions. Bootstrap
+and cold-font work must be measured separately; physical frame presentation is
+not included. Missing process clocks are explicit nulls.
+
+For a fresh-process Release keyboard observation:
+
+```sh
+QT_QPA_PLATFORM=offscreen RAVO_INTERACTIVE_PERF_RECORDED_SAMPLES=30 RAVO_INTERACTIVE_PERF_REPORT_PATH=/tmp/ravo-keyboard-unique.jsonl build/mac_clang_release/Ravo/tests/ravo_desktop_command_tests --gtest_filter=StudioImportKeyboardPerf.FocusScrollBudgetsAcrossCandidateScales
+```
+
+Use a new output path per run and retain every sample, including budget failures.
+Repeat fresh processes sequentially for before/after comparison. A parallel CTest
+worker cannot remove contention from unrelated host processes; isolated success
+does not qualify a concurrent-load budget. `StudioUiFont` pins generic-family
+resolution, explicit-face/language ordering and bootstrap/test parity.
 
 `EngineSpatialCpuTest.MeasuresExactClarityStagesWithOwnedRows` is an opt-in
 Release observation of the two-pass blur and complete clarity operation on

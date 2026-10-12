@@ -42,23 +42,28 @@ Result<AssetRecord> MetadataService::set_tags(const std::string_view asset_id,
 
 Result<WritableMetadataMutation> MetadataService::set_writable_metadata_selection(
     const std::vector<std::string> &asset_ids, const WritableMetadataPatch &patch,
-    const std::optional<std::int64_t> expected_revision)
+    const std::optional<std::int64_t> expected_revision, const CancellationToken &cancellation)
 {
     if (repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
-    auto mutated = repository_->patch_assets_writable_metadata(asset_ids, patch, expected_revision);
+    auto mutated = repository_->patch_assets_writable_metadata(asset_ids, patch, expected_revision,
+                                                               cancellation);
     if (!mutated)
     {
         return mutated.error();
     }
     for (const auto &asset : mutated.value().assets)
     {
-        auto recovered = recovery_service_.synchronize_committed_change(asset.id);
+        auto recovered = recovery_service_.synchronize_committed_change(asset.id, cancellation);
         if (!recovered)
         {
-            return recovered.error();
+            auto error = recovered.error();
+            error.context.insert_or_assign("catalog_committed", "true");
+            error.context.insert_or_assign("committed_revision",
+                                           std::to_string(mutated.value().revision));
+            return error;
         }
     }
     return mutated;
@@ -81,26 +86,30 @@ Result<AssetRecord> MetadataService::set_writable_metadata(const std::string_vie
     return mutated.value().assets.front();
 }
 
-Result<KeywordMembershipMutation>
-MetadataService::set_tags_selection(const std::vector<std::string> &asset_ids,
-                                    const std::vector<std::string> &tags,
-                                    const std::optional<std::int64_t> expected_revision)
+Result<KeywordMembershipMutation> MetadataService::set_tags_selection(
+    const std::vector<std::string> &asset_ids, const std::vector<std::string> &tags,
+    const std::optional<std::int64_t> expected_revision, const CancellationToken &cancellation)
 {
     if (repository_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog session is closed");
     }
-    auto mutated = repository_->replace_assets_tags(asset_ids, tags, expected_revision);
+    auto mutated =
+        repository_->replace_assets_tags(asset_ids, tags, expected_revision, cancellation);
     if (!mutated)
     {
         return mutated.error();
     }
     for (const auto &asset : mutated.value().assets)
     {
-        auto recovered = recovery_service_.synchronize_committed_change(asset.id);
+        auto recovered = recovery_service_.synchronize_committed_change(asset.id, cancellation);
         if (!recovered)
         {
-            return recovered.error();
+            auto error = recovered.error();
+            error.context.insert_or_assign("catalog_committed", "true");
+            error.context.insert_or_assign("committed_revision",
+                                           std::to_string(mutated.value().revision));
+            return error;
         }
     }
     return mutated;

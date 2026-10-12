@@ -822,11 +822,12 @@ Result<std::int64_t> SqliteCatalogRepository::commit_review(const std::string_vi
                                {review.rating, review.color_label, review.rejected, review.picked});
 }
 
-Result<std::int64_t>
-SqliteCatalogRepository::commit_review_patch(const std::string_view asset_id,
-                                             const ReviewPatch &patch,
-                                             const std::optional<std::int64_t> expected_revision)
+Result<std::int64_t> SqliteCatalogRepository::commit_review_patch(
+    const std::string_view asset_id, const ReviewPatch &patch,
+    const std::optional<std::int64_t> expected_revision, const CancellationToken &cancellation)
 {
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     if (impl_ == nullptr)
     {
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
@@ -841,12 +842,17 @@ SqliteCatalogRepository::commit_review_patch(const std::string_view asset_id,
     {
         return valid.error();
     }
-    if (!impl_->database.transaction())
+    QSqlQuery begin(impl_->database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
     {
+        if (auto active = cancellation.check(); !active)
+            return active.error();
         return make_error(ErrorCode::kIo, "Unable to begin review commit transaction",
                           {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())},
                            {"reason", "review_commit_begin_failed"}});
     }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     QSqlQuery query(impl_->database);
     if (expected_revision)
     {
@@ -906,6 +912,8 @@ SqliteCatalogRepository::commit_review_patch(const std::string_view asset_id,
             ErrorCode::kIo, "Injected review commit failure before database commit",
             {{"reason", "injected_review_commit"}, {"asset_id", std::string(asset_id)}}));
     }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     if (!impl_->database.commit())
     {
         return impl_->abort_transaction(

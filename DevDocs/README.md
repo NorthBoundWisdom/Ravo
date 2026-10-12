@@ -27,9 +27,12 @@ It does not duplicate the handbook or serve as a chronological change log.
 
 The architecture and testing authorities cover:
 
-- Bounded quiet-input preview supersession through the existing owner/executor
-  ([ADR-0176](adr/0176-quiet-interactive-preview-supersession.md)).
+- Revision-bound review/metadata/keyword commands with atomic revision/cancellation
+  guards and preserved post-commit warnings
+  ([ADR-0180](adr/0180-revision-bound-catalog-annotations.md)).
 
+- Shared Studio/test font bootstrap and correlated input phase observations
+  ([ADR-0178](adr/0178-shared-studio-font-bootstrap-and-input-timing.md)).
 - Exact independent clarity lane accumulation on existing row tasks
   ([ADR-0179](adr/0179-exact-clarity-lane-accumulation.md)).
 
@@ -55,6 +58,10 @@ The architecture and testing authorities cover:
 - Reproducible Release numeric-control and service-probe measurements through
   the [interactive performance protocol](TESTING.md#interactive-performance-comparison),
   including repeated burst and latest-publication traces.
+- Bounded quiet-input preview supersession through the existing owner/executor
+  ([ADR-0176](adr/0176-quiet-interactive-preview-supersession.md)).
+- Bounded catalog CLI/MCP queries and revision-bound explicit Studio selection
+  ([ADR-0177](adr/0177-bounded-library-query-and-machine-selection.md)).
 - Exact CPU spatial data reuse and existing owned row jobs for dehaze, clarity
   and perspective ([ADR-0173](adr/0173-exact-cpu-spatial-processing.md)).
 - Bounded exact denoise mixing reuse
@@ -89,6 +96,7 @@ For AI grading and native MCP, see
 | Document | Unfinished work |
 | --- | --- |
 | [TODO.md](TODO.md) | Ordered product, correctness, performance and release gates |
+| [TODO_CODE_RETIREMENT.md](TODO_CODE_RETIREMENT.md) | Remaining parameter projection consolidation and resource-linkage host/package qualification |
 | [TODO_ARCHITECTURE_REFACTOR.md](TODO_ARCHITECTURE_REFACTOR.md) | Remaining ownership/refactor qualification |
 | [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md) | Render-latency-first investigation, then command/MCP, model, mask, camera/lens and workflow adoption gates |
 | [TODO_RAW_RENDERING_PROFILES.md](TODO_RAW_RENDERING_PROFILES.md) | RAW rendering/profile qualification |

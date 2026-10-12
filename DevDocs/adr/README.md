@@ -189,4 +189,8 @@ decision bodies remain stable.
 | [0174](0174-exact-denoise-preview-basis.md) | Accepted | Bounded unblended denoise basis for exact strength/chroma mixing within the existing interactive prefix owner |
 | [0175](0175-exact-raw-preparation-work.md) | Accepted | Exact CFA lookup and opposed-highlight work reduction with preserved sequential reconstruction and row cancellation |
 | [0176](0176-quiet-interactive-preview-supersession.md) | Accepted | Bounded quiet-input cancellation of superseded interactive previews without starving publication |
+| [0177](0177-bounded-library-query-and-machine-selection.md) | Accepted | Bounded catalog query and revision-bound live selection through shared CLI/services and existing command owners |
+| [0178](0178-shared-studio-font-bootstrap-and-input-timing.md) | Accepted | Shared GUI font policy for Studio and desktop tests, with complete input wall timing and correlated phase/CPU observations |
 | [0179](0179-exact-clarity-lane-accumulation.md) | Accepted | Independent clarity lane accumulation with unchanged per-pixel float order and bounded row-local stack scratch |
+| [0180](0180-revision-bound-catalog-annotations.md) | Accepted | Shared review/metadata/keyword contracts, transactional revision/cancellation guards and explicit commit/recovery outcomes |
+| [0181](0181-retire-unused-dependencies-and-product-stubs.md) | Accepted | Retire unused roots and stub product surfaces while preserving saved edits, durability and test acceptance |

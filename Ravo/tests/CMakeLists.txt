@@ -153,10 +153,8 @@ add_executable(ravo_catalog_tests
   catalog_develop_test.cpp
   catalog_develop_batch_test.cpp
   catalog_automation_test.cpp
-  catalog_ai_proposal_test.cpp
-  catalog_ai_suggestion_test.cpp
+  catalog_annotation_test.cpp
   display_presentation_test.cpp
-  tethered_studio_test.cpp
   catalog_capture_test.cpp
   catalog_import_test.cpp
   catalog_import_scan_test.cpp
@@ -164,7 +162,6 @@ add_executable(ravo_catalog_tests
   catalog_ingest_transport_test.cpp
   catalog_xmp_interchange_test.cpp
   catalog_external_editor_test.cpp
-  catalog_dng_smart_preview_test.cpp
   catalog_offline_edit_proxy_test.cpp
   catalog_cull_assistance_test.cpp
   catalog_cull_review_test.cpp
@@ -478,6 +475,7 @@ add_executable(ravo_desktop_command_tests
   studio_import_destination_preview_test.cpp
   studio_import_keyboard_test.cpp
   studio_import_keyboard_perf_test.cpp
+  studio_ui_font_test.cpp
   import_candidate_list_model_test.cpp
   studio_import_draft_test.cpp
   studio_import_roundtrip_test.cpp
@@ -514,7 +512,6 @@ target_compile_definitions(ravo_desktop_command_tests PRIVATE
   RAVO_STUDIO_SETTINGS_ASSISTANT_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/SettingsAssistantSection.qml"
   RAVO_STUDIO_EDIT_IN_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/EditInDialog.qml"
   RAVO_STUDIO_OFFLINE_EDIT_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/OfflineEditDialog.qml"
-  RAVO_STUDIO_AI_PROPOSAL_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/AiProposalDialog.qml"
   RAVO_STUDIO_DEVELOP_INSTANCE_CHROME_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/inspect/DevelopInstanceChrome.qml"
   RAVO_STUDIO_ACTIONS_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioActions.qml"
   RAVO_STUDIO_CONTEXT_MENU_ITEM_QML="${CMAKE_SOURCE_DIR}/Ravo/desktop/qml/chrome/StudioContextMenuItem.qml"

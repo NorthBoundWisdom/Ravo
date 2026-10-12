@@ -22,6 +22,7 @@ public:
     void finish(std::string_view id, bool committed, std::int64_t revision,
                 std::int64_t history_head, std::string error_code = {}, std::string message = {});
     void stage(std::string_view id, const JsonValue &state, bool changed);
+    void unresolved(std::string_view id, const TaskError &error);
     void progress(std::string_view id, JsonValue result);
     void cancel_all();
 

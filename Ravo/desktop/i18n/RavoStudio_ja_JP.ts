@@ -2,79 +2,6 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ja_JP">
     <context>
-        <name>AiProposalDialog</name>
-        <message>
-            <source>AI Proposal</source>
-            <translation>AI提案</translation>
-        </message>
-        <message>
-            <source>Global edit (stub)</source>
-            <translation>グローバル編集（スタブ）</translation>
-        </message>
-        <message>
-            <source>Semantic mask (stub)</source>
-            <translation>セマンティックマスク（スタブ）</translation>
-        </message>
-        <message>
-            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
-            <translation>スタブ提案のみ(ADR-0121)。ネットワークもモデルの重みもありません。フィールド diff を調べて、適用、拒否、またはキャンセルします。</translation>
-        </message>
-        <message>
-            <source>Create</source>
-            <translation>作成</translation>
-        </message>
-        <message>
-            <source>Label</source>
-            <translation>ラベル</translation>
-        </message>
-        <message>
-            <source>Proposals for selection</source>
-            <translation>選定のご提案</translation>
-        </message>
-        <message>
-            <source>%1 · %2 · %3</source>
-            <translation>%1 · %2 · %3</translation>
-        </message>
-        <message>
-            <source>No proposal selected.</source>
-            <translation>提案が選択されていません。</translation>
-        </message>
-        <message>
-            <source>Selected %1 (%2)
-Provider %3 / %4
-Fields: %5
-Diff: %6</source>
-            <translation>選択された %1 (%2)
-プロバイダー %3 / %4
-フィールド: %5
-差分: %6</translation>
-        </message>
-        <message>
-            <source>Refresh</source>
-            <translation>リフレッシュ</translation>
-        </message>
-        <message>
-            <source>Create Stub</source>
-            <translation>スタブの作成</translation>
-        </message>
-        <message>
-            <source>Cancel Proposal</source>
-            <translation>提案のキャンセル</translation>
-        </message>
-        <message>
-            <source>Reject</source>
-            <translation>拒否する</translation>
-        </message>
-        <message>
-            <source>Apply</source>
-            <translation>申し込む</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>閉じる</translation>
-        </message>
-    </context>
-    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -4305,10 +4232,6 @@ Diff: %6</source>
             <source>Offline-edit proxies…</source>
             <translation>オフライン編集プロキシ…</translation>
         </message>
-        <message>
-            <source>Inspect AI Proposal…</source>
-            <translation>AI 提案を検査…</translation>
-        </message>
     </context>
     <context>
         <name>PhotoInfoPanel</name>
@@ -5556,26 +5479,6 @@ Diff: %6</source>
             <translation>オフライン編集プロキシの削除</translation>
         </message>
         <message>
-            <source>Inspect AI Proposal...</source>
-            <translation>AI 提案を検査します...</translation>
-        </message>
-        <message>
-            <source>Create Stub AI Proposal</source>
-            <translation>スタブ AI プロポーザルの作成</translation>
-        </message>
-        <message>
-            <source>Apply AI Proposal</source>
-            <translation>AI提案の適用</translation>
-        </message>
-        <message>
-            <source>Reject AI Proposal</source>
-            <translation>AI 提案の拒否</translation>
-        </message>
-        <message>
-            <source>Cancel AI Proposal</source>
-            <translation>AI提案のキャンセル</translation>
-        </message>
-        <message>
             <source>Remove from Catalog...</source>
             <translation>カタログから削除...</translation>
         </message>
@@ -6532,70 +6435,6 @@ Diff: %6</source>
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>カタログ操作をキャンセル中…</translation>
-        </message>
-        <message>
-            <source>Refreshing AI proposals…</source>
-            <translation>AI の提案を更新中…</translation>
-        </message>
-        <message>
-            <source>AI proposal refresh failed.</source>
-            <translation>AI プロポーザルの更新に失敗しました。</translation>
-        </message>
-        <message>
-            <source>Loaded %1 AI proposal(s).</source>
-            <translation>%1 AI プロポーザルをロードしました。</translation>
-        </message>
-        <message>
-            <source>Creating stub AI proposal…</source>
-            <translation>スタブ AI プロポーザルを作成しています…</translation>
-        </message>
-        <message>
-            <source>AI proposal create failed.</source>
-            <translation>AI プロポーザルの作成に失敗しました。</translation>
-        </message>
-        <message>
-            <source>Created stub AI proposal %1</source>
-            <translation>スタブ AI プロポーザル %1 を作成しました</translation>
-        </message>
-        <message>
-            <source>Select an AI proposal first.</source>
-            <translation>まず AI 提案を選択します。</translation>
-        </message>
-        <message>
-            <source>Applying AI proposal…</source>
-            <translation>AI提案を適用中…</translation>
-        </message>
-        <message>
-            <source>AI proposal apply failed.</source>
-            <translation>AI プロポーザルの適用に失敗しました。</translation>
-        </message>
-        <message>
-            <source>Applied AI proposal.</source>
-            <translation>AIを応用した提案。</translation>
-        </message>
-        <message>
-            <source>Rejecting AI proposal…</source>
-            <translation>AI の提案を拒否しています…</translation>
-        </message>
-        <message>
-            <source>AI proposal reject failed.</source>
-            <translation>AI 提案の拒否に失敗しました。</translation>
-        </message>
-        <message>
-            <source>Rejected AI proposal.</source>
-            <translation>AIの提案は拒否されました。</translation>
-        </message>
-        <message>
-            <source>Cancelling AI proposal…</source>
-            <translation>AI 提案をキャンセルしています…</translation>
-        </message>
-        <message>
-            <source>AI proposal cancel failed.</source>
-            <translation>AI 提案のキャンセルに失敗しました。</translation>
-        </message>
-        <message>
-            <source>Cancelled AI proposal.</source>
-            <translation>AI 提案はキャンセルされました。</translation>
         </message>
         <message>
             <source>External editor id must not be empty.</source>

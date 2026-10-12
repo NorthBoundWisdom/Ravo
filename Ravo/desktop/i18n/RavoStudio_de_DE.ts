@@ -2,79 +2,6 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="de_DE">
     <context>
-        <name>AiProposalDialog</name>
-        <message>
-            <source>AI Proposal</source>
-            <translation>KI-Vorschlag</translation>
-        </message>
-        <message>
-            <source>Global edit (stub)</source>
-            <translation>Globale Bearbeitung (Stub)</translation>
-        </message>
-        <message>
-            <source>Semantic mask (stub)</source>
-            <translation>Semantische Maske (Stub)</translation>
-        </message>
-        <message>
-            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
-            <translation>Nur Stub-Vorschläge (ADR-0121). Kein Netzwerk und keine Modellgewichte. Überprüfen Sie den Feldunterschied und wenden Sie ihn dann an, lehnen Sie ihn ab oder brechen Sie ihn ab.</translation>
-        </message>
-        <message>
-            <source>Create</source>
-            <translation>Erstellen</translation>
-        </message>
-        <message>
-            <source>Label</source>
-            <translation>Etikett</translation>
-        </message>
-        <message>
-            <source>Proposals for selection</source>
-            <translation>Vorschläge zur Auswahl</translation>
-        </message>
-        <message>
-            <source>%1 · %2 · %3</source>
-            <translation>%1 · %2 · %3</translation>
-        </message>
-        <message>
-            <source>No proposal selected.</source>
-            <translation>Kein Vorschlag ausgewählt.</translation>
-        </message>
-        <message>
-            <source>Selected %1 (%2)
-Provider %3 / %4
-Fields: %5
-Diff: %6</source>
-            <translation>Ausgewählt %1 (%2)
-Anbieter %3 / %4
-Felder: %5
-Differenz: %6</translation>
-        </message>
-        <message>
-            <source>Refresh</source>
-            <translation>Aktualisieren</translation>
-        </message>
-        <message>
-            <source>Create Stub</source>
-            <translation>Stub erstellen</translation>
-        </message>
-        <message>
-            <source>Cancel Proposal</source>
-            <translation>Angebot abbrechen</translation>
-        </message>
-        <message>
-            <source>Reject</source>
-            <translation>Ablehnen</translation>
-        </message>
-        <message>
-            <source>Apply</source>
-            <translation>Bewerben</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>Schließen</translation>
-        </message>
-    </context>
-    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -4305,10 +4232,6 @@ Differenz: %6</translation>
             <source>Offline-edit proxies…</source>
             <translation>Proxys offline bearbeiten…</translation>
         </message>
-        <message>
-            <source>Inspect AI Proposal…</source>
-            <translation>KI-Vorschlag prüfen…</translation>
-        </message>
     </context>
     <context>
         <name>PhotoInfoPanel</name>
@@ -5556,26 +5479,6 @@ Differenz: %6</translation>
             <translation>Offline-Bearbeitungs-Proxy löschen</translation>
         </message>
         <message>
-            <source>Inspect AI Proposal...</source>
-            <translation>KI-Vorschlag prüfen...</translation>
-        </message>
-        <message>
-            <source>Create Stub AI Proposal</source>
-            <translation>Erstellen Sie einen Stub-KI-Vorschlag</translation>
-        </message>
-        <message>
-            <source>Apply AI Proposal</source>
-            <translation>KI-Vorschlag anwenden</translation>
-        </message>
-        <message>
-            <source>Reject AI Proposal</source>
-            <translation>KI-Vorschlag ablehnen</translation>
-        </message>
-        <message>
-            <source>Cancel AI Proposal</source>
-            <translation>KI-Vorschlag abbrechen</translation>
-        </message>
-        <message>
             <source>Remove from Catalog...</source>
             <translation>Aus Katalog entfernen …</translation>
         </message>
@@ -6532,70 +6435,6 @@ Differenz: %6</translation>
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>Katalogvorgang wird abgebrochen …</translation>
-        </message>
-        <message>
-            <source>Refreshing AI proposals…</source>
-            <translation>Erfrischende KI-Vorschläge…</translation>
-        </message>
-        <message>
-            <source>AI proposal refresh failed.</source>
-            <translation>Die Aktualisierung des KI-Vorschlags ist fehlgeschlagen.</translation>
-        </message>
-        <message>
-            <source>Loaded %1 AI proposal(s).</source>
-            <translation>%1 KI-Vorschlag(e) geladen.</translation>
-        </message>
-        <message>
-            <source>Creating stub AI proposal…</source>
-            <translation>Erstellen eines Stub-KI-Vorschlags…</translation>
-        </message>
-        <message>
-            <source>AI proposal create failed.</source>
-            <translation>Die Erstellung des KI-Vorschlags ist fehlgeschlagen.</translation>
-        </message>
-        <message>
-            <source>Created stub AI proposal %1</source>
-            <translation>Stub-KI-Vorschlag %1 erstellt</translation>
-        </message>
-        <message>
-            <source>Select an AI proposal first.</source>
-            <translation>Wählen Sie zunächst einen KI-Vorschlag aus.</translation>
-        </message>
-        <message>
-            <source>Applying AI proposal…</source>
-            <translation>KI-Vorschlag anwenden…</translation>
-        </message>
-        <message>
-            <source>AI proposal apply failed.</source>
-            <translation>Die Anwendung des KI-Vorschlags ist fehlgeschlagen.</translation>
-        </message>
-        <message>
-            <source>Applied AI proposal.</source>
-            <translation>Vorschlag für angewandte KI.</translation>
-        </message>
-        <message>
-            <source>Rejecting AI proposal…</source>
-            <translation>KI-Vorschlag wird abgelehnt …</translation>
-        </message>
-        <message>
-            <source>AI proposal reject failed.</source>
-            <translation>Die Ablehnung des KI-Vorschlags ist fehlgeschlagen.</translation>
-        </message>
-        <message>
-            <source>Rejected AI proposal.</source>
-            <translation>Abgelehnter KI-Vorschlag.</translation>
-        </message>
-        <message>
-            <source>Cancelling AI proposal…</source>
-            <translation>KI-Vorschlag wird abgebrochen…</translation>
-        </message>
-        <message>
-            <source>AI proposal cancel failed.</source>
-            <translation>Das Abbrechen des KI-Vorschlags ist fehlgeschlagen.</translation>
-        </message>
-        <message>
-            <source>Cancelled AI proposal.</source>
-            <translation>Abgebrochener KI-Vorschlag.</translation>
         </message>
         <message>
             <source>External editor id must not be empty.</source>

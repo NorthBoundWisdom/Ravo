@@ -439,8 +439,10 @@ require_writable_revision(QSqlDatabase &database,
 
 Result<WritableMetadataMutation> SqliteCatalogRepository::patch_assets_writable_metadata(
     const std::vector<std::string> &asset_ids, const WritableMetadataPatch &patch,
-    const std::optional<std::int64_t> expected_revision)
+    const std::optional<std::int64_t> expected_revision, const CancellationToken &cancellation)
 {
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     if (impl_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     if (asset_ids.empty())
@@ -452,11 +454,16 @@ Result<WritableMetadataMutation> SqliteCatalogRepository::patch_assets_writable_
     auto valid_patch = validate_writable_patch(patch);
     if (!valid_patch)
         return valid_patch.error();
-    if (!impl_->database.transaction())
+    QSqlQuery begin(impl_->database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
     {
+        if (auto active = cancellation.check(); !active)
+            return active.error();
         return make_error(ErrorCode::kIo, "Unable to start writable metadata transaction",
                           {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
     }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     auto revision_ok =
         require_writable_revision(impl_->database, expected_revision, "read_writable_revision");
     if (!revision_ok)
@@ -496,6 +503,8 @@ Result<WritableMetadataMutation> SqliteCatalogRepository::patch_assets_writable_
 
     for (const auto &asset_id : unique_assets)
     {
+        if (auto active = cancellation.check(); !active)
+            return impl_->abort_transaction(active.error());
         auto current = load_writable_metadata_row(impl_->database, asset_id);
         if (!current)
             return impl_->abort_transaction(current.error());
@@ -509,7 +518,27 @@ Result<WritableMetadataMutation> SqliteCatalogRepository::patch_assets_writable_
     auto revision = bump_writable_revision_locked(impl_->database);
     if (!revision)
         return impl_->abort_transaction(revision.error());
-    impl_->snapshot.revision = revision.value();
+
+    WritableMetadataMutation mutation;
+    mutation.revision = revision.value();
+    mutation.assets.reserve(unique_assets.size());
+    for (const auto &asset_id : unique_assets)
+    {
+        if (auto active = cancellation.check(); !active)
+            return impl_->abort_transaction(active.error());
+        auto asset = find_asset_by_id(asset_id);
+        if (!asset)
+            return impl_->abort_transaction(asset.error());
+        if (!asset.value())
+        {
+            return impl_->abort_transaction(make_error(
+                ErrorCode::kNotFound, "Writable metadata asset does not exist",
+                {{"reason", "unknown_writable_metadata_asset"}, {"asset_id", asset_id}}));
+        }
+        mutation.assets.push_back(std::move(*asset.value()));
+    }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     if (!impl_->database.commit())
     {
         return impl_->abort_transaction(
@@ -517,22 +546,7 @@ Result<WritableMetadataMutation> SqliteCatalogRepository::patch_assets_writable_
                        {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
 
-    WritableMetadataMutation mutation;
-    mutation.revision = revision.value();
-    mutation.assets.reserve(unique_assets.size());
-    for (const auto &asset_id : unique_assets)
-    {
-        auto asset = find_asset_by_id(asset_id);
-        if (!asset)
-            return asset.error();
-        if (!asset.value())
-        {
-            return make_error(
-                ErrorCode::kNotFound, "Writable metadata asset does not exist",
-                {{"reason", "unknown_writable_metadata_asset"}, {"asset_id", asset_id}});
-        }
-        mutation.assets.push_back(std::move(*asset.value()));
-    }
+    impl_->snapshot.revision = revision.value();
     return mutation;
 }
 

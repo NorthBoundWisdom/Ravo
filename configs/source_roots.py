@@ -75,26 +75,10 @@ DEPENDENCY_ROOT_SPECS: tuple[DependencyRootSpec, ...] = (
         required_relative_paths=("libraw/libraw_version.h",),
     ),
     DependencyRootSpec(
-        dependency_name="RawSpeed",
-        repo_name="rawspeed",
-        env_key="RAWSPEED_SOURCE_ROOT",
-        required_relative_paths=(
-            "CMakeLists.txt",
-            "src/librawspeed/RawSpeed-API.h",
-            "data/cameras.xml",
-        ),
-    ),
-    DependencyRootSpec(
         dependency_name="GeoControls",
         repo_name="GeoControls",
         env_key="GEOCONTROLS_SOURCE_ROOT",
         required_relative_paths=("CMakeLists.txt", "Controls/CMakeLists.txt"),
-    ),
-    DependencyRootSpec(
-        dependency_name="LensFun",
-        repo_name="lensfun",
-        env_key="LENSFUN_SOURCE_ROOT",
-        required_relative_paths=("CMakeLists.txt", "data/db/timestamp.txt"),
     ),
     DependencyRootSpec(
         dependency_name="LibTIFF",

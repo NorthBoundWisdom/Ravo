@@ -566,6 +566,23 @@ StudioCommandController::applyDevelopFields(const std::vector<StudioDevelopField
     return applyDevelopPatch(JsonValue{std::move(patch)});
 }
 
+Result<AssetAnnotationEdit>
+StudioCommandController::prepareAssetAnnotation(const JsonValue &payload) const
+{
+    const auto availability = resolve_state(presenter_, Condition::kSelection, settings_open_,
+                                            QLatin1String(command::kPhotoSetMetadata));
+    if (!availability.enabled || modal_open_ || settings_open_ || presenter_.busy() ||
+        presenter_.imports()->importPageOpen() || presenter_.imports()->importWorkActive())
+        return make_error(ErrorCode::kConflict, "Annotation command is unavailable",
+                          {{"reason", "command_unavailable"}});
+    const auto &state = presenter_.develop()->state();
+    if (state.develop_ != state.saved_develop_ || presenter_.develop()->localEditing() ||
+        state.mask_gesture_before_ || state.local_creation_before_)
+        return make_error(ErrorCode::kConflict, "Annotation requires saved global edits",
+                          {{"reason", "pending_recipe"}});
+    return parse_asset_annotation_edit(payload);
+}
+
 Result<bool>
 StudioCommandController::applyDevelopPatch(const JsonValue &fields, const std::string_view local_id,
                                            std::string operation_id, CancellationToken cancellation,

@@ -48,9 +48,7 @@
     "Exiv2": "",
     "LibJpegTurbo": "",
     "LibRaw": "",
-    "RawSpeed": "",
     "GeoControls": "",
-    "LensFun": "",
     "LibTIFF": "",
     "LittleCMS": ""
   },
@@ -71,17 +69,9 @@
       "remote": "https://github.com/LibRaw/LibRaw.git",
       "commit": "7bfffe2efa508da00c0d8af299c37cd426a4528d"
     },
-    "RawSpeed": {
-      "remote": "https://github.com/darktable-org/rawspeed.git",
-      "commit": "c10cc5004c5e8097ff272e57e3692cd9c7e257ef"
-    },
     "GeoControls": {
       "remote": "git@github.com:NorthBoundWisdom/GeoControls.git",
       "commit": "9e749a3878503d93996bd90f64439ad22ffdbdba"
-    },
-    "LensFun": {
-      "remote": "https://github.com/lensfun/lensfun.git",
-      "commit": "43f9e001ab66c4fcdd4f400463f13b72f94b2288"
     },
     "LibTIFF": {
       "remote": "https://gitlab.com/libtiff/libtiff.git",

@@ -1,5 +1,25 @@
 # Ravo Architecture
 
+Ordinary Develop scalars use the recipe-private immutable descriptor table in
+`develop_scalar_fields.cpp` for assignment, clamping, field names, schema and
+individual reset where permitted. Group resets, crop/exposure coupling, nested
+controls, instances and masks retain their explicit owners. Lens TCA metadata
+reports its actual continuous 0.9–1.1 range. Import-only historic conversion
+types/functions live in `legacy_develop.h`, separate from normal Develop fields;
+canonical recipe values and accepted operation rendering do not depend on it.
+
+Studio's QML/GPU-item resources have one static `ravo_studio_resources` owner.
+Shipping Studio and the BUILD_TESTING-only `ravo_studio_workflow_smoke` executable
+link that same module. Heavy import/settings/curve/merge assertions live under
+`Ravo/tests/desktop_smoke`; shipping `--smoke`, native startup and video acceptance
+remain available without the heavyweight implementations or a second UI.
+
+Unused dependency roots and deterministic AI/DNG/Smart Preview/tethering stub
+surfaces are retired by [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md).
+Local AI JSON side directories are neither interpreted nor deleted. Previously
+accepted edits remain ordinary recipe/metadata. Existing backup v3 support trees
+retain their verifier/restore contract; no stub producer or schema migration is added.
+
 Studio release checks are owned by desktop C++ `StudioUpdateController`,
 composed beside the startup and command owners. Help's
 `studio.window.check_updates` intent and the queued startup-complete signal use
@@ -373,12 +393,12 @@ retain its identity after hashing the current same-size bytes against the stored
 SHA-256. It never accepts a timestamp tolerance or changes catalog/edit state;
 an absent proof or different hash remains an explicit conflict.
 
-Exiv2, LensFun, LibJpegTurbo, LibTIFF, and RawSpeed are pinned migration
-source roots. Configure validates the exact materialized sources. The accepted
-engine-private RAW metadata adapter is the only Exiv2 consumer; other roots do
-not link a product target until their corresponding lens-database or codec
-adapter is accepted. RawSpeed remains an unused I3 input and must not silently
-replace or fall back to LibRaw. Ravo does not expose Exiv2's upstream CMake options.
+Exiv2, LibJpegTurbo and LibTIFF are pinned source roots consumed by current
+private metadata/codec adapters. Configure validates their materialized sources.
+Unused RawSpeed/LensFun preparation is retired; lens lookup currently uses only
+the explicit built-in fixture calibration and has no real LensFun database.
+The engine-private RAW metadata adapter is the Exiv2 consumer. Ravo does not
+expose Exiv2's upstream CMake options.
 `ravo_add_private_exiv2()` compiles one frozen private profile:
 
 | Surface | Frozen value |
@@ -2428,6 +2448,39 @@ assemble the same services, ports, and adapters.
   snapshot; ICC remains part of pixel color state.
 
 ## Desktop boundary
+
+Catalog annotation JSON/schema and orchestration are shared service contracts
+([ADR-0180](adr/0180-revision-bound-catalog-annotations.md)). The command owner
+validates availability and the closed edit; desktop control binds its foreground
+task to the observed session and cancellation fence. Review, metadata and keyword
+owners acquire the SQLite writer before revision checks and cancel before commit.
+Metadata/keyword projections are read within that transaction. Post-commit
+recovery errors retain commit revision and warning context; unavailable revision
+proof remains an explicit unresolved receipt, not a failed/unapplied write.
+Late UI results cannot overwrite a changed binding. Annotation state is bounded
+to 1 MiB with explicit unavailable projection; original/recipe/history ownership
+does not change. Direct desktop annotation intents also reject pending page selection.
+
+Application UI font resolution belongs to the desktop-private `studio_ui_font`
+helper. Studio main owns application font installation and language-change
+updates; desktop tests initialize the same policy once before loading QML.
+Both use installed families and the existing platform/script ordering. This
+synchronous GUI bootstrap owns no task, cache, download or persistent state
+([ADR-0178](adr/0178-shared-studio-font-bootstrap-and-input-timing.md)).
+
+Bounded machine library reads use `LibraryService::list_assets_page`, exposed by
+opt-in catalog CLI list pages and the thin MCP query adapter. Explicit live
+selection uses the existing reserved-operation contract: resolve an immutable
+asset and current-query rank on the foreground executor, recheck the full binding
+and listing generation on GUI, then dispatch
+the existing photo-select command. It preserves drafts, rejects unknown/stale
+targets, resolves nonresident assets and reports session-bounded selection
+receipts separately from saved edits. Controller destruction cancels and joins
+its borrowed selection closures
+([ADR-0177](adr/0177-bounded-library-query-and-machine-selection.md)).
+Page-driven navigation reports pending selection as busy until its page resolves
+or is replaced/failed; command availability and machine snapshots share this
+state, preventing edits to the previous photo during asynchronous navigation.
 
 `StudioLibraryPresenter` is the sole owner of Library query, filter and sort
 state and of the capture/location facet snapshots. Commands call its filter

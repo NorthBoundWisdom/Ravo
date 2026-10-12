@@ -121,9 +121,10 @@ have explicit converters. Unsupported history fails rather than approximating
 a look. External-editor registration copies derived outputs under the catalog
 support root and records provenance. Optional Assistant HTTP requests use the
 configured endpoint and key; they are separate from the local editing engine.
-Experimental DNG conversion, suggestion and tethering contracts remain explicitly
-unavailable/stubbed where their runtime provider is absent; they are not product
-workflow claims.
+Deterministic local AI proposals/suggestions and unimplemented DNG conversion,
+Smart Preview encoding and tethering probes are retired
+([ADR-0181](../DevDocs/adr/0181-retire-unused-dependencies-and-product-stubs.md)).
+Existing accepted recipe/metadata edits and backup support-tree data remain readable.
 
 ## Build and test
 
@@ -356,25 +357,12 @@ path that may call platform `open`/`xdg-open` after that explicit flag.
 provenance, and optionally `--auto-stack`s source+derived (pick=derived),
 fail-closing on stack conflict while retaining the derived asset.
 
-`ravo catalog dng-status` and `ravo catalog dng-convert --catalog
-<library.sqlite> --asset-id <id> [--output <path>]` are the ADR-0141 Copy-mode
-DNG conversion stubs. Without a Packaging-recorded converter, `dng-convert`
-returns `converter_available=false` with reason `dng_converter_unavailable`,
-publishes no derived asset, and leaves the source original byte-identical.
-`ravo catalog smart-preview --catalog <library.sqlite> --asset-id <id>
-[--ensure]` reports browse-only Smart Preview status under
-`{catalog}.ravo/smart-previews/`; `develop_fallback` is always false, and
-`--ensure` reports `smart_preview_encoder_unavailable` until an encoder is
-packaged. ADR-0146 adds offline-edit proxies under `{catalog}.ravo/offline-edit-proxies/` via `catalog offline-proxy-create|list|verify|pin|delete|evict|reconnect` (baked `recipe_baked_srgb8` consume uses `preview_apply_mode=identity_baked` while `media_state=proxy`; export fail-closed with `proxy_export_forbidden` until reconnect).
-
-`ravo catalog ai-suggest --catalog <library.sqlite> --asset-id <id>
---suggestion-kind keyword|caption|focus|duplicate --user-initiated` creates an
-ADR-0142 non-authoritative suggestion stub (`deterministic-suggestion-v1`).
-`ai-suggestion` / `ai-suggestions` list inspectable confidence and model id;
-`ai-suggestion-accept` applies keyword/caption (and caption headline) through
-existing tag/metadata APIs; `ai-suggestion-reject` / `ai-suggestion-cancel`
-leave the catalog unchanged; focus/duplicate acceptance never deletes peers.
-
+Offline-edit proxies use `{catalog}.ravo/offline-edit-proxies/` via
+`catalog offline-proxy-create|list|verify|pin|delete|evict|reconnect`
+(ADR-0146). Baked `recipe_baked_srgb8` consumption uses
+`preview_apply_mode=identity_baked` while `media_state=proxy`; export rejects
+with `proxy_export_forbidden` until reconnect. DNG conversion and browse-only
+Smart Preview producers have no supported command or encoder.
 
 `ravo catalog convert-foreign` is the read-only foreign-catalog conversion
 entry point (ADR-0131/0164). It reads a closed Lightroom Classic `.lrcat` SQLite
@@ -502,10 +490,12 @@ an MCP host to launch the current checkout's built or installed `ravo` with
 ```
 
 The adapter supports MCP 2025-11-25 initialization and 2026-07-28 per-request
-metadata/discovery. Stdout contains only newline JSON-RPC. It exposes 13 tools:
+metadata/discovery. Stdout contains only newline JSON-RPC. It exposes 18 tools:
 session discovery, bounded Studio state, field capabilities, exact preview,
 candidate evaluation/commit, operation reserve/get/cancel, history list/restore,
-mask actions and selected-photo batch patches. Each tool advertises a closed
+mask actions, selected-photo batch patches, bounded catalog query and explicit
+revision-bound selection, review edits, writable metadata patches and hierarchical
+keyword replacement. Each tool advertises a closed
 input schema and the `ravo.mcp.tool_result` v1 output envelope. Image tools
 return the same verified PNG as inline image content and an opaque resource URI.
 Only issued URIs are readable; resources expire after bounded eviction or server
@@ -519,6 +509,19 @@ An AI client should use this sequence:
    selection, recipe and catalog revisions. Selection pages contain at most
    512 IDs; fetch additional pages with offset/limit and verify the selection
    revision remains unchanged before a batch.
+   To find another photo, use `ravo.catalog.query` with an explicit catalog path
+   (the session snapshot reports it), optional strict `query_json`, offset and
+   limit (default 100, maximum 512). Carry the returned revision as
+   `expected_revision` across pages. For filters, edit and serialize the returned
+   complete `query` object; do not invent a partial document. Keep named-set
+   scope in the separate `set_id` argument; `stack_expanded` controls stack
+   collapse and the page reports both settings. Reserve an operation ID and call
+   `ravo.studio.select` with the current binding and a distinct `target_asset_id`.
+   Selection requires saved global edits, rejects unknown IDs and resolves
+   unloaded assets. Its `staged` receipt describes ephemeral selection, not a
+   saved edit. Wait for non-busy state and read a fresh binding before grading.
+   Video selection has no Develop recipe; selection can return to a photo while
+   photo-editing commands retain their normal media/recipe availability checks.
 2. Read `ravo.develop.fields` and `ravo.preview.read`. Fields use Recipe's strict
    native units and bounds (for example exposure is EV); text values remain
    strings. Do not send slider positions or infer applicability from a field's
@@ -536,6 +539,48 @@ An AI client should use this sequence:
    its existing receipt, while changed content is rejected. Never retry an
    unknown write using a new ID automatically. `cancel` requests cancellation
    before commit; an already committed transaction remains committed.
+
+Catalog annotations use the same explicit primary-asset binding and reserved
+operation IDs. Read `state.selection.annotations` first and obtain the shared
+schemas from `studio capabilities` / `ravo.develop.fields` under `annotations`:
+
+| MCP tool | Arguments beyond binding / operation ID | Behavior |
+| --- | --- | --- |
+| `ravo.review.apply` | `fields`: rating 0–5, color_label, flag pick/reject/unflag | Supplied fields commit together; flags are mutually exclusive; no auto-advance |
+| `ravo.metadata.patch` | `fields`: writable IPTC names and string/null values | Omitted fields stay unchanged; explicit null clears |
+| `ravo.keywords.replace` | `keywords`: complete hierarchical path array | Replaces membership; empty clears membership and retains keyword definitions |
+
+These commands require saved global edits and an idle binding, support photos
+and video metadata, and never write originals, adjacent XMP or Develop history.
+They affect only the binding's primary asset, including with a multi-selection.
+Each command is atomic; separate tool calls are separate transactions. Keyword
+tree management and explicit bulk annotation are not part of this contract.
+Annotation payloads are bounded to 64 KiB. State projection is bounded to 1 MiB;
+`available:false` means unavailable, not an empty keyword set or cleared metadata.
+
+CLI uses `studio commit` with the binding plus `"kind":"annotation"` and an
+`annotation` member such as:
+
+```json
+{"version":1,"kind":"metadata","fields":{"title":"Selected","description":null}}
+```
+
+The receipt contains `ravo.asset.annotation-result/v1`, the confirmed catalog
+revision, immutable annotation readback when available, and structured recovery
+warnings. `committed` remains committed after a recovery failure or late cancel.
+Read state again and require its catalog revision to reach the receipt revision;
+if readback is unavailable, reconcile through explicit catalog query before
+another edit. `unknown` requires explicit reconciliation and must never be
+replayed with a new operation ID. Repeat the identical ID/request only to read
+its recorded outcome ([ADR-0180](../DevDocs/adr/0180-revision-bound-catalog-annotations.md)).
+
+The equivalent catalog query is `ravo catalog list --catalog <path> --limit 100
+--offset 0 --revision <observed-revision> --json`. It returns
+`ravo.library.page/v1`; omit `--revision` only for the initial page. Existing
+unpaged list calls remain supported. CLI selection uses `studio commit` with a
+reserved operation ID and a request containing the current binding plus
+`"kind":"select"` and `"target_asset_id":"<id>"`
+([ADR-0177](../DevDocs/adr/0177-bounded-library-query-and-machine-selection.md)).
 
 The equivalent CLI evaluation request is the state binding plus fields:
 

@@ -2,79 +2,6 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN">
     <context>
-        <name>AiProposalDialog</name>
-        <message>
-            <source>AI Proposal</source>
-            <translation>人工智能提案</translation>
-        </message>
-        <message>
-            <source>Global edit (stub)</source>
-            <translation>全局编辑（存根）</translation>
-        </message>
-        <message>
-            <source>Semantic mask (stub)</source>
-            <translation>语义掩码（存根）</translation>
-        </message>
-        <message>
-            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
-            <translation>仅存根提案 (ADR-0121)。没有网络，也没有模型权重。检查字段差异，然后应用、拒绝或取消。</translation>
-        </message>
-        <message>
-            <source>Create</source>
-            <translation>创建</translation>
-        </message>
-        <message>
-            <source>Label</source>
-            <translation>标签</translation>
-        </message>
-        <message>
-            <source>Proposals for selection</source>
-            <translation>所选照片的提案</translation>
-        </message>
-        <message>
-            <source>%1 · %2 · %3</source>
-            <translation>%1·%2·%3</translation>
-        </message>
-        <message>
-            <source>No proposal selected.</source>
-            <translation>未选择任何提案。</translation>
-        </message>
-        <message>
-            <source>Selected %1 (%2)
-Provider %3 / %4
-Fields: %5
-Diff: %6</source>
-            <translation>已选择%1 (%2)
-提供者 %3 / %4
-字段：%5
-差异：%6</translation>
-        </message>
-        <message>
-            <source>Refresh</source>
-            <translation>刷新</translation>
-        </message>
-        <message>
-            <source>Create Stub</source>
-            <translation>创建存根</translation>
-        </message>
-        <message>
-            <source>Cancel Proposal</source>
-            <translation>取消提案</translation>
-        </message>
-        <message>
-            <source>Reject</source>
-            <translation>拒绝</translation>
-        </message>
-        <message>
-            <source>Apply</source>
-            <translation>应用</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>关闭</translation>
-        </message>
-    </context>
-    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -4305,10 +4232,6 @@ Diff: %6</source>
             <source>Offline-edit proxies…</source>
             <translation>离线编辑代理...</translation>
         </message>
-        <message>
-            <source>Inspect AI Proposal…</source>
-            <translation>检查人工智能提案...</translation>
-        </message>
     </context>
     <context>
         <name>PhotoInfoPanel</name>
@@ -5580,26 +5503,6 @@ Diff: %6</source>
             <translation>删除离线编辑代理</translation>
         </message>
         <message>
-            <source>Inspect AI Proposal...</source>
-            <translation>检查人工智能提案...</translation>
-        </message>
-        <message>
-            <source>Create Stub AI Proposal</source>
-            <translation>创建存根 AI 提案</translation>
-        </message>
-        <message>
-            <source>Apply AI Proposal</source>
-            <translation>应用人工智能提案</translation>
-        </message>
-        <message>
-            <source>Reject AI Proposal</source>
-            <translation>拒绝人工智能提案</translation>
-        </message>
-        <message>
-            <source>Cancel AI Proposal</source>
-            <translation>取消人工智能提案</translation>
-        </message>
-        <message>
             <source>Remove from Catalog...</source>
             <translation>从图库中移除…</translation>
         </message>
@@ -6532,70 +6435,6 @@ Diff: %6</source>
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>正在取消图库操作…</translation>
-        </message>
-        <message>
-            <source>Refreshing AI proposals…</source>
-            <translation>刷新人工智能提案……</translation>
-        </message>
-        <message>
-            <source>AI proposal refresh failed.</source>
-            <translation>AI提案刷新失败。</translation>
-        </message>
-        <message>
-            <source>Loaded %1 AI proposal(s).</source>
-            <translation>已加载 %1 个 AI 提案。</translation>
-        </message>
-        <message>
-            <source>Creating stub AI proposal…</source>
-            <translation>创建存根 AI 提案...</translation>
-        </message>
-        <message>
-            <source>AI proposal create failed.</source>
-            <translation>AI提案创建失败。</translation>
-        </message>
-        <message>
-            <source>Created stub AI proposal %1</source>
-            <translation>已创建存根 AI 提案 %1</translation>
-        </message>
-        <message>
-            <source>Select an AI proposal first.</source>
-            <translation>首先选择一个 AI 提案。</translation>
-        </message>
-        <message>
-            <source>Applying AI proposal…</source>
-            <translation>应用人工智能提案...</translation>
-        </message>
-        <message>
-            <source>AI proposal apply failed.</source>
-            <translation>应用 AI 提案失败。</translation>
-        </message>
-        <message>
-            <source>Applied AI proposal.</source>
-            <translation>已应用 AI 提案。</translation>
-        </message>
-        <message>
-            <source>Rejecting AI proposal…</source>
-            <translation>拒绝人工智能提案……</translation>
-        </message>
-        <message>
-            <source>AI proposal reject failed.</source>
-            <translation>AI提案拒绝失败。</translation>
-        </message>
-        <message>
-            <source>Rejected AI proposal.</source>
-            <translation>拒绝人工智能提案。</translation>
-        </message>
-        <message>
-            <source>Cancelling AI proposal…</source>
-            <translation>取消人工智能提案……</translation>
-        </message>
-        <message>
-            <source>AI proposal cancel failed.</source>
-            <translation>AI提案取消失败。</translation>
-        </message>
-        <message>
-            <source>Cancelled AI proposal.</source>
-            <translation>取消了人工智能提案。</translation>
         </message>
         <message>
             <source>External editor id must not be empty.</source>

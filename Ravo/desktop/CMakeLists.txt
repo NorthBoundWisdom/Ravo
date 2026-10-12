@@ -39,6 +39,8 @@ target_sources(ravo_desktop
     src/studio_update_controller.cpp
     include/ravo/desktop/studio_update_controller.h
     src/studio_language_manager.cpp
+    src/studio_ui_font.cpp
+    src/studio_ui_font.h
     src/studio_window_geometry.cpp
     src/studio_panel_layout.cpp
     src/studio_startup_controller.cpp
@@ -48,6 +50,7 @@ target_sources(ravo_desktop
     src/studio_display_presentation.cpp
     src/studio_live_session_controller.cpp
     src/studio_live_automation.cpp
+    src/studio_live_annotations.cpp
     src/studio_operation_store.cpp
     src/studio_control_json.cpp
     src/studio_presenter.cpp
@@ -64,7 +67,6 @@ target_sources(ravo_desktop
     src/studio_presenter_external_editor.cpp
     src/studio_presenter_photo_merge.cpp
     src/studio_presenter_offline_edit.cpp
-    src/studio_presenter_ai_proposal.cpp
     src/studio_presenter_selection.cpp
     src/studio_presenter_burst_compare.cpp
     src/studio_presenter_iq.cpp
@@ -169,16 +171,13 @@ elseif(WIN32)
 endif()
 
 add_executable(ravo_studio ${RAVO_STUDIO_SOURCES})
-target_sources(ravo_studio PRIVATE src/studio_import_layout_smoke.cpp)
 target_sources(ravo_studio PRIVATE src/studio_video_smoke.cpp)
-target_sources(ravo_studio PRIVATE src/studio_settings_smoke.cpp)
-target_sources(ravo_studio PRIVATE src/studio_curve_gesture_smoke.cpp)
-target_sources(ravo_studio PRIVATE src/studio_photo_merge_layout_smoke.cpp)
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
 find_package(Qt6 6.11 REQUIRED COMPONENTS GuiPrivate)
 target_link_libraries(ravo_studio
   PRIVATE
     ravo_desktop
+    "$<LINK_LIBRARY:WHOLE_ARCHIVE,ravo_studio_resources>"
     GeoControls::AppShell
     Qt6::Gui
     Qt6::GuiPrivate
@@ -224,9 +223,15 @@ if(APPLE)
     VERBATIM)
 endif()
 
-qt_add_qml_module(ravo_studio
+add_library(ravo_studio_resources STATIC)
+set_target_properties(ravo_studio_resources PROPERTIES AUTOMOC ON)
+target_include_directories(ravo_studio_resources PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(ravo_studio_resources PRIVATE Qt6::Quick)
+ravo_configure_target(ravo_studio_resources)
+qt_add_qml_module(ravo_studio_resources
   URI Ravo.Studio
   VERSION 1.0
+  NO_PLUGIN
   DEPENDENCIES
     GeoControls
     GeoControls.AppShell
@@ -290,7 +295,6 @@ qt_add_qml_module(ravo_studio
     qml/chrome/EditInDialog.qml
     qml/chrome/PhotoMergeDialog.qml
     qml/chrome/OfflineEditDialog.qml
-    qml/chrome/AiProposalDialog.qml
     qml/chrome/ExportOptionsDialog.qml
     qml/chrome/SettingsPage.qml
     qml/chrome/SettingsBackupSection.qml
@@ -322,7 +326,7 @@ qt_add_qml_module(ravo_studio
     qml/chrome/PhotoContextMenu.qml
     qml/chrome/FolderContextMenu.qml)
 
-qt_add_resources(ravo_studio "studio_app_icon"
+qt_add_resources(ravo_studio_resources "studio_app_icon"
   PREFIX "/ravo/studio"
   FILES icons/AppIcon.png icons/AppIcon.ico)
 
@@ -349,6 +353,39 @@ add_custom_command(
   COMMENT "Smoke-load Ravo Studio QML and exit"
   VERBATIM)
 if(BUILD_TESTING)
+  add_executable(ravo_studio_workflow_smoke
+    src/main.cpp
+    "${CMAKE_SOURCE_DIR}/Ravo/tests/desktop_smoke/studio_import_layout_smoke.cpp"
+    "${CMAKE_SOURCE_DIR}/Ravo/tests/desktop_smoke/studio_settings_smoke.cpp"
+    "${CMAKE_SOURCE_DIR}/Ravo/tests/desktop_smoke/studio_curve_gesture_smoke.cpp"
+    "${CMAKE_SOURCE_DIR}/Ravo/tests/desktop_smoke/studio_photo_merge_layout_smoke.cpp"
+    src/studio_video_smoke.cpp)
+  target_compile_definitions(ravo_studio_workflow_smoke PRIVATE RAVO_STUDIO_WORKFLOW_SMOKE=1)
+  target_include_directories(ravo_studio_workflow_smoke PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/Ravo/tests/desktop_smoke")
+  target_link_libraries(ravo_studio_workflow_smoke PRIVATE
+    ravo_desktop "$<LINK_LIBRARY:WHOLE_ARCHIVE,ravo_studio_resources>"
+    GeoControls::AppShell Qt6::Gui Qt6::GuiPrivate Qt6::Qml Qt6::Quick
+    Qt6::QuickControls2 Qt6::QuickDialogs2 Qt6::QuickLayouts)
+  if(APPLE)
+    target_sources(ravo_studio_workflow_smoke PRIVATE src/studio_gpu_preview_metal.mm)
+    target_link_libraries(ravo_studio_workflow_smoke PRIVATE
+      "-framework Metal" "-framework IOSurface" "-framework CoreFoundation")
+  endif()
+  set_target_properties(ravo_studio_workflow_smoke PROPERTIES AUTOMOC ON)
+  ravo_configure_target(ravo_studio_workflow_smoke)
+  ravo_copy_windows_runtime_dlls(ravo_studio_workflow_smoke)
+  ravo_deploy_windows_qt_runtime(ravo_studio_workflow_smoke
+    "${CMAKE_CURRENT_SOURCE_DIR}/qml")
+  add_test(NAME ravo_studio_workflow_smoke
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"
+            "$<TARGET_FILE:ravo_studio_workflow_smoke>")
+  set_tests_properties(ravo_studio_workflow_smoke PROPERTIES
+    LABELS "ravo-desktop-smoke"
+    TIMEOUT ${RAVO_STUDIO_SMOKE_CTEST_TIMEOUT}
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:ravo_studio_workflow_smoke>"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QSG_RHI_BACKEND=software;QT_QUICK_BACKEND=software")
   add_test(
     NAME ravo_studio_qml_smoke
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Ravo/tools/smoke_ravo_studio.py"

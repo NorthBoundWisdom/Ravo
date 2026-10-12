@@ -29,6 +29,7 @@ using namespace develop_internal;
 
 void clamp_develop(DevelopParams &params) noexcept
 {
+    clamp_scalar_develop_fields(params);
     const auto clamp_rapidraw = [](double &value, const double minimum, const double maximum)
     { value = std::isfinite(value) ? clamp_value(value, minimum, maximum) : 0.0; };
     clamp_rapidraw(params.rapidraw_ev_shift, kRapidRawExposureMin, kRapidRawExposureMax);
@@ -177,18 +178,9 @@ void clamp_develop(DevelopParams &params) noexcept
     }
     // ADR-0145: do not overwrite the Exposure edit buffer from front().
     // Studio keeps legacy fields on the selected instance; evaluation uses the vector.
-    params.contrast = clamp_value(params.contrast, -1.0, 1.0);
-    params.highlights = clamp_value(params.highlights, -1.0, 1.0);
-    params.shadows = clamp_value(params.shadows, -1.0, 1.0);
-    params.whites = clamp_value(params.whites, -1.0, 1.0);
-    params.blacks = clamp_value(params.blacks, -1.0, 1.0);
-    params.vibrance = clamp_value(params.vibrance, -1.0, 1.0);
-    params.saturation = clamp_value(params.saturation, -1.0, 1.0);
     params.rotate_quarters = ((params.rotate_quarters % 4) + 4) % 4;
     params.flip_horizontal = flag01(params.flip_horizontal);
     params.flip_vertical = flag01(params.flip_vertical);
-    params.straighten_degrees =
-        clamp_value(params.straighten_degrees, kDevelopStraightenMin, kDevelopStraightenMax);
     params.perspective_vertical =
         clamp_value(params.perspective_vertical, kPerspectiveShiftMin, kPerspectiveShiftMax);
     params.perspective_horizontal =
@@ -211,11 +203,6 @@ void clamp_develop(DevelopParams &params) noexcept
         clamp_value(params.canvas.percent_bottom, kCanvasPercentMin, kCanvasPercentMax);
     if (canvas_color_name(params.canvas.color).empty())
         params.canvas.color = CanvasColor::kGreen;
-    params.sharpen = clamp_value(params.sharpen, 0.0, 2.0);
-    params.sharpen_radius =
-        clamp_value(params.sharpen_radius, kSharpenRadiusMin, kSharpenRadiusMax);
-    params.sharpen_threshold =
-        clamp_value(params.sharpen_threshold, kSharpenThresholdMin, kSharpenThresholdMax);
     params.texture.strength =
         clamp_value(params.texture.strength, kTextureStrengthMin, kTextureStrengthMax);
     params.texture.detail_threshold = clamp_value(
@@ -246,19 +233,6 @@ void clamp_develop(DevelopParams &params) noexcept
         }
         region.fill_brightness = clamp_value(region.fill_brightness, -1.0, 1.0);
     }
-    params.clarity = clamp_value(params.clarity, -1.0, 1.0);
-    params.vignette = clamp_value(params.vignette, -1.0, 1.0);
-    params.vignette_midpoint = clamp_value(params.vignette_midpoint, 0.0, 1.0);
-    params.vignette_falloff = clamp_value(params.vignette_falloff, 0.05, 1.0);
-    params.vignette_shape = clamp_value(params.vignette_shape, 0.5, 5.0);
-    params.vignette_center_x = clamp_value(params.vignette_center_x, -1.0, 1.0);
-    params.vignette_center_y = clamp_value(params.vignette_center_y, -1.0, 1.0);
-    params.grain = clamp_value(params.grain, 0.0, 1.0);
-    params.bloom = clamp_value(params.bloom, 0.0, 1.0);
-    params.soften = clamp_value(params.soften, 0.0, 1.0);
-    params.dehaze = clamp_value(params.dehaze, -1.0, 1.0);
-    params.dehaze_distance =
-        clamp_value(params.dehaze_distance, kDehazeDistanceMin, kDehazeDistanceMax);
     if (output_dither_method_name(params.output_dither.method).empty())
         params.output_dither.method = OutputDitherMethod::kFloydSteinbergAuto;
     params.output_dither.random_damping_db = clamp_value(
@@ -315,7 +289,6 @@ void clamp_develop(DevelopParams &params) noexcept
     params.split_toning.balance = clamp_value(params.split_toning.balance, 0.0, 1.0);
     params.split_toning.compress = clamp_value(params.split_toning.compress, 0.0, 100.0);
     params.split_toning.mix = clamp_value(params.split_toning.mix, 0.0, 1.0);
-    params.gamma = clamp_value(params.gamma, 0.2, 3.0);
     clamp_rgb_levels(params.rgb_levels);
     clamp_rgb_curve(params.rgb_curve);
     params.sigmoid_contrast =
@@ -326,8 +299,6 @@ void clamp_develop(DevelopParams &params) noexcept
     params.sigmoid_display_black =
         clamp_value(params.sigmoid_display_black, kSigmoidDisplayBlackMin, kSigmoidDisplayBlackMax);
     params.sigmoid_hue_preservation = clamp_value(params.sigmoid_hue_preservation, 0.0, 1.0);
-    params.raw_highlights = clamp_value(params.raw_highlights, 0.0, 1.0);
-    params.raw_highlights_clip = clamp_value(params.raw_highlights_clip, 0.5, 1.0);
     if (params.raw_highlights_mode != kRawHighlightsModeClip &&
         params.raw_highlights_mode != kRawHighlightsModeInpaint &&
         params.raw_highlights_mode != kRawHighlightsModeOpposed &&
@@ -335,11 +306,8 @@ void clamp_develop(DevelopParams &params) noexcept
     {
         params.raw_highlights_mode = std::string(kRawHighlightsModeOpposed);
     }
-    params.hot_pixels_strength = clamp_value(params.hot_pixels_strength, 0.0, 1.0);
-    params.hot_pixels_threshold = clamp_value(params.hot_pixels_threshold, 0.0, 1.0);
     params.raw_ca_iterations =
         std::clamp(params.raw_ca_iterations, std::int64_t{0}, std::int64_t{5});
-    params.raw_denoise_threshold = clamp_value(params.raw_denoise_threshold, 0.0, 1.0);
     for (auto &channel : params.raw_denoise_bands)
     {
         for (double &band : channel)
@@ -347,19 +315,10 @@ void clamp_develop(DevelopParams &params) noexcept
             band = clamp_value(band, 0.0, 16.0);
         }
     }
-    params.denoise = clamp_value(params.denoise, 0.0, 1.0);
-    params.denoise_chroma = clamp_value(params.denoise_chroma, 0.0, 1.0);
-    params.denoise_radius = clamp_value(params.denoise_radius, 0.5, 8.0);
-    params.lens_k1 = clamp_value(params.lens_k1, -2.0, 2.0);
-    params.lens_k2 = clamp_value(params.lens_k2, -2.0, 2.0);
-    params.lens_tca_r = clamp_value(params.lens_tca_r, 0.9, 1.1);
-    params.lens_tca_b = clamp_value(params.lens_tca_b, 0.9, 1.1);
-    params.lens_vignetting = clamp_value(params.lens_vignetting, 0.0, 1.0);
     if (params.lens_mode != kLensModeManual && params.lens_mode != kLensModeLookup)
     {
         params.lens_mode = std::string(kLensModeManual);
     }
-    params.lens_focal_mm = clamp_value(params.lens_focal_mm, 1.0, 2000.0);
     for (double &value : params.color_eq_hue)
     {
         value = clamp_value(value, -0.5, 0.5);
@@ -405,11 +364,6 @@ void clamp_develop(DevelopParams &params) noexcept
         params.graduated_present = true;
         params.graduated_enabled = true;
     }
-    params.tone_eq_blacks = clamp_value(params.tone_eq_blacks, -4.0, 4.0);
-    params.tone_eq_shadows = clamp_value(params.tone_eq_shadows, -4.0, 4.0);
-    params.tone_eq_midtones = clamp_value(params.tone_eq_midtones, -4.0, 4.0);
-    params.tone_eq_highlights = clamp_value(params.tone_eq_highlights, -4.0, 4.0);
-    params.tone_eq_whites = clamp_value(params.tone_eq_whites, -4.0, 4.0);
     if (params.tone_curve_working_space != kToneCurveWorkingSpaceSrgb &&
         params.tone_curve_working_space != kToneCurveWorkingSpaceLinearRgb &&
         params.tone_curve_working_space != kToneCurveWorkingSpaceRgb &&

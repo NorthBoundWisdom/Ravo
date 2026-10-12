@@ -328,7 +328,6 @@ Item {
     property alias mergeHdr: mergeHdrAction
     property alias panorama: panoramaAction
     property alias offlineEdit: offlineEditAction
-    property alias aiProposal: aiProposalAction
     property alias cropTool: cropToolAction
     property alias rotateLeft: rotateLeftAction
     property alias rotateRight: rotateRightAction
@@ -489,10 +488,6 @@ Item {
     RegisteredAction {
         id: offlineEditAction
         actionId: root.ids.photoOfflineEdit || ""
-    }
-    RegisteredAction {
-        id: aiProposalAction
-        actionId: root.ids.photoAiProposal || ""
     }
     RegisteredAction {
         id: cropToolAction

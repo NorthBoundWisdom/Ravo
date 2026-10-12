@@ -2,79 +2,6 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko_KR">
     <context>
-        <name>AiProposalDialog</name>
-        <message>
-            <source>AI Proposal</source>
-            <translation>AI 제안</translation>
-        </message>
-        <message>
-            <source>Global edit (stub)</source>
-            <translation>전역 편집(스텁)</translation>
-        </message>
-        <message>
-            <source>Semantic mask (stub)</source>
-            <translation>시맨틱 마스크(스텁)</translation>
-        </message>
-        <message>
-            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
-            <translation>스텁 제안만 해당(ADR-0121). 네트워크도 없고 모델 가중치도 없습니다. 필드 차이를 검사한 후 적용, 거부 또는 취소합니다.</translation>
-        </message>
-        <message>
-            <source>Create</source>
-            <translation>만들기</translation>
-        </message>
-        <message>
-            <source>Label</source>
-            <translation>라벨</translation>
-        </message>
-        <message>
-            <source>Proposals for selection</source>
-            <translation>선정 제안</translation>
-        </message>
-        <message>
-            <source>%1 · %2 · %3</source>
-            <translation>%1 · %2 · %3</translation>
-        </message>
-        <message>
-            <source>No proposal selected.</source>
-            <translation>선택된 제안이 없습니다.</translation>
-        </message>
-        <message>
-            <source>Selected %1 (%2)
-Provider %3 / %4
-Fields: %5
-Diff: %6</source>
-            <translation>%1(%2)을(를) 선택했습니다
-공급자%3/%4
-필드: %5
-차이: %6</translation>
-        </message>
-        <message>
-            <source>Refresh</source>
-            <translation>새로고침</translation>
-        </message>
-        <message>
-            <source>Create Stub</source>
-            <translation>스텁 생성</translation>
-        </message>
-        <message>
-            <source>Cancel Proposal</source>
-            <translation>제안 취소</translation>
-        </message>
-        <message>
-            <source>Reject</source>
-            <translation>거부</translation>
-        </message>
-        <message>
-            <source>Apply</source>
-            <translation>적용</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>닫기</translation>
-        </message>
-    </context>
-    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -4305,10 +4232,6 @@ Diff: %6</source>
             <source>Offline-edit proxies…</source>
             <translation>오프라인 편집 프록시…</translation>
         </message>
-        <message>
-            <source>Inspect AI Proposal…</source>
-            <translation>AI 제안 검사…</translation>
-        </message>
     </context>
     <context>
         <name>PhotoInfoPanel</name>
@@ -5556,26 +5479,6 @@ Diff: %6</source>
             <translation>오프라인 편집 프록시 삭제</translation>
         </message>
         <message>
-            <source>Inspect AI Proposal...</source>
-            <translation>AI 제안 검사...</translation>
-        </message>
-        <message>
-            <source>Create Stub AI Proposal</source>
-            <translation>스텁 AI 제안 생성</translation>
-        </message>
-        <message>
-            <source>Apply AI Proposal</source>
-            <translation>AI 제안 적용</translation>
-        </message>
-        <message>
-            <source>Reject AI Proposal</source>
-            <translation>AI 제안 거부</translation>
-        </message>
-        <message>
-            <source>Cancel AI Proposal</source>
-            <translation>AI 제안 취소</translation>
-        </message>
-        <message>
             <source>Remove from Catalog...</source>
             <translation>카탈로그에서 제거...</translation>
         </message>
@@ -6532,70 +6435,6 @@ Diff: %6</source>
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>카탈로그 작업 취소 중…</translation>
-        </message>
-        <message>
-            <source>Refreshing AI proposals…</source>
-            <translation>AI 제안을 새롭게…</translation>
-        </message>
-        <message>
-            <source>AI proposal refresh failed.</source>
-            <translation>AI 제안 새로고침에 실패했습니다.</translation>
-        </message>
-        <message>
-            <source>Loaded %1 AI proposal(s).</source>
-            <translation>%1개의 AI 제안을 로드했습니다.</translation>
-        </message>
-        <message>
-            <source>Creating stub AI proposal…</source>
-            <translation>스텁 AI 제안 생성 중…</translation>
-        </message>
-        <message>
-            <source>AI proposal create failed.</source>
-            <translation>AI 제안 생성에 실패했습니다.</translation>
-        </message>
-        <message>
-            <source>Created stub AI proposal %1</source>
-            <translation>스텁 AI 제안 %1을(를) 만들었습니다</translation>
-        </message>
-        <message>
-            <source>Select an AI proposal first.</source>
-            <translation>먼저 AI 제안을 선택하세요.</translation>
-        </message>
-        <message>
-            <source>Applying AI proposal…</source>
-            <translation>AI 제안 적용 중…</translation>
-        </message>
-        <message>
-            <source>AI proposal apply failed.</source>
-            <translation>AI 제안 적용에 실패했습니다.</translation>
-        </message>
-        <message>
-            <source>Applied AI proposal.</source>
-            <translation>AI 제안을 적용했습니다.</translation>
-        </message>
-        <message>
-            <source>Rejecting AI proposal…</source>
-            <translation>AI 제안 거부 중…</translation>
-        </message>
-        <message>
-            <source>AI proposal reject failed.</source>
-            <translation>AI 제안 거부에 실패했습니다.</translation>
-        </message>
-        <message>
-            <source>Rejected AI proposal.</source>
-            <translation>AI 제안을 거부했습니다.</translation>
-        </message>
-        <message>
-            <source>Cancelling AI proposal…</source>
-            <translation>AI 제안 취소 중…</translation>
-        </message>
-        <message>
-            <source>AI proposal cancel failed.</source>
-            <translation>AI 제안 취소에 실패했습니다.</translation>
-        </message>
-        <message>
-            <source>Cancelled AI proposal.</source>
-            <translation>AI 제안이 취소되었습니다.</translation>
         </message>
         <message>
             <source>External editor id must not be empty.</source>

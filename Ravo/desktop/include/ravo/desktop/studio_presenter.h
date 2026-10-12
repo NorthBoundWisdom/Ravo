@@ -154,9 +154,6 @@ class StudioPresenter final : public QObject
                    offlineEditMediaStatusChanged)
     Q_PROPERTY(QVariantList offlineEditProxyList READ offlineEditProxyList NOTIFY
                    offlineEditProxyListChanged)
-    Q_PROPERTY(
-        QVariantMap selectedAiProposal READ selectedAiProposal NOTIFY selectedAiProposalChanged)
-    Q_PROPERTY(QVariantList aiProposals READ aiProposals NOTIFY aiProposalsChanged)
     Q_PROPERTY(QVariantMap iqQualityPolicy READ iqQualityPolicy CONSTANT)
 
 public:
@@ -234,7 +231,7 @@ public:
     [[nodiscard]] bool busy() const noexcept;
     [[nodiscard]] bool selectionResolving() const noexcept
     {
-        return selection_resolution_pending_;
+        return selection_resolution_pending_ || pending_library_selection_.has_value();
     }
     [[nodiscard]] QString statusText() const;
     [[nodiscard]] QString errorText() const;
@@ -354,16 +351,6 @@ public:
     Q_INVOKABLE void deleteOfflineEditProxy(bool force = false);
     Q_INVOKABLE void pinOfflineEditProxy(bool pinned = true);
     Q_INVOKABLE void evictOfflineEditProxies(qulonglong max_total_bytes);
-    Q_INVOKABLE QVariantMap selectedAiProposal() const;
-    Q_INVOKABLE QVariantList aiProposals() const;
-    Q_INVOKABLE void refreshAiProposals();
-    Q_INVOKABLE void createAiStubProposal(const QString &kind = QStringLiteral("global"),
-                                          const QString &semantic_label = QString());
-    Q_INVOKABLE void selectAiProposal(const QString &proposal_id);
-    Q_INVOKABLE void clearSelectedAiProposal();
-    Q_INVOKABLE void applySelectedAiProposal();
-    Q_INVOKABLE void rejectSelectedAiProposal();
-    Q_INVOKABLE void cancelSelectedAiProposal();
     Q_INVOKABLE void selectAsset(const QString &asset_id);
     Q_INVOKABLE void selectLibraryRow(int row, const QString &mode = QStringLiteral("single"),
                                       bool open_loupe = false);
@@ -453,8 +440,6 @@ signals:
     void photoMergeDialogRequested(const QVariantMap &context);
     void offlineEditMediaStatusChanged();
     void offlineEditProxyListChanged();
-    void selectedAiProposalChanged();
-    void aiProposalsChanged();
     void thumbnailsChanged();
 
 private:
@@ -609,6 +594,7 @@ private:
     };
     std::optional<PendingLibrarySelection> pending_library_selection_;
     void completePendingLibrarySelection();
+    void clearPendingLibrarySelection();
     std::optional<CatalogBackupPolicy> backup_policy_;
     bool thumbnail_request_in_flight_ = false;
     std::deque<std::string> pending_thumbnail_ids_;
@@ -644,8 +630,6 @@ private:
     std::int64_t photo_merge_revision_ = -1;
     QVariantMap offline_edit_media_status_;
     QVariantList offline_edit_proxy_list_;
-    QVariantMap selected_ai_proposal_;
-    QVariantList ai_proposals_;
     bool busy_ = false;
 
     std::uint64_t thumbnail_revision_ = 0;

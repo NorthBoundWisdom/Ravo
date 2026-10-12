@@ -22,12 +22,9 @@
 #include "ravo/foundation/error.h"
 #include "ravo/recipe/develop.h"
 #include "ravo/recipe/recipe.h"
-#include "ravo/services/ai_proposal.h"
-#include "ravo/services/ai_suggestion.h"
 #include "ravo/services/xmp_interchange.h"
 #include "ravo/services/external_editor.h"
 #include "ravo/services/foreign_catalog.h"
-#include "ravo/services/dng_smart_preview.h"
 #include "ravo/services/offline_edit_proxy.h"
 #include "ravo/services/cull_assistance.h"
 #include "ravo/services/ingest_transport.h"
@@ -44,7 +41,6 @@ class CatalogServiceTestControl;
 }
 
 class LibraryService;
-class AiService;
 class ConversionService;
 class CullService;
 class ExportService;
@@ -112,8 +108,6 @@ public:
     [[nodiscard]] RecoveryService &recovery() noexcept;
     [[nodiscard]] const RecoveryService &recovery() const noexcept;
 
-    [[nodiscard]] AiService &ai() noexcept;
-    [[nodiscard]] const AiService &ai() const noexcept;
     [[nodiscard]] ConversionService &conversion() noexcept;
     [[nodiscard]] const ConversionService &conversion() const noexcept;
     [[nodiscard]] CullService &cull() noexcept;
@@ -161,7 +155,6 @@ private:
     std::unique_ptr<ImportService> import_capability_;
     std::unique_ptr<IngestService> ingest_capability_;
 
-    std::unique_ptr<AiService> ai_capability_;
     std::unique_ptr<ConversionService> conversion_capability_;
     std::unique_ptr<CullService> cull_capability_;
     std::unique_ptr<ExportService> exports_capability_;
@@ -184,7 +177,6 @@ private:
 
 #include "ravo/services/preview_service.h"
 
-#include "ravo/services/ai_service.h"
 #include "ravo/services/conversion_service.h"
 #include "ravo/services/cull_service.h"
 #include "ravo/services/exports_service.h"

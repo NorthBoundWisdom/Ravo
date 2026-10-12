@@ -136,8 +136,6 @@ CatalogService::CatalogService(const EngineFacade &engine,
         repository_, raster_, video_, engine_, cache_, *preview_capability_, *recovery_capability_,
         testing_before_import_publication_, testing_import_checkpoint_));
     ingest_capability_.reset(new IngestService(repository_, *import_capability_));
-    ai_capability_.reset(new AiService(repository_, *develop_capability_, *library_capability_,
-                                       *metadata_capability_, *recovery_capability_));
     conversion_capability_.reset(new ConversionService(repository_, *develop_capability_,
                                                        *import_capability_, *library_capability_,
                                                        *metadata_capability_));
@@ -226,16 +224,6 @@ RecoveryService &CatalogService::recovery() noexcept
 const RecoveryService &CatalogService::recovery() const noexcept
 {
     return *recovery_capability_;
-}
-
-AiService &CatalogService::ai() noexcept
-{
-    return *ai_capability_;
-}
-
-const AiService &CatalogService::ai() const noexcept
-{
-    return *ai_capability_;
 }
 
 ConversionService &CatalogService::conversion() noexcept

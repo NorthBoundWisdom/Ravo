@@ -74,8 +74,10 @@ using develop_internal::reset_color_reconstruction_field;
 using develop_internal::reset_legacy_color_balance_field;
 using develop_internal::reset_rgb_curve_field;
 using develop_internal::reset_rgb_levels_field;
+using develop_internal::reset_scalar_develop_field;
 using develop_internal::reset_temperature_field;
 using develop_internal::rgb_levels_preserve_names;
+using develop_internal::scalar_develop_field_schema;
 using develop_internal::studio_color_zones_curves;
 
 bool apply_develop_field(DevelopParams &params, const std::string_view name, const double value)
@@ -184,6 +186,11 @@ std::vector<DevelopSetField> list_develop_set_fields()
     std::vector<DevelopSetField> fields;
     for (const auto &name : candidate_develop_set_names())
     {
+        if (auto field = scalar_develop_field_schema(name))
+        {
+            fields.push_back(std::move(*field));
+            continue;
+        }
         const auto seed = first_accepted_develop_set_value(name);
         if (!seed)
         {
@@ -227,6 +234,11 @@ std::vector<DevelopSetField> list_develop_set_fields()
 
 bool reset_develop_field(DevelopParams &params, const std::string_view name)
 {
+    if (reset_scalar_develop_field(params, name))
+    {
+        clamp_develop(params);
+        return true;
+    }
     if (is_develop_mask_field(name))
     {
         return static_cast<bool>(reset_develop_mask_field(params, name));
@@ -349,26 +361,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.exposure_compensate_highlight_preservation =
             identity.exposure_compensate_highlight_preservation;
     }
-    else if (name == "contrast")
-    {
-        params.contrast = identity.contrast;
-    }
-    else if (name == "highlights")
-    {
-        params.highlights = identity.highlights;
-    }
-    else if (name == "shadows")
-    {
-        params.shadows = identity.shadows;
-    }
-    else if (name == "whites")
-    {
-        params.whites = identity.whites;
-    }
-    else if (name == "blacks")
-    {
-        params.blacks = identity.blacks;
-    }
     else if (name == "rapidrawEvShift")
     {
         params.rapidraw_ev_shift = identity.rapidraw_ev_shift;
@@ -403,14 +395,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.rapidraw_tone_controls_enabled = false;
         params.sigmoid_enabled = true;
     }
-    else if (name == "vibrance")
-    {
-        params.vibrance = identity.vibrance;
-    }
-    else if (name == "saturation")
-    {
-        params.saturation = identity.saturation;
-    }
     else if (name == "rotate")
     {
         params.rotate_quarters = 0;
@@ -419,10 +403,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.flip_horizontal = 0;
         params.flip_vertical = 0;
-    }
-    else if (name == "straighten")
-    {
-        params.straighten_degrees = identity.straighten_degrees;
     }
     else if (name == "perspectiveVertical")
     {
@@ -492,10 +472,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.retouch = identity.retouch;
     }
-    else if (name == "clarity")
-    {
-        params.clarity = identity.clarity;
-    }
     else if (name == "vignette" || name == "vignetteMidpoint" || name == "vignetteFalloff" ||
              name == "vignetteShape" || name == "vignetteCenterX" || name == "vignetteCenterY")
     {
@@ -518,26 +494,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
             params.vignette_center_x = identity.vignette_center_x;
             params.vignette_center_y = identity.vignette_center_y;
         }
-    }
-    else if (name == "grain")
-    {
-        params.grain = identity.grain;
-    }
-    else if (name == "bloom")
-    {
-        params.bloom = identity.bloom;
-    }
-    else if (name == "soften")
-    {
-        params.soften = identity.soften;
-    }
-    else if (name == "dehaze")
-    {
-        params.dehaze = identity.dehaze;
-    }
-    else if (name == "dehazeDistance")
-    {
-        params.dehaze_distance = identity.dehaze_distance;
     }
     else if (name == "dehazeAdaptive")
     {
@@ -678,10 +634,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.split_toning = identity.split_toning;
         params.split_toning_mask_id = identity.split_toning_mask_id;
     }
-    else if (name == "gamma")
-    {
-        params.gamma = identity.gamma;
-    }
     else if (reset_rgb_levels_field(params, name))
     {
     }
@@ -737,10 +689,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.raw_highlights_clip = identity.raw_highlights_clip;
         params.raw_highlights_mode = identity.raw_highlights_mode;
     }
-    else if (name == "rawDenoiseThreshold")
-    {
-        params.raw_denoise_threshold = identity.raw_denoise_threshold;
-    }
     else if (name == "hotPixelsStrength" || name == "hotPixelsThreshold" ||
              name == "hotPixelsPermissive")
     {
@@ -752,18 +700,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
     {
         params.raw_ca_iterations = identity.raw_ca_iterations;
         params.raw_ca_avoid_shift = identity.raw_ca_avoid_shift;
-    }
-    else if (name == "denoise")
-    {
-        params.denoise = identity.denoise;
-    }
-    else if (name == "denoiseChroma")
-    {
-        params.denoise_chroma = identity.denoise_chroma;
-    }
-    else if (name == "denoiseRadius")
-    {
-        params.denoise_radius = identity.denoise_radius;
     }
     else if (name == "lensK1" || name == "lensK2" || name == "lensTcaR" || name == "lensTcaB" ||
              name == "lensVignetting" || name == "lensMode" || name == "lensFocal")
@@ -813,26 +749,6 @@ bool reset_develop_field(DevelopParams &params, const std::string_view name)
         params.graduated_hardness = identity.graduated_hardness;
         params.graduated_rotation = identity.graduated_rotation;
         params.graduated_offset = identity.graduated_offset;
-    }
-    else if (name == "toneEqBlacks")
-    {
-        params.tone_eq_blacks = identity.tone_eq_blacks;
-    }
-    else if (name == "toneEqShadows")
-    {
-        params.tone_eq_shadows = identity.tone_eq_shadows;
-    }
-    else if (name == "toneEqMidtones")
-    {
-        params.tone_eq_midtones = identity.tone_eq_midtones;
-    }
-    else if (name == "toneEqHighlights")
-    {
-        params.tone_eq_highlights = identity.tone_eq_highlights;
-    }
-    else if (name == "toneEqWhites")
-    {
-        params.tone_eq_whites = identity.tone_eq_whites;
     }
     else
     {

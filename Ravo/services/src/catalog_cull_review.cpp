@@ -160,7 +160,9 @@ Result<CullReviewResult> CullService::apply_cull_review(const CullReviewRequest 
         return error;
     }
 
-    const auto bumped = repository_->commit_review(request.asset_id, review);
+    const auto bumped = repository_->commit_review_patch(
+        request.asset_id, {review.rating, review.color_label, review.rejected, review.picked},
+        request.expected_catalog_revision, request.cancellation);
     if (!bumped)
     {
         auto error = bumped.error();

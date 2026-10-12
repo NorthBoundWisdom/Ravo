@@ -27,6 +27,7 @@ LibraryPageRequest StudioPresenter::currentPageRequest() const
 
 void StudioPresenter::cancelSelectionResolution()
 {
+    clearPendingLibrarySelection();
     static_cast<void>(selection_resolution_cancel_.cancel("selection_replaced"));
     ++selection_generation_;
     if (selection_resolution_pending_)
@@ -223,12 +224,23 @@ void StudioPresenter::selectLibraryRow(const int row, const QString &mode, const
         setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));
         return;
     }
+    cancelSelectionResolution();
     pending_library_selection_ = PendingLibrarySelection{
         row, library_query_generation_, selected_asset_id_, selected_ids_, mode, open_loupe};
+    emit busyChanged();
     if (assets_.rowLoaded(row))
         completePendingLibrarySelection();
     else
         ensureLibraryRow(row);
+}
+
+void StudioPresenter::clearPendingLibrarySelection()
+{
+    if (pending_library_selection_)
+    {
+        pending_library_selection_.reset();
+        emit busyChanged();
+    }
 }
 
 void StudioPresenter::completePendingLibrarySelection()
@@ -239,7 +251,7 @@ void StudioPresenter::completePendingLibrarySelection()
     if (pending.generation != library_query_generation_ || pending.primary != selected_asset_id_ ||
         pending.selection != selected_ids_)
     {
-        pending_library_selection_.reset();
+        clearPendingLibrarySelection();
         return;
     }
     if (!assets_.rowLoaded(pending.row))
@@ -247,7 +259,7 @@ void StudioPresenter::completePendingLibrarySelection()
     const auto id = assets_.assetIdAt(pending.row);
     const auto mode = pending.mode;
     const bool open_loupe = pending.open_loupe;
-    pending_library_selection_.reset();
+    clearPendingLibrarySelection();
     if (id.isEmpty())
     {
         setError(QCoreApplication::translate("StudioPresenter", "Select a photo first."));

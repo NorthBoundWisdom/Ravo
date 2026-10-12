@@ -322,7 +322,7 @@ bool StudioPresenter::defaultCatalogExists() const
 
 bool StudioPresenter::busy() const noexcept
 {
-    return busy_ || selection_resolution_pending_;
+    return busy_ || selectionResolving();
 }
 
 QString StudioPresenter::statusText() const
@@ -939,7 +939,6 @@ void StudioPresenter::reloadVisibleAssets()
     cancelSelectionResolution();
     std::erase_if(selection_snapshot_,
                   [this](const auto &asset) { return !selected_ids_.contains(asset.id); });
-    pending_library_selection_.reset();
     if (catalog_path_.isEmpty())
     {
         return;
@@ -1072,7 +1071,7 @@ void StudioPresenter::requestLibraryPage(const std::size_t offset,
                     emit libraryWorkChanged();
                     if (!page)
                     {
-                        pending_library_selection_.reset();
+                        clearPendingLibrarySelection();
                         setError(qstring_from_utf8(page.error().message));
                         return;
                     }

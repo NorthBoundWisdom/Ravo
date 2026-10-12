@@ -40,7 +40,7 @@ TARGET_LINK_PATTERN = re.compile(
     r"target_link_libraries\(\s*([A-Za-z0-9_]+)\s+(.*?)\)", re.DOTALL
 )
 FIRST_PARTY_TARGET_PATTERN = re.compile(
-    r"\b(ravo(?:_foundation|_recipe|_engine|_domain|_adapters|_services|_control|_desktop|_cli|_studio)?)\b"
+    r"\b(ravo(?:_foundation|_recipe|_engine|_domain|_adapters|_services|_control|_desktop|_cli|_studio_resources|_studio_workflow_smoke|_studio)?)\b"
 )
 PUBLIC_RAVO_INCLUDE_PATTERN = re.compile(r'^\s*#\s*include\s*"ravo/([a-z_]+)/', re.MULTILINE)
 
@@ -57,7 +57,9 @@ ALLOWED_FIRST_PARTY_LINKS = {
     ),
     "ravo": frozenset({"ravo_cli"}),
     "ravo_desktop": frozenset({"ravo_services", "ravo_adapters", "ravo_control"}),
-    "ravo_studio": frozenset({"ravo_desktop"}),
+    "ravo_studio": frozenset({"ravo_desktop", "ravo_studio_resources"}),
+    "ravo_studio_resources": frozenset(),
+    "ravo_studio_workflow_smoke": frozenset({"ravo_desktop", "ravo_studio_resources"}),
 }
 REQUIRED_FIRST_PARTY_LINKS = {
     "ravo_foundation": frozenset(),
@@ -72,7 +74,9 @@ REQUIRED_FIRST_PARTY_LINKS = {
     ),
     "ravo": frozenset({"ravo_cli"}),
     "ravo_desktop": frozenset({"ravo_services", "ravo_adapters", "ravo_control"}),
-    "ravo_studio": frozenset({"ravo_desktop"}),
+    "ravo_studio": frozenset({"ravo_desktop", "ravo_studio_resources"}),
+    "ravo_studio_resources": frozenset(),
+    "ravo_studio_workflow_smoke": frozenset({"ravo_desktop", "ravo_studio_resources"}),
 }
 ALLOWED_PUBLIC_HEADER_LAYERS = {
     "foundation": frozenset({"foundation"}),

@@ -1,4 +1,5 @@
 #pragma once
+#include "ravo/services/asset_annotation.h"
 
 #include <memory>
 #include <optional>
@@ -96,6 +97,8 @@ public:
     // Machine-control entry point. It shares the command controller's runtime
     // availability policy and commits one ordered, strictly validated batch.
     [[nodiscard]] Result<bool> applyDevelopFields(const std::vector<StudioDevelopField> &fields);
+    [[nodiscard]] Result<AssetAnnotationEdit>
+    prepareAssetAnnotation(const JsonValue &payload) const;
     [[nodiscard]] Result<bool> applyDevelopPatch(const JsonValue &fields,
                                                  std::string_view local_id = {},
                                                  std::string operation_id = {},

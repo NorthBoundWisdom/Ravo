@@ -24,13 +24,11 @@ The root lock declares Ravo direct dependencies only. If a dependency lock
 template declares a sibling, FreeCM resolves the transitive closure recursively
 from local seeds. Do not repeat every transitive dependency in the root lock.
 
-Current direct dependencies are FFmpeg, LibRaw, GeoControls, LittleCMS, Exiv2, LensFun,
-LibJpegTurbo, LibTIFF, and RawSpeed. Current product targets consume FFmpeg, LibRaw,
-GeoControls, LittleCMS, Exiv2, LibJpegTurbo, and LibTIFF. LensFun and RawSpeed
-remain pinned, configure-verified inputs for their explicit future owners;
-neither may silently replace an accepted path. In particular, RawSpeed is
-reserved for the independent-decoder decision and must not fall back from or
-replace LibRaw implicitly.
+Current direct dependencies are FFmpeg, LibRaw, GeoControls, LittleCMS, Exiv2,
+LibJpegTurbo and LibTIFF; all have current product consumers. Unused RawSpeed and
+LensFun roots are retired by [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md).
+Existing local seeds are not deleted or used as a decoder/lens fallback. A future
+decoder or lens-database integration requires its own accepted consumer and pin.
 
 SQLite/QSQLITE, zlib/libpng, and the current Qt JPEG/TIFF imageformat plugins
 remain real host/Qt-kit dependencies; duplicating them in the root lock would

@@ -1,5 +1,6 @@
 #include "studio_client_internal.h"
 #include "application_internal.h"
+#include "mcp_internal.h"
 
 #include <chrono>
 #include <thread>
@@ -8,6 +9,7 @@
 #include "ravo/recipe/develop_patch.h"
 #include "ravo/recipe/develop_mask.h"
 #include "ravo/recipe/local_adjustment.h"
+#include "ravo/services/asset_annotation.h"
 
 namespace ravo::cli_internal
 {
@@ -112,6 +114,11 @@ Result<JsonValue> wait_operation(const LiveSessionDescriptor &session, std::stri
 }
 } // namespace
 
+JsonValue cli_annotation_capabilities()
+{
+    return asset_annotation_capabilities_json();
+}
+
 Result<JsonValue> run_studio_automation(const EngineFacade &engine, const std::string_view command,
                                         const StudioCliArguments &flags)
 {
@@ -138,6 +145,7 @@ Result<JsonValue> run_studio_automation(const EngineFacade &engine, const std::s
         object.emplace("max_patch_fields", JsonValue::number("256"));
         object.emplace("max_batch_assets", JsonValue::number("256"));
         object.emplace("max_selection_page", JsonValue::number("512"));
+        object.emplace("annotations", cli_annotation_capabilities());
         object.emplace("operation_lifecycle", "studio_session_bounded");
         JsonValue::Array kinds;
         for (std::int64_t index = 1; index <= 8; ++index)

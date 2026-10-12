@@ -789,11 +789,12 @@ Result<void> SqliteCatalogRepository::replace_asset_tags(const std::string_view 
     return {};
 }
 
-Result<KeywordMembershipMutation>
-SqliteCatalogRepository::replace_assets_tags(const std::vector<std::string> &asset_ids,
-                                             const std::vector<std::string> &tag_paths,
-                                             const std::optional<std::int64_t> expected_revision)
+Result<KeywordMembershipMutation> SqliteCatalogRepository::replace_assets_tags(
+    const std::vector<std::string> &asset_ids, const std::vector<std::string> &tag_paths,
+    const std::optional<std::int64_t> expected_revision, const CancellationToken &cancellation)
 {
+    if (auto active = cancellation.check(); !active)
+        return active.error();
     if (impl_ == nullptr)
         return make_error(ErrorCode::kIo, "Catalog repository is closed");
     if (asset_ids.empty())
@@ -804,11 +805,16 @@ SqliteCatalogRepository::replace_assets_tags(const std::vector<std::string> &ass
     auto paths = canonicalize_tag_paths(tag_paths);
     if (!paths)
         return paths.error();
-    if (!impl_->database.transaction())
+    QSqlQuery begin(impl_->database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE")))
     {
+        if (auto active = cancellation.check(); !active)
+            return active.error();
         return make_error(ErrorCode::kIo, "Unable to start tag replacement transaction",
                           {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}});
     }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     auto revision_ok = require_revision(impl_->database, expected_revision, "read_tag_revision");
     if (!revision_ok)
         return impl_->abort_transaction(revision_ok.error());
@@ -860,6 +866,8 @@ SqliteCatalogRepository::replace_assets_tags(const std::vector<std::string> &ass
 
     for (const auto &asset_id : unique_assets)
     {
+        if (auto active = cancellation.check(); !active)
+            return impl_->abort_transaction(active.error());
         auto replaced = replace_one_asset_membership(impl_->database, asset_id, keyword_ids);
         if (!replaced)
             return impl_->abort_transaction(replaced.error());
@@ -868,7 +876,27 @@ SqliteCatalogRepository::replace_assets_tags(const std::vector<std::string> &ass
     auto revision = bump_revision_locked(impl_->database);
     if (!revision)
         return impl_->abort_transaction(revision.error());
-    impl_->snapshot.revision = revision.value();
+
+    KeywordMembershipMutation mutation;
+    mutation.revision = revision.value();
+    mutation.assets.reserve(unique_assets.size());
+    for (const auto &asset_id : unique_assets)
+    {
+        if (auto active = cancellation.check(); !active)
+            return impl_->abort_transaction(active.error());
+        auto asset = find_asset_by_id(asset_id);
+        if (!asset)
+            return impl_->abort_transaction(asset.error());
+        if (!asset.value())
+        {
+            return impl_->abort_transaction(
+                make_error(ErrorCode::kNotFound, "Tagged asset does not exist",
+                           {{"reason", "unknown_tag_asset"}, {"asset_id", asset_id}}));
+        }
+        mutation.assets.push_back(std::move(*asset.value()));
+    }
+    if (auto active = cancellation.check(); !active)
+        return impl_->abort_transaction(active.error());
     if (!impl_->database.commit())
     {
         return impl_->abort_transaction(
@@ -876,21 +904,7 @@ SqliteCatalogRepository::replace_assets_tags(const std::vector<std::string> &ass
                        {{"qt_error", utf8_from_qstring(impl_->database.lastError().text())}}));
     }
 
-    KeywordMembershipMutation mutation;
-    mutation.revision = revision.value();
-    mutation.assets.reserve(unique_assets.size());
-    for (const auto &asset_id : unique_assets)
-    {
-        auto asset = find_asset_by_id(asset_id);
-        if (!asset)
-            return asset.error();
-        if (!asset.value())
-        {
-            return make_error(ErrorCode::kNotFound, "Tagged asset does not exist",
-                              {{"reason", "unknown_tag_asset"}, {"asset_id", asset_id}});
-        }
-        mutation.assets.push_back(std::move(*asset.value()));
-    }
+    impl_->snapshot.revision = revision.value();
     return mutation;
 }
 

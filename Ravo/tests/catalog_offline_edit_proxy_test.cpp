@@ -104,10 +104,6 @@ TEST_F(CatalogServiceTest, OfflineEditProxyCreateVerifyAndDistinctFromSmartPrevi
     ASSERT_EQ(listed.value().manifests.size(), 1U);
     EXPECT_EQ(listed.value().manifests.front().asset_id, asset_id);
     EXPECT_TRUE(listed.value().corrupt.empty());
-
-    auto smart = service->conversion().smart_preview_status(asset_id);
-    ASSERT_TRUE(smart) << smart.error().message;
-    EXPECT_FALSE(smart.value().develop_fallback);
 }
 
 TEST_F(CatalogServiceTest, OfflineEditProxyDevelopApplyExportRejectAndReconnect)

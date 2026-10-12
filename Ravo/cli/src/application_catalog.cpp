@@ -46,14 +46,110 @@ namespace ravo::cli_internal
 Result<JsonValue> run_catalog_video_command(const EngineFacade &, CatalogService &,
                                             std::string_view, const CatalogCliArguments &);
 
+namespace
+{
+constexpr auto kCatalogCommands = std::to_array<std::string_view>({
+    "backup",
+    "backup-policy",
+    "backup-restore",
+    "backup-run",
+    "backup-verify",
+    "companion-check",
+    "convert-foreign",
+    "create",
+    "cull-burst-accept",
+    "cull-burst-compare",
+    "cull-burst-propose",
+    "cull-exact-duplicates",
+    "cull-near-duplicates",
+    "cull-review",
+    "develop",
+    "develop-apply",
+    "editor-abandon-working-copy",
+    "editor-check-returned",
+    "editor-open",
+    "editor-prepare-working-copy",
+    "editor-register",
+    "editor-reopen-working-copy",
+    "editor-show",
+    "editor-working-copy-list",
+    "editor-working-copy-status",
+    "export",
+    "export-batch",
+    "export-job-create",
+    "export-job-resume",
+    "export-preset-save",
+    "facets",
+    "fields",
+    "folder-relink",
+    "folder-remove",
+    "folders",
+    "foreign-conversion-status",
+    "foreign-conversions",
+    "foreign-source-export",
+    "foreign-sources",
+    "hdr-merge",
+    "history",
+    "import",
+    "import-plan",
+    "import-scan",
+    "ingest",
+    "ingest-probe",
+    "inspect-foreign",
+    "keyword-create",
+    "keyword-delete",
+    "keyword-move",
+    "keyword-rename",
+    "keywords",
+    "list",
+    "locate",
+    "mask",
+    "metadata",
+    "offline-proxy-create",
+    "offline-proxy-delete",
+    "offline-proxy-evict",
+    "offline-proxy-list",
+    "offline-proxy-pin",
+    "offline-proxy-reconnect",
+    "offline-proxy-status",
+    "offline-proxy-verify",
+    "panorama",
+    "preview",
+    "preview-rebuild",
+    "probe",
+    "rate",
+    "recipe",
+    "refresh-metadata",
+    "restore",
+    "set-add",
+    "set-create",
+    "set-delete",
+    "set-remove",
+    "set-rename",
+    "sets",
+    "sidecar-status",
+    "sidecar-sync",
+    "snapshot",
+    "stack",
+    "stack-pick",
+    "tag",
+    "unstack",
+    "version-create",
+    "video-frame",
+    "video-info",
+    "xmp-export",
+    "xmp-import",
+    "xmp-status",
+});
+} // namespace
+
 bool catalog_output_flag_is_allowed(const std::string_view subcommand) noexcept
 {
     // Actual --output consumers today. Keep this list equal to runtime readers of flags.output.
     return subcommand == "video-frame" || subcommand == "export" ||
            subcommand == "export-preset-save" || subcommand == "probe" || subcommand == "preview" ||
-           subcommand == "backup-restore" || subcommand == "dng-convert" ||
-           subcommand == "hdr-merge" || subcommand == "panorama" ||
-           subcommand == "foreign-source-export";
+           subcommand == "backup-restore" || subcommand == "hdr-merge" ||
+           subcommand == "panorama" || subcommand == "foreign-source-export";
 }
 
 [[nodiscard]] Result<std::vector<std::string>>
@@ -96,19 +192,22 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return run_catalog_mask_command(engine, positional);
     if (positional.size() < 2)
     {
-        return make_error(
-            ErrorCode::kInvalidArgument,
-            "Usage: ravo catalog <create|import|import-scan|import-plan|list|locate|facets|preview|probe|video-info|video-frame|recipe|develop|develop-apply|"
-            "fields|rate|"
-            "export|export-batch|companion-check|export-preset-save|export-job-create|export-job-resume|tag|metadata|refresh-metadata|history|snapshot|restore|"
-            "sidecar-status|sidecar-sync|backup|backup-verify|backup-restore|backup-policy|"
-            "backup-run|preview-rebuild|folders|folder-relink|folder-remove|sets|set-create|set-rename|"
-            "set-delete|set-add|set-remove|version-create|stack|unstack|stack-pick|xmp-status|xmp-import|xmp-export|editor-register|editor-show|editor-open|editor-prepare-working-copy|editor-check-returned|editor-working-copy-status|editor-working-copy-list|editor-abandon-working-copy|editor-reopen-working-copy|cull-exact-duplicates|cull-burst-propose|cull-burst-accept|cull-burst-compare|cull-near-duplicates|cull-review|ingest-probe|ingest|convert-foreign|dng-convert|dng-status|smart-preview|offline-proxy-create|offline-proxy-list|offline-proxy-verify|offline-proxy-status|offline-proxy-reconnect|offline-proxy-delete|offline-proxy-pin|offline-proxy-evict|"
-            "inspect-foreign|foreign-sources|foreign-source-export|foreign-conversions|foreign-conversion-status|"
-            "ai-propose|ai-proposal|ai-proposals|ai-proposal-apply|ai-proposal-reject|ai-proposal-cancel|ai-suggest|ai-suggestion|ai-suggestions|ai-suggestion-accept|ai-suggestion-reject|ai-suggestion-cancel> "
-            "--catalog <path>; backup-verify/backup-restore use --backup <directory>");
+        std::string usage = "Usage: ravo catalog <";
+        for (const auto command : kCatalogCommands)
+        {
+            if (usage.back() != '<')
+                usage += '|';
+            usage += command;
+        }
+        usage += "> --catalog <path>; backup-verify/backup-restore use --backup <directory>";
+        return make_error(ErrorCode::kInvalidArgument, std::move(usage));
     }
     const auto subcommand = positional[1];
+    if (std::find(kCatalogCommands.begin(), kCatalogCommands.end(), subcommand) ==
+        kCatalogCommands.end())
+        return make_error(
+            ErrorCode::kInvalidArgument, "Unknown catalog subcommand",
+            {{"reason", "unknown_catalog_subcommand"}, {"subcommand", std::string(subcommand)}});
     auto flags = parse_catalog_flags(positional);
     if (!flags)
     {
@@ -198,21 +297,18 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "Library set options are only valid for catalog set commands or list");
     if (!flags.value().query_json.empty() && subcommand != "set-create" && subcommand != "facets" &&
-        subcommand != "cull-review" && subcommand != "locate")
+        subcommand != "cull-review" && subcommand != "locate" && subcommand != "list")
         return make_error(
             ErrorCode::kInvalidArgument,
-            "--query is only valid for catalog set-create, facets, cull-review, or locate");
+            "--query is only valid for catalog set-create, facets, cull-review, locate, or list");
+    if ((flags.value().list_offset || flags.value().list_limit) && subcommand != "list")
+        return make_error(ErrorCode::kInvalidArgument, "--offset/--limit require catalog list");
+    if (flags.value().list_offset && !flags.value().list_limit)
+        return make_error(ErrorCode::kInvalidArgument, "--offset requires --limit");
     const bool version_command = subcommand == "version-create";
     const bool stack_command =
         subcommand == "stack" || subcommand == "unstack" || subcommand == "stack-pick";
     const bool develop_apply_command = subcommand == "develop-apply";
-    const bool ai_command =
-        subcommand == "ai-propose" || subcommand == "ai-proposal" || subcommand == "ai-proposals" ||
-        subcommand == "ai-proposal-apply" || subcommand == "ai-proposal-reject" ||
-        subcommand == "ai-proposal-cancel" || subcommand == "ai-suggest" ||
-        subcommand == "ai-suggestion" || subcommand == "ai-suggestions" ||
-        subcommand == "ai-suggestion-accept" || subcommand == "ai-suggestion-reject" ||
-        subcommand == "ai-suggestion-cancel";
     const bool xmp_command =
         subcommand == "xmp-status" || subcommand == "xmp-import" || subcommand == "xmp-export";
     const bool editor_command =
@@ -228,9 +324,8 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     const bool ingest_command = subcommand == "ingest-probe" || subcommand == "ingest";
     const bool convert_command =
         subcommand == "convert-foreign" || subcommand == "foreign-sources" ||
-        subcommand == "foreign-source-export" || subcommand == "dng-convert" ||
-        subcommand == "foreign-conversion-status" || subcommand == "foreign-conversions" ||
-        subcommand == "smart-preview" || subcommand == "offline-proxy-create" ||
+        subcommand == "foreign-source-export" || subcommand == "foreign-conversion-status" ||
+        subcommand == "foreign-conversions" || subcommand == "offline-proxy-create" ||
         subcommand == "offline-proxy-list" || subcommand == "offline-proxy-verify" ||
         subcommand == "offline-proxy-status" || subcommand == "offline-proxy-reconnect" ||
         subcommand == "offline-proxy-delete" || subcommand == "offline-proxy-pin" ||
@@ -256,9 +351,6 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
     if (!flags.value().expected_foreign_source_sha256.empty() && subcommand != "convert-foreign")
         return make_error(ErrorCode::kInvalidArgument,
                           "--expect-source-sha256 is only valid for catalog convert-foreign");
-    if (flags.value().ensure && subcommand != "smart-preview")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--ensure is only valid for catalog smart-preview");
     if (!flags.value().xmp_path.empty() && !xmp_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--xmp is only valid for catalog xmp-status, xmp-import, or xmp-export");
@@ -283,21 +375,20 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
                           "--invoke-os-open is only valid for catalog editor-open, "
                           "editor-prepare-working-copy, or editor-reopen-working-copy");
     if (flags.value().expected_revision && !set_command && !version_command && !stack_command &&
-        !develop_apply_command && !keyword_command && !ai_command && !editor_command &&
-        !cull_command && subcommand != "import-plan" && subcommand != "hdr-merge" &&
-        subcommand != "panorama")
+        !develop_apply_command && !keyword_command && !editor_command && !cull_command &&
+        subcommand != "import-plan" && subcommand != "hdr-merge" && subcommand != "panorama")
         return make_error(ErrorCode::kInvalidArgument,
                           "--revision is only valid for catalog set, version, stack, "
-                          "keyword, tag, develop-apply, ai proposal/suggestion, or editor "
+                          "keyword, tag, develop-apply, or editor "
                           "commands");
-    if (flags.value().user_initiated && subcommand != "ai-propose" && subcommand != "ai-suggest" &&
-        subcommand != "editor-open" && subcommand != "editor-prepare-working-copy" &&
+    if (flags.value().user_initiated && subcommand != "editor-open" &&
+        subcommand != "editor-prepare-working-copy" &&
         subcommand != "editor-abandon-working-copy" && subcommand != "editor-reopen-working-copy" &&
         subcommand != "offline-proxy-create" && subcommand != "offline-proxy-reconnect" &&
         subcommand != "offline-proxy-delete" && subcommand != "offline-proxy-pin" &&
         subcommand != "offline-proxy-evict" && subcommand != "cull-burst-accept")
         return make_error(ErrorCode::kInvalidArgument,
-                          "--user-initiated is only valid for catalog ai-propose, ai-suggest, "
+                          "--user-initiated is only valid for catalog "
                           "editor-open, editor-prepare-working-copy, "
                           "editor-abandon-working-copy, editor-reopen-working-copy, "
                           "offline-proxy-create, offline-proxy-reconnect, "
@@ -354,33 +445,6 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         return make_error(ErrorCode::kInvalidArgument,
                           "--resume-batch-id is only valid for catalog ingest");
 
-    if (!flags.value().proposal_id.empty() && subcommand != "ai-proposal" &&
-        subcommand != "ai-proposal-apply" && subcommand != "ai-proposal-reject" &&
-        subcommand != "ai-proposal-cancel")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--proposal-id is only valid for catalog ai-proposal commands");
-    if (!flags.value().suggestion_id.empty() && subcommand != "ai-suggestion" &&
-        subcommand != "ai-suggestion-accept" && subcommand != "ai-suggestion-reject" &&
-        subcommand != "ai-suggestion-cancel")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--suggestion-id is only valid for catalog ai-suggestion commands");
-    if (!flags.value().suggestion_kind.empty() && subcommand != "ai-suggest")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--suggestion-kind is only valid for catalog ai-suggest");
-    if (!flags.value().peer_asset.empty() && subcommand != "ai-suggest")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--peer-asset is only valid for catalog ai-suggest");
-    if ((!flags.value().provider_id.empty() || !flags.value().model_id.empty()) &&
-        subcommand != "ai-propose")
-        return make_error(ErrorCode::kInvalidArgument,
-                          "--provider/--model are only valid for catalog ai-propose");
-    if ((!flags.value().proposal_kind.empty() || !flags.value().semantic_label.empty() ||
-         !flags.value().reference_asset.empty() || !flags.value().destination_assets.empty()) &&
-        subcommand != "ai-propose" && subcommand != "ai-suggest")
-        return make_error(
-            ErrorCode::kInvalidArgument,
-            "--proposal-kind/--semantic-label/--reference-asset/"
-            "--destination-assets are only valid for catalog ai-propose or ai-suggest");
     if (!flags.value().from_asset.empty() && !develop_apply_command)
         return make_error(ErrorCode::kInvalidArgument,
                           "--from-asset is only valid for catalog develop-apply");
@@ -1071,15 +1135,71 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
         {
             return snapshot.error();
         }
+        if (flags.value().expected_revision &&
+            *flags.value().expected_revision != snapshot.value().revision)
+            return make_error(ErrorCode::kConflict, "Catalog list revision is stale",
+                              {{"reason", "stale_catalog_revision"}});
         auto query = build_library_query(flags.value());
         if (!query)
         {
             return query.error();
         }
+        if (flags.value().list_limit)
+        {
+            LibraryPageRequest request;
+            request.query = std::move(query).value();
+            request.collapse_stacks = !flags.value().stack_expanded;
+            request.offset = flags.value().list_offset.value_or(0);
+            request.limit = *flags.value().list_limit;
+            auto document_query = request.query;
+            document_query.collection_id.clear();
+            auto query_document = serialize_library_query_document(document_query);
+            if (!query_document)
+                return query_document.error();
+            auto query_json = parse_json(query_document.value());
+            if (!query_json)
+                return query_json.error();
+            auto page = service.library().list_assets_page(request);
+            if (!page)
+                return page.error();
+            auto after = service.library().snapshot();
+            if (!after)
+                return after.error();
+            if (after.value().revision != snapshot.value().revision)
+                return make_error(ErrorCode::kConflict, "Catalog changed during list read",
+                                  {{"reason", "stale_catalog_revision"}});
+            JsonValue::Array assets;
+            for (const auto &asset : page.value().assets)
+                assets.push_back(asset_to_json(asset));
+            return JsonValue{JsonValue::Object{
+                {"schema", "ravo.library.page/v1"},
+                {"query", std::move(query_json).value()},
+                {"set_id", request.query.collection_id},
+                {"collapse_stacks", request.collapse_stacks},
+                {"catalog_id", snapshot.value().catalog_id},
+                {"revision", JsonValue::number(std::to_string(snapshot.value().revision))},
+                {"offset", JsonValue::number(std::to_string(page.value().offset))},
+                {"total", JsonValue::number(std::to_string(page.value().total))},
+                {"has_more", page.value().has_more},
+                {"next_offset",
+                 JsonValue::number(std::to_string(page.value().offset + assets.size()))},
+                {"materialized_rows",
+                 JsonValue::number(std::to_string(page.value().materialized_rows))},
+                {"assets", std::move(assets)}}};
+        }
         auto listed = service.library().list_assets(query.value(), !flags.value().stack_expanded);
         if (!listed)
         {
             return listed.error();
+        }
+        if (flags.value().expected_revision)
+        {
+            auto after = service.library().snapshot();
+            if (!after)
+                return after.error();
+            if (after.value().revision != snapshot.value().revision)
+                return make_error(ErrorCode::kConflict, "Catalog changed during list read",
+                                  {{"reason", "stale_catalog_revision"}});
         }
         JsonValue::Array assets;
         for (const auto &asset : listed.value())
@@ -1658,135 +1778,6 @@ run_catalog_command(const EngineFacade &engine, const std::span<const std::strin
             {"keyword_id", std::string(flags.value().keyword_id)},
             {"revision", JsonValue::number(std::to_string(deleted.value()))},
         }};
-    }
-
-    const bool suggestion_command =
-        subcommand == "ai-suggest" || subcommand == "ai-suggestion" ||
-        subcommand == "ai-suggestions" || subcommand == "ai-suggestion-accept" ||
-        subcommand == "ai-suggestion-reject" || subcommand == "ai-suggestion-cancel";
-    if (suggestion_command)
-        return run_catalog_ai_suggestion_command(service, subcommand, flags.value());
-    if (subcommand == "ai-propose")
-    {
-        AiProposalKind kind = AiProposalKind::kGlobal;
-        if (!flags.value().proposal_kind.empty())
-        {
-            auto parsed = parse_ai_proposal_kind(flags.value().proposal_kind);
-            if (!parsed)
-                return parsed.error();
-            kind = parsed.value();
-        }
-        if (kind == AiProposalKind::kShootConsistency)
-        {
-            if (flags.value().reference_asset.empty())
-                return make_error(
-                    ErrorCode::kInvalidArgument,
-                    "catalog ai-propose shoot-consistency requires --reference-asset");
-            if (flags.value().destination_assets.empty())
-                return make_error(
-                    ErrorCode::kInvalidArgument,
-                    "catalog ai-propose shoot-consistency requires --destination-assets");
-            if (!flags.value().asset_id.empty())
-                return make_error(ErrorCode::kInvalidArgument,
-                                  "shoot-consistency uses --reference-asset/--destination-assets, "
-                                  "not --asset-id");
-            AiShootConsistencyRequest request;
-            request.reference_asset_id = std::string(flags.value().reference_asset);
-            request.destination_asset_ids.reserve(flags.value().destination_assets.size());
-            for (const auto destination : flags.value().destination_assets)
-                request.destination_asset_ids.emplace_back(destination);
-            request.user_initiated = flags.value().user_initiated;
-            request.expected_catalog_revision = flags.value().expected_revision;
-            if (!flags.value().provider_id.empty())
-                request.provider_id = std::string(flags.value().provider_id);
-            if (!flags.value().model_id.empty())
-                request.model_id = std::string(flags.value().model_id);
-            auto created = service.ai().create_shoot_consistency_proposals(request);
-            if (!created)
-                return created.error();
-            JsonValue::Array rows;
-            rows.reserve(created.value().size());
-            for (const auto &proposal : created.value())
-                rows.push_back(ai_proposal_to_json(proposal));
-            return JsonValue{JsonValue::Object{
-                {"kind", "shoot-consistency"},
-                {"proposals", std::move(rows)},
-                {"reference_asset_id", request.reference_asset_id},
-            }};
-        }
-        if (flags.value().asset_id.empty())
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog ai-propose requires --asset-id");
-        AiProposalCreateRequest request;
-        request.asset_id = std::string(flags.value().asset_id);
-        request.user_initiated = flags.value().user_initiated;
-        request.expected_catalog_revision = flags.value().expected_revision;
-        request.kind = kind;
-        if (!flags.value().semantic_label.empty())
-            request.semantic_label = std::string(flags.value().semantic_label);
-        if (!flags.value().provider_id.empty())
-            request.provider_id = std::string(flags.value().provider_id);
-        if (!flags.value().model_id.empty())
-            request.model_id = std::string(flags.value().model_id);
-        auto created = service.ai().create_ai_proposal(request);
-        if (!created)
-            return created.error();
-        return ai_proposal_to_json(created.value());
-    }
-    if (subcommand == "ai-proposal")
-    {
-        if (flags.value().proposal_id.empty())
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog ai-proposal requires --proposal-id");
-        auto proposal = service.ai().get_ai_proposal(flags.value().proposal_id);
-        if (!proposal)
-            return proposal.error();
-        return ai_proposal_to_json(proposal.value());
-    }
-    if (subcommand == "ai-proposals")
-    {
-        std::optional<std::string_view> asset_id;
-        if (!flags.value().asset_id.empty())
-            asset_id = flags.value().asset_id;
-        auto listed = service.ai().list_ai_proposals(asset_id);
-        if (!listed)
-            return listed.error();
-        JsonValue::Array rows;
-        rows.reserve(listed.value().size());
-        for (const auto &proposal : listed.value())
-            rows.push_back(ai_proposal_to_json(proposal));
-        return JsonValue{JsonValue::Object{{"proposals", std::move(rows)}}};
-    }
-    if (subcommand == "ai-proposal-apply")
-    {
-        if (flags.value().proposal_id.empty())
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog ai-proposal-apply requires --proposal-id");
-        auto applied = service.ai().apply_ai_proposal(flags.value().proposal_id,
-                                                      flags.value().expected_revision);
-        if (!applied)
-            return applied.error();
-        return ai_proposal_apply_to_json(applied.value());
-    }
-    if (subcommand == "ai-proposal-reject")
-    {
-        if (flags.value().proposal_id.empty())
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog ai-proposal-reject requires --proposal-id");
-        auto rejected = service.ai().reject_ai_proposal(flags.value().proposal_id);
-        if (!rejected)
-            return rejected.error();
-        return ai_proposal_to_json(rejected.value());
-    }
-    if (subcommand == "ai-proposal-cancel")
-    {
-        if (flags.value().proposal_id.empty())
-            return make_error(ErrorCode::kInvalidArgument,
-                              "catalog ai-proposal-cancel requires --proposal-id");
-        auto cancelled = service.ai().cancel_ai_proposal(flags.value().proposal_id);
-        if (!cancelled)
-            return cancelled.error();
-        return ai_proposal_to_json(cancelled.value());
     }
 
     return make_error(ErrorCode::kInvalidArgument, "Unknown catalog subcommand",

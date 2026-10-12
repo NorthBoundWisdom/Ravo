@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <set>
 #include <chrono>
+#include <climits>
 #include <QJsonDocument>
 #include <QMetaObject>
 #include "ravo/desktop/studio_presenter.h"
@@ -12,6 +13,7 @@
 #include "studio_control_json.h"
 #include "studio_operation_store.h"
 #include "studio_qt.h"
+#include "studio_command_ids.h"
 
 namespace ravo
 {
@@ -199,6 +201,10 @@ Result<JsonValue> StudioLiveSessionController::handleAutomation(const LiveContro
     }
     else if (kind.value() == "restore")
         allowed.insert("history_id");
+    else if (kind.value() == "select")
+        allowed.insert("target_asset_id");
+    else if (kind.value() == "annotation")
+        allowed.insert("annotation");
     else
         return reject(make_error(ErrorCode::kInvalidArgument, "Unknown automation command kind"));
     for (const auto &[key, value] : object)
@@ -235,7 +241,9 @@ Result<JsonValue> StudioLiveSessionController::handleAutomation(const LiveContro
                                  {{"reason", "stale_binding"}}));
     if (presenter_.busy() || presenter_.imports()->importPageOpen() || commands_.modalOpen() ||
         presenter_.develop()->historyLoading() || commands_.settingsOpen() ||
-        !presenter_.develop()->state().develop_loaded_ ||
+        (!presenter_.develop()->state().develop_loaded_ &&
+         !((kind.value() == "select" || kind.value() == "annotation") &&
+           presenter_.selectedMediaType().startsWith(QLatin1String("video/")))) ||
         presenter_.develop()->state().develop_job_in_flight_ ||
         presenter_.develop()->state().pending_save_ ||
         presenter_.develop()->state().pending_preview_)
@@ -245,6 +253,159 @@ Result<JsonValue> StudioLiveSessionController::handleAutomation(const LiveContro
     if (!token)
         return reject(token.error());
     const auto cancellation = token.value();
+    if (kind.value() == "annotation")
+    {
+        const auto *payload = request.params.find("annotation");
+        if (!payload)
+            return reject(
+                make_error(ErrorCode::kInvalidArgument, "Annotation payload is required"));
+        auto prepared = commands_.prepareAssetAnnotation(*payload);
+        if (!prepared)
+            return reject(prepared.error());
+        auto started = beginAnnotationOperation(id.value(), asset.value(),
+                                                std::move(prepared).value(), catalog.value());
+        return started ? started : reject(started.error());
+    }
+    if (kind.value() == "select")
+    {
+        if (current_recipe_json_ != saved_recipe_json_ || presenter_.develop()->localEditing() ||
+            presenter_.develop()->state().mask_gesture_before_)
+            return reject(make_error(ErrorCode::kConflict, "Selection requires saved global edits",
+                                     {{"reason", "pending_recipe"}}));
+        auto target = string_field(object, "target_asset_id", 256);
+        if (!target)
+            return reject(target.error());
+        presenter_.setBusy(true);
+        selection_active_ = true;
+        refresh();
+        const auto expected_session = session_revision_;
+        const auto expected_selection = selection_revision_;
+        const auto expected_recipe = recipe_revision_;
+        const auto path = presenter_.catalog_path_;
+        const auto operation_id = id.value();
+        const auto target_id = target.value();
+        const auto expected_catalog = catalog.value();
+        const auto listing = presenter_.library_query_generation_;
+        auto locate = presenter_.currentPageRequest();
+        locate.around_asset_id = target_id;
+        locate.offset = 0;
+        locate.after_asset_id.reset();
+        locate.known_total.reset();
+        locate.limit = 1;
+        locate.selection_only = true;
+        locate.cancellation = cancellation;
+        const bool queued = presenter_.executor_.post(
+            [this, operation_id, target_id, cancellation, path, expected_session,
+             expected_selection, expected_recipe, expected_catalog, listing, locate]
+            {
+                Result<AssetRecord> found = make_error(ErrorCode::kIo, "Catalog session is closed");
+                std::optional<int> row;
+                if (auto active = cancellation.check(); !active)
+                    found = active.error();
+                else if (presenter_.service_)
+                {
+                    found = presenter_.service_->library().find_asset(target_id);
+                    if (found)
+                    {
+                        auto page = presenter_.service_->library().list_assets_page(locate);
+                        if (page && page.value().offset <= static_cast<std::size_t>(INT_MAX))
+                            row = static_cast<int>(page.value().offset);
+                        else if (page)
+                            found = make_error(ErrorCode::kUnsupported,
+                                               "Selection rank exceeds the desktop bound");
+                        else if (page.error().code != ErrorCode::kNotFound)
+                            found = page.error();
+                    }
+                    auto snapshot = presenter_.service_->library().snapshot();
+                    if (!snapshot)
+                        found = snapshot.error();
+                    else if (snapshot.value().revision != expected_catalog)
+                        found = make_error(ErrorCode::kConflict, "Catalog changed during selection",
+                                           {{"reason", "stale_catalog_revision"}});
+                }
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, operation_id, target_id, cancellation, path, expected_session,
+                     expected_selection, expected_recipe, expected_catalog, listing, row,
+                     found = std::move(found)]() mutable
+                    {
+                        if (!presenter_alive_)
+                            return;
+                        refresh();
+                        const bool stale =
+                            presenter_.catalog_path_ != path ||
+                            session_revision_ != expected_session ||
+                            selection_revision_ != expected_selection ||
+                            recipe_revision_ != expected_recipe ||
+                            presenter_.library_query_generation_ != listing ||
+                            presenter_.observed_catalog_revision_ != expected_catalog;
+                        presenter_.setBusy(false);
+                        selection_active_ = false;
+                        if (auto active = cancellation.check(); !active)
+                            found = active.error();
+                        else if (stale)
+                            found = make_error(ErrorCode::kConflict, "Selection binding changed",
+                                               {{"reason", "stale_binding"}});
+                        if (!found)
+                        {
+                            operations_->finish(operation_id, false, 0, 0,
+                                                std::string(error_code_name(found.error().code)),
+                                                found.error().message);
+                            refresh();
+                            return;
+                        }
+                        auto previous_asset =
+                            presenter_.assets_.assetById(presenter_.selected_asset_id_);
+                        if (!previous_asset)
+                        {
+                            operations_->finish(operation_id, false, 0, 0, "validation",
+                                                "Current selection metadata is unavailable");
+                            refresh();
+                            return;
+                        }
+                        presenter_.assets_.retainPrimaryRecord(std::move(found).value());
+                        const auto previous_row = presenter_.primary_row_;
+                        presenter_.primary_row_.reset();
+                        if (row)
+                            presenter_.primary_row_ = std::pair{listing, *row};
+                        const bool changed =
+                            presenter_.selected_asset_id_ != qstring_from_utf8(target_id) ||
+                            presenter_.selectedCount() != 1;
+                        const auto dispatched = commands_.executeCommand(
+                            QLatin1String(command::kPhotoSelect), qstring_from_utf8(target_id),
+                            QStringLiteral("control"));
+                        if (!dispatched.value("accepted").toBool())
+                        {
+                            presenter_.primary_row_ = previous_row;
+                            presenter_.assets_.retainPrimaryRecord(std::move(*previous_asset));
+                            operations_->finish(
+                                operation_id, false, 0, 0,
+                                utf8_from_qstring(dispatched.value("code").toString()),
+                                utf8_from_qstring(dispatched.value("message").toString()));
+                        }
+                        else
+                        {
+                            auto state = snapshot(0, 0);
+                            operations_->stage(operation_id, state, changed);
+                            operations_->progress(
+                                operation_id,
+                                JsonValue::Object{{"kind", "selection"},
+                                                  {"target_asset_id", target_id},
+                                                  {"binding", *state.find("binding")},
+                                                  {"lifecycle", "studio_session_bounded"}});
+                        }
+                        refresh();
+                    },
+                    Qt::QueuedConnection);
+            });
+        if (!queued)
+        {
+            presenter_.setBusy(false);
+            selection_active_ = false;
+            return reject(make_error(ErrorCode::kIo, "Catalog executor is stopped"));
+        }
+        return operations_->get(id.value());
+    }
     Result<bool> applied = false;
     if (kind.value() == "patch" || kind.value() == "batch")
     {

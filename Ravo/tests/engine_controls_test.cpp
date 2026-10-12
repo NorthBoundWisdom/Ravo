@@ -1,3 +1,4 @@
+#include "ravo/recipe/legacy_develop.h"
 #include <gtest/gtest.h>
 
 #include <algorithm>

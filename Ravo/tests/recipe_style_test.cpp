@@ -846,6 +846,24 @@ TEST(DevelopSetFieldsTest, ListsAcceptedCliFieldsWithBoundsAndRejectsUnknownName
     for (const auto &field : fields)
     {
         EXPECT_TRUE(names.insert(field.name).second) << field.name;
+        if (field.name == "lensTcaR" || field.name == "lensTcaB")
+        {
+            EXPECT_EQ(field.kind, DevelopSetFieldKind::Number);
+            EXPECT_EQ(field.minimum, 0.9);
+            EXPECT_EQ(field.maximum, 1.1);
+            DevelopParams params;
+            ASSERT_TRUE(apply_develop_field_strict(params, field.name, 1.002));
+            EXPECT_DOUBLE_EQ(field.name == "lensTcaR" ? params.lens_tca_r : params.lens_tca_b,
+                             1.002);
+            const auto before_invalid = params;
+            EXPECT_FALSE(apply_develop_field_strict(params, field.name, 1.1001));
+            EXPECT_EQ(params, before_invalid);
+            params.lens_k1 = 0.1;
+            ASSERT_TRUE(reset_develop_field(params, field.name));
+            EXPECT_DOUBLE_EQ(params.lens_tca_r, 1.0);
+            EXPECT_DOUBLE_EQ(params.lens_tca_b, 1.0);
+            EXPECT_DOUBLE_EQ(params.lens_k1, 0.0);
+        }
         if (field.name == "exposure")
         {
             has_exposure = true;

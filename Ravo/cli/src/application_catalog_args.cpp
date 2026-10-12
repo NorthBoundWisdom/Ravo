@@ -288,14 +288,6 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
             result.editor_invoke_os_open = true;
             continue;
         }
-        if (option == "--ensure")
-        {
-            if (result.ensure)
-                return make_error(ErrorCode::kInvalidArgument,
-                                  "--ensure can only be specified once");
-            result.ensure = true;
-            continue;
-        }
         if (index + 1 >= positional.size() || positional[index + 1].starts_with("--"))
         {
             return make_error(ErrorCode::kInvalidArgument, "Catalog option requires a value",
@@ -309,6 +301,24 @@ parse_catalog_flags(const std::span<const std::string_view> positional)
                 return make_error(ErrorCode::kInvalidArgument, "Catalog path was specified twice");
             }
             result.catalog = value;
+        }
+        else if (option == "--offset" || option == "--limit")
+        {
+            auto &destination = option == "--offset" ? result.list_offset : result.list_limit;
+            if (destination)
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "List page option was specified twice",
+                                  {{"option", std::string(option)}});
+            auto parsed = parse_uint64_flag(value, option);
+            if (!parsed)
+                return parsed.error();
+            if (parsed.value() > 9007199254740991ULL || parsed.value() > SIZE_MAX ||
+                (option == "--limit" &&
+                 (parsed.value() == 0 || parsed.value() > kLibraryPageMaximumSize)))
+                return make_error(ErrorCode::kInvalidArgument,
+                                  "List page option is outside its bound",
+                                  {{"option", std::string(option)}});
+            destination = static_cast<std::size_t>(parsed.value());
         }
         else if (option == "--input")
         {

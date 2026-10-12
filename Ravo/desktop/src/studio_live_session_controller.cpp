@@ -26,6 +26,7 @@
 #include "studio_qt.h"
 #include "studio_operation_store.h"
 #include "studio_control_json.h"
+#include "ravo/services/asset_annotation.h"
 
 namespace ravo
 {
@@ -126,14 +127,16 @@ StudioLiveSessionController::StudioLiveSessionController(StudioPresenter &presen
 
 StudioLiveSessionController::~StudioLiveSessionController()
 {
+    server_.reset();
     operations_->cancel_all();
+    static_cast<void>(annotation_binding_cancel_.cancel("annotation_owner_closed"));
     if (presenter_alive_)
     {
-        // Batch closures borrow this controller; single Develop jobs belong to
+        // Batch/selection closures borrow this controller; single Develop jobs belong to
         // the presenter and retain their cancellation token independently.
-        if (batch_active_)
+        if (batch_active_ || selection_active_ || annotation_active_)
             presenter_.executor_.wait_idle();
-        if (batch_active_ || !single_active_id_.empty())
+        if (batch_active_ || selection_active_ || annotation_active_ || !single_active_id_.empty())
             presenter_.setBusy(false);
     }
 }
@@ -331,6 +334,9 @@ void StudioLiveSessionController::refresh()
         ++session_revision_;
         video_control_identity_ = identity;
     }
+    if (annotation_active_ && annotation_session_revision_ &&
+        *annotation_session_revision_ != session_revision_)
+        static_cast<void>(annotation_binding_cancel_.cancel("stale_annotation_binding"));
 
     const std::string preview = std::to_string(presenter_.inspect()->frameRevision()) + "\n" +
                                 utf8_from_qstring(presenter_.inspect()->pixelSha256()) + "\n" +
@@ -375,6 +381,7 @@ JsonValue StudioLiveSessionController::snapshot(const std::size_t selection_offs
         selection.emplace("has_edits", asset->has_edits);
         selection.emplace("media_type", asset->media_type);
         selection.emplace("uri", asset->normalized_uri);
+        selection.emplace("annotations", asset_annotation_state_json(*asset));
     }
 
     JsonValue current{nullptr};

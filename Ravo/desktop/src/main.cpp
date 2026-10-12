@@ -14,7 +14,7 @@
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QFont>
-#include <QFontDatabase>
+#include "studio_ui_font.h"
 #include <QGuiApplication>
 #include <QIcon>
 #include <QJSValue>
@@ -24,9 +24,11 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QScopeGuard>
+#ifdef RAVO_STUDIO_WORKFLOW_SMOKE
 #include "studio_import_layout_smoke.h"
 #include "studio_curve_gesture_smoke.h"
 #include "studio_photo_merge_layout_smoke.h"
+#endif
 #include <QQuickStyle>
 #include <QString>
 #include <QStyleHints>
@@ -59,8 +61,10 @@ void qml_register_types_GeoControls_AppShell();
 namespace ravo
 {
 [[nodiscard]] bool smoke_video_playback(const QString &input);
+#ifdef RAVO_STUDIO_WORKFLOW_SMOKE
 [[nodiscard]] bool smoke_settings(QQmlApplicationEngine &engine, StudioCommandController &commands,
                                   StudioUpdateController &updates);
+#endif
 } // namespace ravo
 
 namespace
@@ -236,171 +240,6 @@ bool smoke_export_options(QQmlApplicationEngine &engine)
     return true;
 }
 
-bool generic_font_family(const QString &family)
-{
-    const QString name = family.trimmed().toLower();
-    return name.isEmpty() || name == QLatin1String("sans serif") ||
-           name == QLatin1String("sans-serif") || name == QLatin1String("serif") ||
-           name == QLatin1String("monospace") || name == QLatin1String("cursive") ||
-           name == QLatin1String("fantasy") || name == QLatin1String("system-ui") ||
-           name == QLatin1String("ui-sans-serif") || name == QLatin1String("ui-serif") ||
-           name == QLatin1String("ui-monospace") || name == QLatin1String("ui-rounded") ||
-           name == QLatin1String("sans");
-}
-
-QString installed_family(const QStringList &installed, const QString &family)
-{
-    if (generic_font_family(family))
-    {
-        return {};
-    }
-    for (const QString &have : installed)
-    {
-        if (have.compare(family, Qt::CaseInsensitive) == 0)
-        {
-            return have;
-        }
-    }
-    return {};
-}
-
-void append_family(QStringList &families, const QString &family)
-{
-    if (!family.isEmpty() && !families.contains(family))
-    {
-        families.push_back(family);
-    }
-}
-
-QString first_public_family(QFontDatabase::WritingSystem writing_system)
-{
-    for (const QString &family : QFontDatabase::families(writing_system))
-    {
-        if (!generic_font_family(family) && !QFontDatabase::isPrivateFamily(family))
-        {
-            return family;
-        }
-    }
-    return {};
-}
-
-// Offscreen QPA and Qt generic families request "Sans Serif", which is not a
-// CoreText face. Never look up missing names; keep the platform system font
-// when it is real, then match fallbacks against QFontDatabase::families().
-QStringList studio_ui_font_families(const QFont &system_font, const QString &language)
-{
-    const QStringList installed = QFontDatabase::families();
-    QStringList families;
-
-    auto append_installed = [&](const QString &family)
-    { append_family(families, installed_family(installed, family)); };
-
-    for (const QString &family : system_font.families())
-    {
-        if (generic_font_family(family))
-        {
-            continue;
-        }
-        const QString canonical = installed_family(installed, family);
-        append_family(families, canonical.isEmpty() ? family : canonical);
-    }
-    if (families.isEmpty() && !generic_font_family(system_font.family()))
-    {
-        const QString canonical = installed_family(installed, system_font.family());
-        append_family(families, canonical.isEmpty() ? system_font.family() : canonical);
-    }
-
-    if (families.isEmpty())
-    {
-        for (const auto &family :
-             {QStringLiteral("Segoe UI"), QStringLiteral("Noto Sans"),
-              QStringLiteral("DejaVu Sans"), QStringLiteral("Liberation Sans"),
-              QStringLiteral("Ubuntu"), QStringLiteral("Cantarell"), QStringLiteral("FreeSans"),
-              QStringLiteral("Lucida Grande"), QStringLiteral("Helvetica Neue"),
-              QStringLiteral("Helvetica"), QStringLiteral("Arial")})
-        {
-            append_installed(family);
-            if (!families.isEmpty())
-            {
-                break;
-            }
-        }
-    }
-    if (families.isEmpty())
-    {
-        append_family(families, first_public_family(QFontDatabase::Latin));
-    }
-
-    auto append_script =
-        [&](const QStringList &candidates, const QFontDatabase::WritingSystem writing_system)
-    {
-        const qsizetype before = families.size();
-        for (const auto &family : candidates)
-            append_installed(family);
-        if (families.size() == before)
-            append_family(families, first_public_family(writing_system));
-    };
-    auto append_simplified = [&]()
-    {
-        append_script({QStringLiteral("PingFang SC"), QStringLiteral("Hiragino Sans GB"),
-                       QStringLiteral("Noto Sans CJK SC"), QStringLiteral("Noto Sans SC"),
-                       QStringLiteral("Source Han Sans SC"), QStringLiteral("Microsoft YaHei UI"),
-                       QStringLiteral("Microsoft YaHei")},
-                      QFontDatabase::SimplifiedChinese);
-    };
-    auto append_traditional = [&]()
-    {
-        append_script({QStringLiteral("PingFang TC"), QStringLiteral("Hiragino Sans CNS"),
-                       QStringLiteral("Noto Sans CJK TC"), QStringLiteral("Noto Sans TC"),
-                       QStringLiteral("Microsoft JhengHei UI"),
-                       QStringLiteral("Microsoft JhengHei")},
-                      QFontDatabase::TraditionalChinese);
-    };
-    auto append_japanese = [&]()
-    {
-        append_script({QStringLiteral("Hiragino Sans"), QStringLiteral("Yu Gothic UI"),
-                       QStringLiteral("Yu Gothic"), QStringLiteral("Meiryo"),
-                       QStringLiteral("Noto Sans CJK JP"), QStringLiteral("Noto Sans JP")},
-                      QFontDatabase::Japanese);
-    };
-    auto append_korean = [&]()
-    {
-        append_script({QStringLiteral("Apple SD Gothic Neo"), QStringLiteral("Malgun Gothic"),
-                       QStringLiteral("Noto Sans CJK KR"), QStringLiteral("Noto Sans KR")},
-                      QFontDatabase::Korean);
-    };
-
-    if (language == QLatin1String("zh_TW"))
-    {
-        append_traditional();
-        append_simplified();
-        append_japanese();
-        append_korean();
-    }
-    else if (language == QLatin1String("ja_JP"))
-    {
-        append_japanese();
-        append_simplified();
-        append_traditional();
-        append_korean();
-    }
-    else if (language == QLatin1String("ko_KR"))
-    {
-        append_korean();
-        append_simplified();
-        append_traditional();
-        append_japanese();
-    }
-    else
-    {
-        append_simplified();
-        append_traditional();
-        append_japanese();
-        append_korean();
-    }
-    return families;
-}
-
 } // namespace
 
 int main(int argc, char *argv[])
@@ -570,16 +409,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     auto apply_ui_font = [&language_manager]()
-    {
-        QFont ui_font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-        const QStringList families = studio_ui_font_families(ui_font, language_manager.language());
-        if (!families.isEmpty())
-        {
-            ui_font.setFamilies(families);
-            ui_font.setStyleHint(QFont::AnyStyle);
-        }
-        QGuiApplication::setFont(ui_font);
-    };
+    { ravo::desktop_internal::apply_studio_ui_font(language_manager.language()); };
     apply_ui_font();
     QObject::connect(&language_manager, &ravo::StudioLanguageManager::languageChanged, &application,
                      apply_ui_font);
@@ -781,12 +611,13 @@ int main(int argc, char *argv[])
     }
     if (smoke)
     {
-        const bool loaded = smoke_startup_splash(engine) &&
-                            smoke_panel_layout(engine, panel_layout) &&
-                            smoke_export_options(engine) &&
-                            ravo::smoke_settings(engine, command_controller, update_controller) &&
-                            ravo::smoke_photo_merge_dialog(engine, command_controller) &&
-                            ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
+        bool loaded = smoke_startup_splash(engine) && smoke_panel_layout(engine, panel_layout) &&
+                      smoke_export_options(engine);
+#ifdef RAVO_STUDIO_WORKFLOW_SMOKE
+        loaded = loaded && ravo::smoke_settings(engine, command_controller, update_controller) &&
+                 ravo::smoke_photo_merge_dialog(engine, command_controller) &&
+                 ravo::smoke_import_layout(engine) && ravo::smoke_curve_gesture(engine);
+#endif
         if (!loaded)
             LOG_ERROR(ravo::logger(), "Ravo Studio smoke failed to instantiate QML");
         else

@@ -154,7 +154,8 @@ public:
     // and Reject remain mutually exclusive. The patch is borrowed for the call.
     [[nodiscard]] virtual Result<std::int64_t>
     commit_review_patch(std::string_view asset_id, const ReviewPatch &patch,
-                        std::optional<std::int64_t> expected_revision = {}) = 0;
+                        std::optional<std::int64_t> expected_revision = {},
+                        const CancellationToken &cancellation = {}) = 0;
     // One transaction: delete the asset cascade and bump catalog revision.
     // Failure leaves the asset and prior revision visible.
     [[nodiscard]] virtual Result<void> remove_asset(std::string_view asset_id) = 0;
@@ -210,13 +211,15 @@ public:
     [[nodiscard]] virtual Result<KeywordMembershipMutation>
     replace_assets_tags(const std::vector<std::string> &asset_ids,
                         const std::vector<std::string> &tag_paths,
-                        std::optional<std::int64_t> expected_revision) = 0;
+                        std::optional<std::int64_t> expected_revision,
+                        const CancellationToken &cancellation = {}) = 0;
     [[nodiscard]] virtual Result<void>
     upsert_writable_metadata(std::string_view asset_id, const WritableMetadata &metadata) = 0;
     [[nodiscard]] virtual Result<WritableMetadataMutation>
     patch_assets_writable_metadata(const std::vector<std::string> &asset_ids,
                                    const WritableMetadataPatch &patch,
-                                   std::optional<std::int64_t> expected_revision) = 0;
+                                   std::optional<std::int64_t> expected_revision,
+                                   const CancellationToken &cancellation = {}) = 0;
     [[nodiscard]] virtual Result<std::vector<RecipeHistoryEntry>>
     list_recipe_history(std::string_view asset_id) const = 0;
     [[nodiscard]] virtual Result<std::optional<RecipeHistoryEntry>>

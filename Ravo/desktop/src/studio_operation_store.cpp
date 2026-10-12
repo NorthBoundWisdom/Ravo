@@ -113,6 +113,26 @@ void StudioOperationStore::finish(const std::string_view id, const bool committe
         entry.receipt["error"] =
             JsonValue::Object{{"code", std::move(code)}, {"message", std::move(message)}};
 }
+void StudioOperationStore::unresolved(const std::string_view id, const TaskError &error)
+{
+    const auto found = entries_.find(id);
+    if (found == entries_.end())
+        return;
+    auto &entry = found->second;
+    entry.active = false;
+    entry.receipt["phase"] = "unknown";
+    const auto committed = error.context.find("catalog_committed");
+    entry.receipt["mutation_applied"] =
+        committed != error.context.end() && committed->second == "true" ? JsonValue{true} :
+                                                                          JsonValue{nullptr};
+    JsonValue::Object context;
+    for (const auto &[key, value] : error.context)
+        context.emplace(key, value);
+    entry.receipt["error"] = JsonValue::Object{{"code", std::string(error_code_name(error.code))},
+                                               {"message", error.message},
+                                               {"context", std::move(context)}};
+}
+
 void StudioOperationStore::stage(const std::string_view id, const JsonValue &state,
                                  const bool changed)
 {

@@ -2,79 +2,6 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="es_ES">
     <context>
-        <name>AiProposalDialog</name>
-        <message>
-            <source>AI Proposal</source>
-            <translation>Propuesta de IA</translation>
-        </message>
-        <message>
-            <source>Global edit (stub)</source>
-            <translation>Edición global (stub)</translation>
-        </message>
-        <message>
-            <source>Semantic mask (stub)</source>
-            <translation>Máscara semántica (stub)</translation>
-        </message>
-        <message>
-            <source>Stub proposals only (ADR-0121). No network and no model weights. Inspect the field diff, then apply, reject, or cancel.</source>
-            <translation>Solo propuestas de resguardo (ADR-0121). Sin red ni pesos de modelo. Inspeccione la diferencia de campo, luego aplique, rechace o cancele.</translation>
-        </message>
-        <message>
-            <source>Create</source>
-            <translation>crear</translation>
-        </message>
-        <message>
-            <source>Label</source>
-            <translation>Etiqueta</translation>
-        </message>
-        <message>
-            <source>Proposals for selection</source>
-            <translation>Propuestas de selección</translation>
-        </message>
-        <message>
-            <source>%1 · %2 · %3</source>
-            <translation>%1 · %2 · %3</translation>
-        </message>
-        <message>
-            <source>No proposal selected.</source>
-            <translation>Ninguna propuesta seleccionada.</translation>
-        </message>
-        <message>
-            <source>Selected %1 (%2)
-Provider %3 / %4
-Fields: %5
-Diff: %6</source>
-            <translation>Seleccionado %1 (%2)
-Proveedor %3 / %4
-Campos: %5
-Diferencia: %6</translation>
-        </message>
-        <message>
-            <source>Refresh</source>
-            <translation>Actualizar</translation>
-        </message>
-        <message>
-            <source>Create Stub</source>
-            <translation>Crear código auxiliar</translation>
-        </message>
-        <message>
-            <source>Cancel Proposal</source>
-            <translation>Cancelar propuesta</translation>
-        </message>
-        <message>
-            <source>Reject</source>
-            <translation>Rechazar</translation>
-        </message>
-        <message>
-            <source>Apply</source>
-            <translation>Aplicar</translation>
-        </message>
-        <message>
-            <source>Close</source>
-            <translation>Cerrar</translation>
-        </message>
-    </context>
-    <context>
         <name>AssistantPanel</name>
         <message>
             <source>Assistant</source>
@@ -4305,10 +4232,6 @@ Diferencia: %6</translation>
             <source>Offline-edit proxies…</source>
             <translation>Proxies de edición sin conexión...</translation>
         </message>
-        <message>
-            <source>Inspect AI Proposal…</source>
-            <translation>Inspeccionar la propuesta de IA...</translation>
-        </message>
     </context>
     <context>
         <name>PhotoInfoPanel</name>
@@ -5556,26 +5479,6 @@ Diferencia: %6</translation>
             <translation>Eliminar proxy de edición sin conexión</translation>
         </message>
         <message>
-            <source>Inspect AI Proposal...</source>
-            <translation>Inspeccionar la propuesta de IA...</translation>
-        </message>
-        <message>
-            <source>Create Stub AI Proposal</source>
-            <translation>Crear propuesta de IA Stub</translation>
-        </message>
-        <message>
-            <source>Apply AI Proposal</source>
-            <translation>Aplicar la propuesta de IA</translation>
-        </message>
-        <message>
-            <source>Reject AI Proposal</source>
-            <translation>Rechazar propuesta de IA</translation>
-        </message>
-        <message>
-            <source>Cancel AI Proposal</source>
-            <translation>Cancelar propuesta de IA</translation>
-        </message>
-        <message>
             <source>Remove from Catalog...</source>
             <translation>Quitar del catálogo...</translation>
         </message>
@@ -6532,70 +6435,6 @@ Diferencia: %6</translation>
         <message>
             <source>Cancelling catalog operation…</source>
             <translation>Cancelando operación de catálogo…</translation>
-        </message>
-        <message>
-            <source>Refreshing AI proposals…</source>
-            <translation>Propuestas refrescantes de IA...</translation>
-        </message>
-        <message>
-            <source>AI proposal refresh failed.</source>
-            <translation>Error al actualizar la propuesta de IA.</translation>
-        </message>
-        <message>
-            <source>Loaded %1 AI proposal(s).</source>
-            <translation>Se han cargado %1 propuestas de IA.</translation>
-        </message>
-        <message>
-            <source>Creating stub AI proposal…</source>
-            <translation>Creando una propuesta de IA resguardada...</translation>
-        </message>
-        <message>
-            <source>AI proposal create failed.</source>
-            <translation>La creación de la propuesta de IA falló.</translation>
-        </message>
-        <message>
-            <source>Created stub AI proposal %1</source>
-            <translation>Propuesta de IA resguardada %1 creada</translation>
-        </message>
-        <message>
-            <source>Select an AI proposal first.</source>
-            <translation>Seleccione primero una propuesta de IA.</translation>
-        </message>
-        <message>
-            <source>Applying AI proposal…</source>
-            <translation>Aplicando la propuesta de IA…</translation>
-        </message>
-        <message>
-            <source>AI proposal apply failed.</source>
-            <translation>La solicitud de propuesta de IA falló.</translation>
-        </message>
-        <message>
-            <source>Applied AI proposal.</source>
-            <translation>Propuesta de IA aplicada.</translation>
-        </message>
-        <message>
-            <source>Rejecting AI proposal…</source>
-            <translation>Rechazando la propuesta de IA...</translation>
-        </message>
-        <message>
-            <source>AI proposal reject failed.</source>
-            <translation>El rechazo de la propuesta de AI falló.</translation>
-        </message>
-        <message>
-            <source>Rejected AI proposal.</source>
-            <translation>Propuesta de IA rechazada.</translation>
-        </message>
-        <message>
-            <source>Cancelling AI proposal…</source>
-            <translation>Cancelando la propuesta de IA...</translation>
-        </message>
-        <message>
-            <source>AI proposal cancel failed.</source>
-            <translation>La cancelación de la propuesta de AI falló.</translation>
-        </message>
-        <message>
-            <source>Cancelled AI proposal.</source>
-            <translation>Propuesta de IA cancelada.</translation>
         </message>
         <message>
             <source>External editor id must not be empty.</source>

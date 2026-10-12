@@ -149,7 +149,6 @@ std::vector<std::string> StudioPresenter::selected_asset_ids() const
 void StudioPresenter::selectAsset(const QString &asset_id)
 {
     cancelSelectionResolution();
-    pending_library_selection_.reset();
     if (selected_asset_id_ == asset_id && selected_ids_.size() == 1U &&
         !inspect_.previewUrl().isEmpty())
     {
@@ -166,7 +165,7 @@ void StudioPresenter::selectAsset(const QString &asset_id)
 
 void StudioPresenter::selectAssetRange(const QString &asset_id)
 {
-    pending_library_selection_.reset();
+    clearPendingLibrarySelection();
     if (asset_id.isEmpty())
     {
         return;
@@ -199,7 +198,6 @@ void StudioPresenter::selectAssetRange(const QString &asset_id)
 void StudioPresenter::toggleAssetSelected(const QString &asset_id)
 {
     cancelSelectionResolution();
-    pending_library_selection_.reset();
     if (asset_id.isEmpty())
     {
         return;
@@ -226,7 +224,7 @@ void StudioPresenter::toggleAssetSelected(const QString &asset_id)
 
 void StudioPresenter::selectAllVisible()
 {
-    pending_library_selection_.reset();
+    clearPendingLibrarySelection();
     resolveLibrarySelection(0, assets_.rowCount() - 1, selected_asset_id_);
 }
 
@@ -407,7 +405,7 @@ void StudioPresenter::createAssetVersion()
 
 void StudioPresenter::stackSelection()
 {
-    if (catalog_path_.isEmpty() || selection_resolution_pending_)
+    if (catalog_path_.isEmpty() || selectionResolving())
         return;
     const auto ids = selected_asset_ids();
     if (ids.size() < 2)
@@ -530,7 +528,7 @@ void StudioPresenter::setThumbnailSize(const int size)
 void StudioPresenter::mutate_selected_review(
     const std::function<Result<AssetRecord>(CatalogService &, std::string_view)> &action)
 {
-    if (selected_ids_.empty() || catalog_path_.isEmpty() || selection_resolution_pending_)
+    if (selected_ids_.empty() || catalog_path_.isEmpty() || selectionResolving())
     {
         return;
     }
@@ -584,7 +582,7 @@ void StudioPresenter::apply_cull_review_request(const CullReviewFlagAction flag_
                                                 const std::optional<ColorLabel> color_label,
                                                 const bool auto_advance)
 {
-    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty() || selection_resolution_pending_)
+    if (selected_asset_id_.isEmpty() || catalog_path_.isEmpty() || selectionResolving())
     {
         return;
     }
@@ -788,7 +786,7 @@ void StudioPresenter::applyCullReview(const QString &flag_action, const QVariant
 
 void StudioPresenter::setAssetTags(const QString &text)
 {
-    if (selection_resolution_pending_)
+    if (selectionResolving())
         return;
     auto parsed = parse_tag_list(utf8_from_qstring(text));
     if (!parsed)
@@ -900,7 +898,7 @@ Result<WritableMetadataPatch> StudioPresenter::metadataPatch(const QVariantMap &
 
 void StudioPresenter::setMetadataFields(const QVariantMap &fields, const QVariantMap &context)
 {
-    if (selection_resolution_pending_)
+    if (selectionResolving())
         return;
     if (!context.isEmpty())
     {
@@ -1368,7 +1366,7 @@ void StudioPresenter::removeFolderFromCatalog(const QString &folder_uri)
 
 void StudioPresenter::remove_selected_from_catalog()
 {
-    if (selected_ids_.empty() || catalog_path_.isEmpty() || selection_resolution_pending_)
+    if (selected_ids_.empty() || catalog_path_.isEmpty() || selectionResolving())
     {
         return;
     }

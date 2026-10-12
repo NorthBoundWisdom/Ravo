@@ -25,6 +25,7 @@
 #include <QImage>
 #include <QString>
 #include <QProcess>
+#include <QTemporaryDir>
 #include <QXmlStreamReader>
 #include <gtest/gtest.h>
 #include <png.h>
@@ -853,300 +854,6 @@ TEST_F(CliTest, CatalogDevelopApplyOverlaysSelectionAndRejectsPreflight)
     std::filesystem::remove_all(root, ignored);
 }
 
-TEST_F(CliTest, CatalogAiProposalStubProposeApplyAndReject)
-{
-    const auto root =
-        std::filesystem::temp_directory_path() / ("ravo-cli-ai-proposal-" + generate_catalog_id());
-    std::filesystem::create_directories(root);
-    const auto catalog = (root / "library.sqlite").string();
-    QImage image(16, 12, QImage::Format_RGB888);
-    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-    image.fill(QColor(40, 80, 120));
-    const auto photo = (root / "photo.png").string();
-    ASSERT_TRUE(image.save(QString::fromStdString(photo), "PNG"));
-
-    std::ostringstream stdout_stream;
-    std::ostringstream stderr_stream;
-    const CliApplication application(engine, stdout_stream, stderr_stream);
-    ASSERT_EQ(application.run(
-                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
-              0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
-                                                            catalog, "--input", photo, "--json"}),
-              0)
-        << stdout_stream.str();
-    auto imported = parse_json(stdout_stream.str());
-    ASSERT_TRUE(imported) << imported.error().message;
-    const auto *data = imported.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *items = data->find("items");
-    ASSERT_NE(items, nullptr);
-    ASSERT_NE(items->array_if(), nullptr);
-    ASSERT_FALSE(items->array_if()->empty());
-    const auto *asset = items->array_if()->front().find("asset");
-    ASSERT_NE(asset, nullptr);
-    const auto *asset_id = asset->find("id");
-    ASSERT_NE(asset_id, nullptr);
-    ASSERT_NE(asset_id->string_if(), nullptr);
-    const auto id = *asset_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    EXPECT_NE(application.run(std::vector<std::string_view>{"catalog", "ai-propose", "--catalog",
-                                                            catalog, "--asset-id", id, "--json"}),
-              0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-propose", "--catalog",
-                                                            catalog, "--asset-id", id,
-                                                            "--user-initiated", "--json"}),
-              0)
-        << stdout_stream.str();
-    auto proposed = parse_json(stdout_stream.str());
-    ASSERT_TRUE(proposed) << proposed.error().message;
-    data = proposed.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *proposal_id = data->find("id");
-    ASSERT_NE(proposal_id, nullptr);
-    ASSERT_NE(proposal_id->string_if(), nullptr);
-    const auto pid = *proposal_id->string_if();
-    const auto *status = data->find("status");
-    ASSERT_NE(status, nullptr);
-    ASSERT_NE(status->string_if(), nullptr);
-    EXPECT_EQ(*status->string_if(), "pending");
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(
-        application.run(std::vector<std::string_view>{"catalog", "ai-proposal-reject", "--catalog",
-                                                      catalog, "--proposal-id", pid, "--json"}),
-        0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-propose", "--catalog",
-                                                            catalog, "--asset-id", id,
-                                                            "--user-initiated", "--json"}),
-              0)
-        << stdout_stream.str();
-    proposed = parse_json(stdout_stream.str());
-    ASSERT_TRUE(proposed) << proposed.error().message;
-    data = proposed.value().find("data");
-    ASSERT_NE(data, nullptr);
-    proposal_id = data->find("id");
-    ASSERT_NE(proposal_id, nullptr);
-    ASSERT_NE(proposal_id->string_if(), nullptr);
-    const auto apply_id = *proposal_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-proposal-apply",
-                                                            "--catalog", catalog, "--proposal-id",
-                                                            apply_id, "--json"}),
-              0)
-        << stdout_stream.str();
-    auto applied = parse_json(stdout_stream.str());
-    ASSERT_TRUE(applied) << applied.error().message;
-    data = applied.value().find("data");
-    ASSERT_NE(data, nullptr);
-    ASSERT_NE(data->find("history_id"), nullptr);
-
-    std::error_code ignored;
-    std::filesystem::remove_all(root, ignored);
-}
-
-TEST_F(CliTest, CatalogAiSuggestionStubSuggestAcceptReject)
-{
-    const auto root =
-        std::filesystem::temp_directory_path() / ("ravo-cli-ai-suggest-" + generate_catalog_id());
-    std::filesystem::create_directories(root);
-    const auto catalog = (root / "library.sqlite").string();
-    QImage image(16, 12, QImage::Format_RGB888);
-    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-    image.fill(QColor(50, 90, 130));
-    const auto photo = (root / "photo.png").string();
-    ASSERT_TRUE(image.save(QString::fromStdString(photo), "PNG"));
-
-    std::ostringstream stdout_stream;
-    std::ostringstream stderr_stream;
-    const CliApplication application(engine, stdout_stream, stderr_stream);
-    ASSERT_EQ(application.run(
-                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
-              0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
-                                                            catalog, "--input", photo, "--json"}),
-              0)
-        << stdout_stream.str();
-    auto imported = parse_json(stdout_stream.str());
-    ASSERT_TRUE(imported) << imported.error().message;
-    const auto *data = imported.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *items = data->find("items");
-    ASSERT_NE(items, nullptr);
-    ASSERT_NE(items->array_if(), nullptr);
-    ASSERT_FALSE(items->array_if()->empty());
-    const auto *asset = items->array_if()->front().find("asset");
-    ASSERT_NE(asset, nullptr);
-    const auto *asset_id = asset->find("id");
-    ASSERT_NE(asset_id, nullptr);
-    ASSERT_NE(asset_id->string_if(), nullptr);
-    const auto id = *asset_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    EXPECT_NE(application.run(std::vector<std::string_view>{
-                  "catalog", "ai-suggest", "--catalog", catalog, "--asset-id", id,
-                  "--suggestion-kind", "keyword", "--json"}),
-              0);
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "ai-suggest", "--catalog", catalog, "--asset-id", id,
-                  "--suggestion-kind", "keyword", "--user-initiated", "--json"}),
-              0)
-        << stdout_stream.str();
-    auto suggested = parse_json(stdout_stream.str());
-    ASSERT_TRUE(suggested) << suggested.error().message;
-    data = suggested.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *suggestion_id = data->find("id");
-    ASSERT_NE(suggestion_id, nullptr);
-    ASSERT_NE(suggestion_id->string_if(), nullptr);
-    const auto sid = *suggestion_id->string_if();
-    const auto *status = data->find("status");
-    ASSERT_NE(status, nullptr);
-    ASSERT_NE(status->string_if(), nullptr);
-    EXPECT_EQ(*status->string_if(), "pending");
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-suggestion-reject",
-                                                            "--catalog", catalog, "--suggestion-id",
-                                                            sid, "--json"}),
-              0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "ai-suggest", "--catalog", catalog, "--asset-id", id,
-                  "--suggestion-kind", "caption", "--user-initiated", "--json"}),
-              0)
-        << stdout_stream.str();
-    suggested = parse_json(stdout_stream.str());
-    ASSERT_TRUE(suggested) << suggested.error().message;
-    data = suggested.value().find("data");
-    ASSERT_NE(data, nullptr);
-    suggestion_id = data->find("id");
-    ASSERT_NE(suggestion_id, nullptr);
-    const auto accept_id = *suggestion_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "ai-suggestion-accept",
-                                                            "--catalog", catalog, "--suggestion-id",
-                                                            accept_id, "--json"}),
-              0)
-        << stdout_stream.str();
-    auto accepted = parse_json(stdout_stream.str());
-    ASSERT_TRUE(accepted) << accepted.error().message;
-    data = accepted.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *mutated = data->find("catalog_mutated");
-    ASSERT_NE(mutated, nullptr);
-    ASSERT_NE(mutated->boolean_if(), nullptr);
-    EXPECT_TRUE(*mutated->boolean_if());
-
-    std::error_code ignored;
-    std::filesystem::remove_all(root, ignored);
-}
-
-TEST_F(CliTest, CatalogAiSemanticMaskProposalStubProposeAndApply)
-{
-    const auto root = std::filesystem::temp_directory_path() /
-                      ("ravo-cli-ai-semantic-mask-" + generate_catalog_id());
-    std::filesystem::create_directories(root);
-    const auto catalog = (root / "library.sqlite").string();
-    QImage image(16, 12, QImage::Format_RGB888);
-    image.setColorSpace(QColorSpace(QColorSpace::SRgb));
-    image.fill(QColor(50, 90, 130));
-    const auto photo = (root / "photo.png").string();
-    ASSERT_TRUE(image.save(QString::fromStdString(photo), "PNG"));
-
-    std::ostringstream stdout_stream;
-    std::ostringstream stderr_stream;
-    const CliApplication application(engine, stdout_stream, stderr_stream);
-    ASSERT_EQ(application.run(
-                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
-              0)
-        << stdout_stream.str();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{"catalog", "import", "--catalog",
-                                                            catalog, "--input", photo, "--json"}),
-              0)
-        << stdout_stream.str();
-    auto imported = parse_json(stdout_stream.str());
-    ASSERT_TRUE(imported) << imported.error().message;
-    const auto *data = imported.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *items = data->find("items");
-    ASSERT_NE(items, nullptr);
-    ASSERT_NE(items->array_if(), nullptr);
-    ASSERT_FALSE(items->array_if()->empty());
-    const auto *asset = items->array_if()->front().find("asset");
-    ASSERT_NE(asset, nullptr);
-    const auto *asset_id = asset->find("id");
-    ASSERT_NE(asset_id, nullptr);
-    ASSERT_NE(asset_id->string_if(), nullptr);
-    const auto id = *asset_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(
-        application.run(std::vector<std::string_view>{
-            "catalog", "ai-propose", "--catalog", catalog, "--asset-id", id, "--user-initiated",
-            "--proposal-kind", "semantic-mask", "--semantic-label", "subject", "--json"}),
-        0)
-        << stdout_stream.str();
-    auto proposed = parse_json(stdout_stream.str());
-    ASSERT_TRUE(proposed) << proposed.error().message;
-    data = proposed.value().find("data");
-    ASSERT_NE(data, nullptr);
-    ASSERT_NE(data->find("kind"), nullptr);
-    EXPECT_EQ(*data->find("kind")->string_if(), "semantic-mask");
-    ASSERT_NE(data->find("semantic_label"), nullptr);
-    EXPECT_EQ(*data->find("semantic_label")->string_if(), "subject");
-    const auto *proposal_id = data->find("id");
-    ASSERT_NE(proposal_id, nullptr);
-    ASSERT_NE(proposal_id->string_if(), nullptr);
-    const auto pid = *proposal_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(
-        application.run(std::vector<std::string_view>{"catalog", "ai-proposal-apply", "--catalog",
-                                                      catalog, "--proposal-id", pid, "--json"}),
-        0)
-        << stdout_stream.str();
-
-    std::error_code ignored;
-    std::filesystem::remove_all(root, ignored);
-}
-
 TEST_F(CliTest, CatalogImportProjectsRenameAndVerifiedSecondCopyJson)
 {
     const auto root =
@@ -1647,69 +1354,49 @@ TEST_F(CliTest, ExportPresetSaveAcceptsOutputFlag)
     EXPECT_EQ(*output->string_if(), preset_path);
 }
 
-TEST_F(CliTest, DngConvertOutputReachesOwnerNotCentralReject)
+TEST_F(CliTest, RetiredStubCommandsRejectBeforeOpeningCatalogOrSideFiles)
 {
-    const auto root =
-        std::filesystem::temp_directory_path() / ("ravo-cli-dng-output-" + generate_catalog_id());
-    std::filesystem::create_directories(root);
-    const auto catalog = (root / "library.sqlite").string();
-    const auto out_path = (root / "converted.dng").string();
-    const auto png = (std::filesystem::path(RAVO_REPOSITORY_ROOT) / "Ravo" / "tests" / "fixtures" /
-                      "frozen" / "0000-nop" / "expected.png")
-                         .generic_u8string();
-    const std::string png_path(png.begin(), png.end());
-
-    std::ostringstream stdout_stream;
-    std::ostringstream stderr_stream;
-    const CliApplication application(engine, stdout_stream, stderr_stream);
-
-    ASSERT_EQ(application.run(
-                  std::vector<std::string_view>{"catalog", "create", "--path", catalog, "--json"}),
-              0)
-        << stdout_stream.str();
-    stdout_stream.str({});
-    stdout_stream.clear();
-    ASSERT_EQ(application.run(std::vector<std::string_view>{
-                  "catalog", "import", "--catalog", catalog, "--input", png_path, "--json"}),
-              0)
-        << stdout_stream.str();
-    auto imported = parse_json(stdout_stream.str());
-    ASSERT_TRUE(imported) << imported.error().message;
-    const auto *data = imported.value().find("data");
-    ASSERT_NE(data, nullptr);
-    const auto *items = data->find("items");
-    ASSERT_NE(items, nullptr);
-    ASSERT_NE(items->array_if(), nullptr);
-    ASSERT_FALSE(items->array_if()->empty());
-    const auto *asset = items->array_if()->front().find("asset");
-    ASSERT_NE(asset, nullptr);
-    const auto *asset_id = asset->find("id");
-    ASSERT_NE(asset_id, nullptr);
-    ASSERT_NE(asset_id->string_if(), nullptr);
-    const auto id = *asset_id->string_if();
-
-    stdout_stream.str({});
-    stdout_stream.clear();
-    const int code = application.run(
-        std::vector<std::string_view>{"catalog", "dng-convert", "--catalog", catalog, "--asset-id",
-                                      id, "--output", out_path, "--json"});
-    // Success or structured DNG-owner failure is fine; central --output reject is not.
-    const auto body = stdout_stream.str();
-    EXPECT_EQ(body.find("--output is not valid for this catalog subcommand"), std::string::npos)
-        << body;
-    EXPECT_EQ(body.find("--output is only valid for catalog export"), std::string::npos) << body;
-    if (code != 0)
+    QTemporaryDir root;
+    ASSERT_TRUE(root.isValid());
+    const auto catalog = root.filePath("library.sqlite").toStdString();
+    const auto proposals = catalog + ".ai_proposals";
+    std::filesystem::create_directory(proposals);
+    const std::string original = "unopened catalog sentinel";
+    const std::string pending = "existing proposal bytes";
+    std::ofstream(catalog) << original;
+    std::ofstream(proposals + "/pending.json") << pending;
+    std::ostringstream output, diagnostics;
+    const CliApplication application(engine, output, diagnostics);
+    for (const auto command :
+         {"dng-convert", "dng-status", "smart-preview", "ai-propose", "ai-proposal", "ai-proposals",
+          "ai-proposal-apply", "ai-proposal-reject", "ai-proposal-cancel", "ai-suggest",
+          "ai-suggestion", "ai-suggestions", "ai-suggestion-accept", "ai-suggestion-reject",
+          "ai-suggestion-cancel"})
     {
-        auto parsed = parse_json(body);
-        ASSERT_TRUE(parsed) << parsed.error().message;
-        const auto *error = parsed.value().find("error");
+        SCOPED_TRACE(command);
+        output.str({});
+        output.clear();
+        EXPECT_NE(application.run(std::vector<std::string_view>{"catalog", command, "--catalog",
+                                                                catalog, "--json"}),
+                  0);
+        auto response = parse_json(output.str());
+        ASSERT_TRUE(response) << output.str();
+        const auto *error = response.value().find("error");
         ASSERT_NE(error, nullptr);
-        // Owner-layer failure should carry DNG/convert context, not the central allowlist message.
-        const auto *message = error->find("message");
-        ASSERT_NE(message, nullptr);
-        ASSERT_NE(message->string_if(), nullptr);
-        EXPECT_EQ(message->string_if()->find("--output is not valid"), std::string::npos);
+        const auto *context = error->find("context");
+        ASSERT_NE(context, nullptr);
+        const auto *reason = context->find("reason");
+        ASSERT_NE(reason, nullptr);
+        ASSERT_NE(reason->string_if(), nullptr);
+        EXPECT_EQ(*reason->string_if(), "unknown_catalog_subcommand");
     }
+    auto untouched = read_utf8_text_file(catalog, 1024);
+    ASSERT_TRUE(untouched);
+    EXPECT_EQ(untouched.value(), original);
+    untouched = read_utf8_text_file(proposals + "/pending.json", 1024);
+    ASSERT_TRUE(untouched);
+    EXPECT_EQ(untouched.value(), pending);
+    EXPECT_FALSE(std::filesystem::exists(catalog + ".ravo"));
 }
 
 TEST_F(CliTest, UnrelatedCatalogCommandRejectsOutputFlag)

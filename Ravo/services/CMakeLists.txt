@@ -9,20 +9,16 @@ target_sources(ravo_services
     src/catalog_backup.cpp
     src/catalog_backup_trees.cpp
     src/catalog_backup_schedule.cpp
-    src/catalog_ai_proposal.cpp
-    src/catalog_ai_suggestion.cpp
     src/catalog_xmp_interchange.cpp
     src/catalog_external_editor.cpp
     src/catalog_external_editor_working_copy.cpp
     src/catalog_foreign_catalog.cpp
     src/foreign_catalog_receipt.cpp
-    src/catalog_dng_smart_preview.cpp
     src/catalog_offline_edit_proxy.cpp
     src/catalog_cull_assistance.cpp
     src/catalog_cull_fingerprint_store.cpp
     src/catalog_cull_review.cpp
     src/display_presentation.cpp
-    src/tethered_studio.cpp
     src/catalog_internal.cpp
     src/catalog_import.cpp
     src/catalog_video.cpp
@@ -39,6 +35,7 @@ target_sources(ravo_services
     src/library_service.cpp
     src/develop_service.cpp
     src/metadata_service.cpp
+    src/asset_annotation.cpp
     src/import_service.cpp
     src/ingest_service.cpp
     src/recovery_service.cpp

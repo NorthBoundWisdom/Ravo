@@ -13,6 +13,33 @@
 namespace ravo
 {
 using namespace studio_test_support;
+TEST(StudioAutomationRegression, NewRowIntentCancelsOlderPrimaryMetadataResolution)
+{
+    ensure_qt_core();
+    init_logging("ravo-review-probes");
+    QTemporaryDir root;
+    make_paged_catalog(root, 1000);
+    StudioPresenter presenter;
+    presenter.openCatalogFromPath(root.filePath("library.sqlite"));
+    ASSERT_TRUE(wait_until([&] { return presenter.catalogOpen() && !presenter.busy(); }));
+    auto entered = std::make_shared<std::promise<void>>();
+    std::promise<void> release;
+    ASSERT_TRUE(testing::StudioAutomationTestControl::block(presenter, entered,
+                                                            release.get_future().share()));
+    auto unblock = qScopeGuard([&] { release.set_value(); });
+    ASSERT_EQ(entered->get_future().wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    presenter.selectAsset("ast_page_900");
+    ASSERT_TRUE(presenter.selectionResolving());
+    presenter.selectLibraryRow(850);
+    EXPECT_TRUE(presenter.busy());
+    release.set_value();
+    unblock.dismiss();
+    ASSERT_TRUE(wait_until(
+        [&] { return presenter.selectedAssetId() == "ast_page_850" && !presenter.busy(); }));
+    EXPECT_EQ(presenter.selectedIndex(), 850);
+    EXPECT_EQ(presenter.selectedCount(), 1);
+}
+
 TEST(StudioAutomationRegression, SelectionPendingIsBusyInMachineStateAndRejectsDevelop)
 {
     ensure_qt_core();

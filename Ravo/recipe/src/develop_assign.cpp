@@ -28,6 +28,8 @@ namespace ravo::develop_internal
 
 bool assign_develop_field(DevelopParams &params, const std::string_view name, const double value)
 {
+    if (assign_scalar_develop_field(params, name, value))
+        return true;
     const auto selected = [value](const auto &options) -> std::optional<std::string>
     {
         if (!std::isfinite(value))
@@ -471,16 +473,9 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
-    if (name == "contrast")
-    {
-        params.contrast = value;
-
-        return true;
-    }
     if (name == "rapidrawEvShift")
     {
-        if (!std::isfinite(value) || value < kRapidRawExposureMin ||
-            value > kRapidRawExposureMax)
+        if (!std::isfinite(value) || value < kRapidRawExposureMin || value > kRapidRawExposureMax)
             return false;
         params.rapidraw_basic_tone_enabled = true;
         params.rapidraw_tone_controls_enabled = true;
@@ -510,8 +505,7 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
     }
     if (name == "rapidrawExposure")
     {
-        if (!std::isfinite(value) || value < kRapidRawExposureMin ||
-            value > kRapidRawExposureMax)
+        if (!std::isfinite(value) || value < kRapidRawExposureMin || value > kRapidRawExposureMax)
             return false;
         params.rapidraw_basic_tone_enabled = true;
         params.rapidraw_tone_controls_enabled = true;
@@ -519,8 +513,8 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.rapidraw_exposure = value;
         return true;
     }
-    if (name == "rapidrawContrast" || name == "rapidrawHighlights" ||
-        name == "rapidrawShadows" || name == "rapidrawWhites" || name == "rapidrawBlacks")
+    if (name == "rapidrawContrast" || name == "rapidrawHighlights" || name == "rapidrawShadows" ||
+        name == "rapidrawWhites" || name == "rapidrawBlacks")
     {
         if (!std::isfinite(value) || value < kRapidRawToneMin || value > kRapidRawToneMax)
             return false;
@@ -537,48 +531,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             params.rapidraw_whites = value;
         else
             params.rapidraw_blacks = value;
-        return true;
-    }
-    if (name == "highlights")
-    {
-        params.highlights = value;
-
-        return true;
-    }
-    if (name == "shadows")
-    {
-        params.shadows = value;
-
-        return true;
-    }
-    if (name == "whites")
-    {
-        params.whites = value;
-
-        return true;
-    }
-    if (name == "blacks")
-    {
-        params.blacks = value;
-
-        return true;
-    }
-    if (name == "vibrance")
-    {
-        params.vibrance = value;
-
-        return true;
-    }
-    if (name == "saturation")
-    {
-        params.saturation = value;
-
-        return true;
-    }
-    if (name == "straighten")
-    {
-        params.straighten_degrees = value;
-
         return true;
     }
     if (name == "perspectiveVertical")
@@ -682,24 +634,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
-    if (name == "sharpen")
-    {
-        params.sharpen = value;
-
-        return true;
-    }
-    if (name == "sharpenRadius")
-    {
-        params.sharpen_radius = value;
-
-        return true;
-    }
-    if (name == "sharpenThreshold")
-    {
-        params.sharpen_threshold = value;
-
-        return true;
-    }
     if (name == "texture")
     {
         params.texture.strength = value;
@@ -719,78 +653,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
             return false;
         }
         params.texture.iterations = static_cast<std::int64_t>(value);
-
-        return true;
-    }
-    if (name == "clarity")
-    {
-        params.clarity = value;
-
-        return true;
-    }
-    if (name == "vignette")
-    {
-        params.vignette = value;
-
-        return true;
-    }
-    if (name == "vignetteMidpoint")
-    {
-        params.vignette_midpoint = value;
-
-        return true;
-    }
-    if (name == "vignetteFalloff")
-    {
-        params.vignette_falloff = value;
-
-        return true;
-    }
-    if (name == "vignetteShape")
-    {
-        params.vignette_shape = value;
-
-        return true;
-    }
-    if (name == "vignetteCenterX")
-    {
-        params.vignette_center_x = value;
-
-        return true;
-    }
-    if (name == "vignetteCenterY")
-    {
-        params.vignette_center_y = value;
-
-        return true;
-    }
-    if (name == "grain")
-    {
-        params.grain = value;
-
-        return true;
-    }
-    if (name == "bloom")
-    {
-        params.bloom = value;
-
-        return true;
-    }
-    if (name == "soften")
-    {
-        params.soften = value;
-
-        return true;
-    }
-    if (name == "dehaze")
-    {
-        params.dehaze = value;
-
-        return true;
-    }
-    if (name == "dehazeDistance")
-    {
-        params.dehaze_distance = value;
 
         return true;
     }
@@ -1170,12 +1032,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
-    if (name == "gamma")
-    {
-        params.gamma = value;
-
-        return true;
-    }
     if (apply_rgb_levels_field(params, name, value))
     {
         return true;
@@ -1252,40 +1108,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
-    if (name == "rawHighlights")
-    {
-        params.raw_highlights = value;
-
-        return true;
-    }
-    if (name == "rawHighlightsClip")
-    {
-        params.raw_highlights_clip = value;
-
-        return true;
-    }
     if (name == "rawHighlightsMode")
     {
         params.raw_highlights_mode = value >= 0.5 ? std::string(kRawHighlightsModeInpaint) :
                                                     std::string(kRawHighlightsModeClip);
-
-        return true;
-    }
-    if (name == "rawDenoiseThreshold")
-    {
-        params.raw_denoise_threshold = value;
-
-        return true;
-    }
-    if (name == "hotPixelsStrength")
-    {
-        params.hot_pixels_strength = value;
-
-        return true;
-    }
-    if (name == "hotPixelsThreshold")
-    {
-        params.hot_pixels_threshold = value;
 
         return true;
     }
@@ -1307,64 +1133,10 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
 
         return true;
     }
-    if (name == "denoise")
-    {
-        params.denoise = value;
-
-        return true;
-    }
-    if (name == "denoiseChroma")
-    {
-        params.denoise_chroma = value;
-
-        return true;
-    }
-    if (name == "denoiseRadius")
-    {
-        params.denoise_radius = value;
-
-        return true;
-    }
-    if (name == "lensK1")
-    {
-        params.lens_k1 = value;
-
-        return true;
-    }
-    if (name == "lensK2")
-    {
-        params.lens_k2 = value;
-
-        return true;
-    }
-    if (name == "lensTcaR")
-    {
-        params.lens_tca_r = value;
-
-        return true;
-    }
-    if (name == "lensTcaB")
-    {
-        params.lens_tca_b = value;
-
-        return true;
-    }
-    if (name == "lensVignetting")
-    {
-        params.lens_vignetting = value;
-
-        return true;
-    }
     if (name == "lensMode")
     {
         params.lens_mode =
             value >= 0.5 ? std::string(kLensModeLookup) : std::string(kLensModeManual);
-
-        return true;
-    }
-    if (name == "lensFocal")
-    {
-        params.lens_focal_mm = value;
 
         return true;
     }
@@ -1510,36 +1282,6 @@ bool assign_develop_field(DevelopParams &params, const std::string_view name, co
         params.graduated_present = true;
         params.graduated_enabled = true;
         params.graduated_offset = value;
-
-        return true;
-    }
-    if (name == "toneEqBlacks")
-    {
-        params.tone_eq_blacks = value;
-
-        return true;
-    }
-    if (name == "toneEqShadows")
-    {
-        params.tone_eq_shadows = value;
-
-        return true;
-    }
-    if (name == "toneEqMidtones")
-    {
-        params.tone_eq_midtones = value;
-
-        return true;
-    }
-    if (name == "toneEqHighlights")
-    {
-        params.tone_eq_highlights = value;
-
-        return true;
-    }
-    if (name == "toneEqWhites")
-    {
-        params.tone_eq_whites = value;
 
         return true;
     }

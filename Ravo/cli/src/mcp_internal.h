@@ -21,6 +21,8 @@ struct McpInvocation
     int timeout_ms = 120000;
 };
 [[nodiscard]] JsonValue mcp_tool_definitions();
+// CLI-owned projection of shared service schemas; MCP owns no service dependency.
+[[nodiscard]] JsonValue cli_annotation_capabilities();
 [[nodiscard]] Result<McpInvocation> mcp_invocation(std::string_view tool,
                                                    const JsonValue &arguments,
                                                    const QString &request_path,

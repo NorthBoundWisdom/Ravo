@@ -15,6 +15,13 @@
 namespace ravo::develop_internal
 {
 
+// Immutable descriptor ownership stays in recipe; string views borrow static names.
+[[nodiscard]] bool assign_scalar_develop_field(DevelopParams &, std::string_view, double) noexcept;
+[[nodiscard]] bool reset_scalar_develop_field(DevelopParams &, std::string_view);
+void clamp_scalar_develop_fields(DevelopParams &) noexcept;
+void append_scalar_develop_field_names(std::vector<std::string> &);
+[[nodiscard]] std::optional<DevelopSetField> scalar_develop_field_schema(std::string_view);
+
 extern const double kEpsilon;
 
 [[nodiscard]] bool near(double left, double right) noexcept;
@@ -87,8 +94,8 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept;
                                          double value) noexcept;
 [[nodiscard]] bool reset_rgb_curve_field(DevelopParams &params, std::string_view name) noexcept;
 [[nodiscard]] bool reset_rgb_levels_field(DevelopParams &params, std::string_view name) noexcept;
-[[nodiscard]] bool exact_develop_integer(double value, std::int64_t minimum,
-                                         std::int64_t maximum, std::int64_t &parsed) noexcept;
+[[nodiscard]] bool exact_develop_integer(double value, std::int64_t minimum, std::int64_t maximum,
+                                         std::int64_t &parsed) noexcept;
 [[nodiscard]] bool assign_color_harmonizer_hue_turns(double &target, double degrees) noexcept;
 [[nodiscard]] bool apply_color_harmonizer_field(DevelopParams &params, std::string_view name,
                                                 double value) noexcept;
@@ -96,12 +103,11 @@ void clamp_rgb_levels(RgbLevelsParams &params) noexcept;
                                                 std::string_view name) noexcept;
 void clamp_color_harmonizer(ColorHarmonizerParams &params) noexcept;
 void append_develop_numeric_field_names(std::vector<std::string> &names);
-[[nodiscard]] bool assign_develop_field(DevelopParams &params, std::string_view name,
-                                        double value);
+[[nodiscard]] bool assign_develop_field(DevelopParams &params, std::string_view name, double value);
 [[nodiscard]] bool develop_set_field_accepts(std::string_view name, double value);
 [[nodiscard]] std::optional<double> first_accepted_develop_set_value(std::string_view name);
-[[nodiscard]] double develop_set_field_extreme(std::string_view name, double seed,
-                                               double direction, bool integer);
+[[nodiscard]] double develop_set_field_extreme(std::string_view name, double seed, double direction,
+                                               bool integer);
 [[nodiscard]] std::vector<std::string> candidate_develop_set_names();
 
 } // namespace ravo::develop_internal

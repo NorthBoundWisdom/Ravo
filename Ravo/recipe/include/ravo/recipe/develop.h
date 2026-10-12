@@ -606,59 +606,10 @@ color_balance_to_parameters(const ColorBalanceParams &params);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 color_balance_rgb_to_parameters(const ColorBalanceRgbParams &params);
 
-struct LeftoverFlipGeometry
-{
-    std::int64_t rotate_quarters = 0;
-    std::int64_t flip_horizontal = 0;
-    std::int64_t flip_vertical = 0;
-
-    [[nodiscard]] bool is_identity() const noexcept
-    {
-        return rotate_quarters == 0 && flip_horizontal == 0 && flip_vertical == 0;
-    }
-};
-
-// Maps leftover flip.c orientation bits (ORIENTATION_NULL=-1 through TRANSVERSE=7)
-// onto canonical rotate-then-flip. NULL and NONE are identity because Ravo applies
-// camera EXIF at decode.
-[[nodiscard]] Result<LeftoverFlipGeometry>
-leftover_flip_orientation_to_geometry(std::int32_t orientation);
-
-struct LeftoverCropBox
-{
-    double x = 0.0;
-    double y = 0.0;
-    double width = 1.0;
-    double height = 1.0;
-
-    [[nodiscard]] bool is_identity() const noexcept;
-};
-
-// Maps leftover crop.c left/top/right/bottom (cx, cy, cw, ch) onto canonical
-// x/y/width/height. Full-frame 0,0,1,1 is identity. ratio_n/ratio_d export
-// snapping stays later G7 work.
-[[nodiscard]] Result<LeftoverCropBox> leftover_crop_box_to_geometry(float left, float top,
-                                                                    float right, float bottom);
-
-// Maps the leftover ashift generic lens model onto canonical perspective. The
-// adapter remains responsible for rejecting legacy-only lens/crop modes before
-// calling this bounded head conversion.
-[[nodiscard]] Result<PerspectiveParams>
-leftover_ashift_to_perspective(float rotation, float lensshift_v, float lensshift_h, float shear,
-                               bool constrain_crop);
-
-[[nodiscard]] Result<RgbLevelsParams>
-leftover_rgblevels_from_v1(std::int32_t autoscale, std::int32_t preserve_colors,
-                           const std::array<float, 9> &levels);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 rgb_levels_to_parameters(const RgbLevelsParams &params);
-[[nodiscard]] Result<RgbCurveParams>
-leftover_rgbcurve_from_v1(const std::vector<std::uint8_t> &payload);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 rgb_curve_to_parameters(const RgbCurveParams &params);
-[[nodiscard]] Result<void> leftover_rawdenoise_from_v2(const std::vector<std::uint8_t> &payload,
-                                                       double &threshold,
-                                                       std::array<std::array<double, 5>, 4> &bands);
 [[nodiscard]] std::map<std::string, ParameterValue, std::less<>>
 raw_denoise_to_parameters(double threshold, const std::array<std::array<double, 5>, 4> &bands);
 

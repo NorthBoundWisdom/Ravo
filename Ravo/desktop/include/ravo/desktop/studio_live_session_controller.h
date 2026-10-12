@@ -2,12 +2,14 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <QObject>
 
 #include "ravo/control/live_control.h"
 #include "ravo/foundation/error.h"
+#include "ravo/foundation/cancellation.h"
 #include "ravo/foundation/json.h"
 
 namespace ravo
@@ -16,6 +18,7 @@ namespace ravo
 class StudioCommandController;
 class StudioPresenter;
 class StudioOperationStore;
+struct AssetAnnotationEdit;
 
 class StudioLiveSessionController final : public QObject
 {
@@ -39,6 +42,10 @@ private:
     void refresh();
     [[nodiscard]] Result<JsonValue> handle(const LiveControlRequest &request);
     [[nodiscard]] Result<JsonValue> handleAutomation(const LiveControlRequest &request);
+    [[nodiscard]] Result<JsonValue> beginAnnotationOperation(std::string operation_id,
+                                                             std::string asset_id,
+                                                             AssetAnnotationEdit edit,
+                                                             std::int64_t expected_revision);
 
     StudioPresenter &presenter_;
     StudioCommandController &commands_;
@@ -47,6 +54,10 @@ private:
     std::unique_ptr<StudioOperationStore> operations_;
     bool presenter_alive_ = true;
     bool batch_active_ = false;
+    bool selection_active_ = false;
+    bool annotation_active_ = false;
+    CancellationSource annotation_binding_cancel_;
+    std::optional<std::uint64_t> annotation_session_revision_;
     std::string single_active_id_;
     std::uint64_t session_revision_ = 1;
     std::uint64_t selection_revision_ = 1;

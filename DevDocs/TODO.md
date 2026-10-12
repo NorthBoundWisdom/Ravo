@@ -23,12 +23,18 @@ correctness reference.
 
 ## Queue discipline
 
+The user-requested code retirement takes precedence over new feature adoption.
+[TODO_CODE_RETIREMENT.md](TODO_CODE_RETIREMENT.md) owns the ordered removals and
+validation gates; [ADR-0181](adr/0181-retire-unused-dependencies-and-product-stubs.md)
+protects stored edits and durability while retiring unused roots and stubs.
+
 The user-requested LightCraft adoption queue is
 [TODO_LIGHTCRAFT_ADOPTION.md](TODO_LIGHTCRAFT_ADOPTION.md). Its first priority is
 LC-00: comparable Release parameter-render measurements and bottleneck attribution
 inside PERF-01, followed by measured LC-01/02 optimizations under PERF-02 and
-IQ-00. Complete this performance tranche before its broader feature-adoption
-work; existing source-safety/correctness blockers still take precedence. The
+IQ-00. Performance qualification remains open for idle-CPU windows; the current
+user-directed execution advances LC-03 machine workflows and other adoption work.
+Existing source-safety/correctness blockers still take precedence. The
 queue does not admit Rust, a second renderer/UI, silent fallback, or unapproved
 models/formats; those expansion items retain explicit decision gates.
 
@@ -85,9 +91,8 @@ Until GPU/PERF follow-ons and REL-01 corpus reopen evidence are closed (LOCAL-01
 
 - do not add another product capability ID, model/provider stub, placeholder
   pane, unsupported-probe feature, or specialization ADR;
-- do not add more AI Stub chrome; the existing proposal pane is a developer
-  contract surface, not a product milestone;
-- do not expand the ADR-0153 tethered-studio stub; SPECIALIZE remains deferred;
+- do not restore retired deterministic AI proposal chrome or tethering probes;
+  real model/hardware work requires its own admission and SPECIALIZE stays deferred;
 - finish correctness, Studio workflow, persistence, backup/restore,
   cross-platform, and performance residuals on accepted contracts;
 - do not grow `Main.qml`; a P1 change that touches it must move orchestration
@@ -113,7 +118,7 @@ vs scaled-export as explicit non-compare; Linux monitor discovery remain;
 OFFLINE-01 C2 Studio proxy manage/consume landed on `main`;
 INGEST-01 is C2 for Studio filesystem-card + ptp-stub Copy ingest with fail-
 closed native probe (packaged ImageCapture/WinRT/libmtp residual is C3). AI
-proposal chrome and the tethered-studio probe do not count as product progress.
+stub model/probe surfaces are retired under ADR-0181.
 
 ### Release and correctness lane
 
@@ -698,16 +703,15 @@ Do not implement these while the WIP freeze is active.
   Capture One still requires a read-only, versioned, reportable packaged reader.
 - **DELIVERY-01:** advanced overlays, fonts, templates, printing, and publishing
   need separate delivery ownership and must not mutate Develop.
-- **SPECIALIZE-01:** ADR-0153's tethered probe is a deferred unsupported state,
-  not a selected product direction. Do not expand it without an external cohort,
+- **SPECIALIZE-01:** tethering is deferred and has no product probe/API.
+  Do not restore it without an external cohort,
   hardware/corpus access and a new tethering decision. ADR-0163 admits only the
   separately requested HDR/Panorama derived-asset workflows.
 
 # P2 — Real AI admission
 
-The existing deterministic proposals and Studio pane are contract/developer
-fixtures. Freeze their scope. Do not add another stub, provider, prompt surface,
-or product claim.
+Deterministic proposal/suggestion providers and their Studio pane are retired
+under ADR-0181. Do not add another stub, provider, prompt surface or product claim.
 
 Before any real model ships, AI-00 must record runtime/model identity, source,
 licence/GPL compatibility, notices, size/update/cache policy, credentials,

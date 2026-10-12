@@ -12,7 +12,6 @@
 
 #include "ravo/domain/types.h"
 #include "ravo/services/foreign_catalog.h"
-#include "ravo/services/dng_smart_preview.h"
 
 namespace ravo
 {
@@ -50,11 +49,6 @@ public:
     [[nodiscard]] Result<void>
     export_foreign_catalog_archive(std::string_view source_id, std::string_view output_path,
                                    const CancellationToken &cancellation = {}) const;
-    [[nodiscard]] Result<DngConversionResult>
-    convert_asset_to_dng(const DngConversionRequest &request);
-    [[nodiscard]] Result<SmartPreviewStatus> smart_preview_status(std::string_view asset_id) const;
-    [[nodiscard]] Result<SmartPreviewStatus>
-    ensure_smart_preview(const SmartPreviewEnsureRequest &request);
 
 private:
     friend class CatalogService;

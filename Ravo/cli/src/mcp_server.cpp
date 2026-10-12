@@ -61,7 +61,9 @@ constexpr auto instructions =
     "Use an explicit Studio session. Read state.binding and editing_scope before evaluating. "
     "Evaluate is read-only; commit only the chosen candidate. Preserve operation_id and query its receipt after "
     "timeouts. Never auto-retarget a stale binding or replay an unknown write. Staged mask changes are not saved. "
-    "Batch photos commit independently; inspect every partial result. Original images are never modified.";
+    "Batch photos commit independently; inspect every partial result. Annotation tools target only the primary asset; "
+    "read state.selection.annotations and shared annotation schemas first. Inspect recovery warnings even after a committed receipt. "
+    "Unknown outcomes require explicit reconciliation. Original images are never modified.";
 struct Job
 {
     JsonValue id;
@@ -370,7 +372,8 @@ private:
         bool failed = false;
         if (const auto *phase = data->find("phase"); phase && phase->string_if())
             failed = *phase->string_if() == "failed" || *phase->string_if() == "cancelled" ||
-                     *phase->string_if() == "partially_committed";
+                     *phase->string_if() == "partially_committed" ||
+                     *phase->string_if() == "unknown";
         if (!job->invocation.image)
         {
             // A receipt remains the result even for a partial/failed operation;

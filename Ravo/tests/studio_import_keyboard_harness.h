@@ -2,6 +2,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <chrono>
+#include <ctime>
+#include <optional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,8 +21,50 @@
 
 #include "ravo/desktop/import_candidate_list_model.h"
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace ravo::studio_import_keyboard_harness
 {
+inline std::optional<std::int64_t> process_cpu_microseconds()
+{
+#ifdef _WIN32
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user))
+        return std::nullopt;
+    const auto ticks = [](const FILETIME &time)
+    { return (static_cast<std::uint64_t>(time.dwHighDateTime) << 32U) | time.dwLowDateTime; };
+    const auto kernel_ticks = ticks(kernel), user_ticks = ticks(user);
+    if (kernel_ticks > std::numeric_limits<std::uint64_t>::max() - user_ticks)
+        return std::nullopt;
+    const auto microseconds = (kernel_ticks + user_ticks) / 10U;
+    if (microseconds > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+        return std::nullopt;
+    return static_cast<std::int64_t>(microseconds);
+#else
+    const auto value = std::clock();
+    if (value == static_cast<std::clock_t>(-1))
+        return std::nullopt;
+    const auto microseconds =
+        static_cast<long double>(value) * 1000000.0L / static_cast<long double>(CLOCKS_PER_SEC);
+    if (microseconds < 0 ||
+        microseconds >= static_cast<long double>(std::numeric_limits<std::int64_t>::max()))
+        return std::nullopt;
+    return static_cast<std::int64_t>(microseconds);
+#endif
+}
+
+struct KeyTiming
+{
+    std::int64_t pre_dispatch_us = 0;
+    std::int64_t dispatch_us = 0;
+    std::int64_t post_dispatch_us = 0;
+    std::optional<std::int64_t> process_cpu_us;
+};
 
 struct ImportKeyboardHarness
 {
@@ -100,16 +146,34 @@ struct ImportKeyboardHarness
         return true;
     }
 
-    void key(const int key, const Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+    void key(const int key, const Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+             KeyTiming *timing = nullptr)
     {
         ASSERT_NE(grid, nullptr);
+        const auto started = std::chrono::steady_clock::now();
+        const auto cpu_started = timing ? process_cpu_microseconds() : std::nullopt;
         grid->forceActiveFocus();
         QGuiApplication::processEvents();
+        const auto pre_dispatched = std::chrono::steady_clock::now();
         QKeyEvent press(QEvent::KeyPress, key, modifiers);
         QKeyEvent release(QEvent::KeyRelease, key, modifiers);
         QCoreApplication::sendEvent(grid, &press);
         QCoreApplication::sendEvent(grid, &release);
+        const auto dispatched = std::chrono::steady_clock::now();
         QGuiApplication::processEvents();
+        if (timing)
+        {
+            const auto finished = std::chrono::steady_clock::now();
+            const auto cpu_finished = process_cpu_microseconds();
+            const auto microseconds = [](auto duration)
+            { return std::chrono::duration_cast<std::chrono::microseconds>(duration).count(); };
+            timing->pre_dispatch_us = microseconds(pre_dispatched - started);
+            timing->dispatch_us = microseconds(dispatched - pre_dispatched);
+            timing->post_dispatch_us = microseconds(finished - dispatched);
+            timing->process_cpu_us.reset();
+            if (cpu_started && cpu_finished && *cpu_finished >= *cpu_started)
+                timing->process_cpu_us = *cpu_finished - *cpu_started;
+        }
     }
 
     void keyThroughWindowFocus(const int key,

@@ -19,7 +19,8 @@ target_sources(ravo_recipe
     src/develop_mask.cpp
     src/develop_mask_status.cpp
     src/develop_internal.cpp
-    src/develop_legacy.cpp
+    src/develop_recipe_values.cpp
+    src/legacy_develop.cpp
     src/profile_gamma.cpp
     src/rapidraw_tone.cpp
     src/rapidraw_tone_controls.cpp
@@ -32,6 +33,7 @@ target_sources(ravo_recipe
     src/develop.cpp
     src/develop_patch.cpp
     src/develop_assign.cpp
+    src/develop_scalar_fields.cpp
     src/develop_instances.cpp
     src/develop_channel_mixer.cpp
     src/develop_changes.cpp

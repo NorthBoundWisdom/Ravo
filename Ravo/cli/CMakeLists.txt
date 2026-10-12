@@ -14,7 +14,6 @@ target_sources(ravo_cli
     src/application_catalog_support.cpp
     src/application_catalog_xmp.cpp
     src/application_catalog_editor.cpp
-    src/application_catalog_ai_suggestion.cpp
     src/application_catalog_convert.cpp
     src/application_catalog_cull.cpp
     src/application_catalog_ingest.cpp

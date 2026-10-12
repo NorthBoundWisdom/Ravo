@@ -1,4 +1,5 @@
 #include "studio_test_support.h"
+#include "studio_ui_font.h"
 
 #include <cstddef>
 #include <string_view>
@@ -27,6 +28,18 @@ static void initialize_control_resources()
 
 namespace ravo::studio_test_support
 {
+namespace
+{
+void prepare_studio_font_once()
+{
+    static bool prepared = false;
+    if (!prepared && qobject_cast<QGuiApplication *>(QCoreApplication::instance()))
+    {
+        desktop_internal::apply_studio_ui_font(QStringLiteral("en_US"));
+        prepared = true;
+    }
+}
+} // namespace
 
 void ensure_qt_core()
 {
@@ -53,6 +66,7 @@ void ensure_qt_core()
     {
         if (QCoreApplication::organizationName().isEmpty())
             QCoreApplication::setOrganizationName(QStringLiteral("RavoTests"));
+        prepare_studio_font_once();
         return;
     }
     // Desktop command tests exercise Qt Quick keyboard focus offscreen. Prefer an
@@ -65,6 +79,7 @@ void ensure_qt_core()
     static auto *application = new QGuiApplication(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("RavoTests"));
     static_cast<void>(application);
+    prepare_studio_font_once();
 }
 
 [[nodiscard]] bool wait_until(const std::function<bool()> &ready, const int timeout_ms)

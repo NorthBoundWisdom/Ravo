@@ -90,7 +90,43 @@ const std::vector<Tool> &tools()
     {
         const auto session = text_schema(128);
         const auto wait = JsonValue{JsonValue::Object{{"type", "boolean"}}};
+        const auto annotations = cli_annotation_capabilities();
+        const auto &annotation_kinds = *annotations.find("kinds");
         std::vector<Tool> result{
+            {"ravo.review.apply",
+             "Set rating/color_label/pick/reject/unflag on the explicit primary asset without auto-advance. Requires fresh saved global binding. Preserve operation_id; committed results may contain recovery warnings.",
+             object_schema({{"binding", binding_schema()},
+                            {"fields", *annotation_kinds.find("review")},
+                            {"operation_id", text_schema(200)},
+                            {"wait", wait}},
+                           {"binding", "fields"}),
+             false},
+            {"ravo.metadata.patch",
+             "Patch explicit catalog-owned IPTC fields on the primary asset. Null clears a field; omitted fields stay unchanged. Writes no original/XMP or Develop history. Read state.selection.annotations first and preserve operation_id.",
+             object_schema({{"binding", binding_schema()},
+                            {"fields", *annotation_kinds.find("metadata")},
+                            {"operation_id", text_schema(200)},
+                            {"wait", wait}},
+                           {"binding", "fields"}),
+             false},
+            {"ravo.keywords.replace",
+             "Replace the explicit primary asset's complete hierarchical keyword path set. Empty array explicitly clears membership, not keyword-tree definitions. Read current annotations first; preserve operation_id and inspect recovery warnings.",
+             object_schema({{"binding", binding_schema()},
+                            {"keywords", *annotation_kinds.find("keywords")},
+                            {"operation_id", text_schema(200)},
+                            {"wait", wait}},
+                           {"binding", "keywords"}),
+             false},
+            {"ravo.catalog.query",
+             "Read a bounded catalog page through the shared CLI/service. Explicit catalog path; edit and serialize the returned query object as query_json (strict complete versioned Ravo query document). Pass expected_revision on subsequent pages to reject catalog changes.",
+             object_schema({{"catalog", text_schema(4096)},
+                            {"query_json", text_schema(65536)},
+                            {"set_id", text_schema(256)},
+                            {"stack_expanded", JsonValue::Object{{"type", "boolean"}}},
+                            {"offset", integer_schema(0, 9007199254740991ULL)},
+                            {"limit", integer_schema(1, 512)},
+                            {"expected_revision", integer_schema(0, 9007199254740991ULL)}},
+                           {"catalog"})},
             {"ravo.sessions.list",
              "Discover live Studio sessions. Choose an explicit session; never guess the foreground photo.",
              object_schema({{"workspace_root", text_schema(4096)}})},
@@ -100,6 +136,14 @@ const std::vector<Tool> &tools()
                             {"offset", integer_schema(0, 9007199254740991ULL)},
                             {"limit", integer_schema(0, 512)}},
                            {"session_id"})},
+            {"ravo.studio.select",
+             "Select one explicit catalog asset through Studio's command owner. Requires a fresh current binding and saved global editing context. Receipt is ephemeral; read fresh non-busy state before editing. Reuse the reserved operation_id to reconcile, never replay an unknown selection.",
+             object_schema({{"binding", binding_schema()},
+                            {"target_asset_id", text_schema(256)},
+                            {"operation_id", text_schema(200)},
+                            {"wait", wait}},
+                           {"binding", "target_asset_id"}),
+             false},
             {"ravo.develop.fields",
              "Recipe-owned numeric/text field kinds and bounds. Values use strict native field units; applicability is validated by evaluate.",
              object_schema({})},
@@ -198,8 +242,16 @@ Result<void> validate(const JsonValue &value, const JsonValue &schema, const std
     if (const auto *constant = schema.find("const");
         constant && serialize_json(value) != serialize_json(*constant))
         return fail();
+    if (const auto *enumeration = schema.find("enum");
+        enumeration && enumeration->array_if() &&
+        std::none_of(enumeration->array_if()->begin(), enumeration->array_if()->end(),
+                     [&](const auto &item)
+                     { return serialize_json(item) == serialize_json(value); }))
+        return fail();
     auto matches = [&](std::string_view name)
     {
+        if (name == "null")
+            return value.is_null();
         if (name == "object")
             return value.object_if() != nullptr;
         if (name == "array")
@@ -269,6 +321,9 @@ Result<void> validate(const JsonValue &value, const JsonValue &schema, const std
     }
     if (const auto *object = value.object_if())
     {
+        if (!bound("minProperties", static_cast<double>(object->size()), true) ||
+            !bound("maxProperties", static_cast<double>(object->size()), false))
+            return fail();
         if (const auto *required = schema.find("required"); required && required->array_if())
             for (const auto &name : *required->array_if())
                 if (name.string_if() && !object->contains(*name.string_if()))
@@ -359,7 +414,25 @@ Result<McpInvocation> mcp_invocation(const std::string_view name, const JsonValu
     result.session_id = binding ? text(*binding, "session_id").toStdString() :
                                   text(arguments, "session_id").toStdString();
     result.operation_id = text(arguments, "operation_id").toStdString();
-    if (name == "ravo.sessions.list")
+    if (name == "ravo.catalog.query")
+    {
+        result.arguments = {
+            "catalog",
+            "list",
+            "--catalog",
+            text(arguments, "catalog"),
+            "--limit",
+            arguments.find("limit") ? text(arguments, "limit") : QStringLiteral("100")};
+        for (const auto pair :
+             {std::pair{"offset", "--offset"}, std::pair{"query_json", "--query"},
+              std::pair{"set_id", "--set-id"}, std::pair{"expected_revision", "--revision"}})
+            if (arguments.find(pair.first))
+                result.arguments << pair.second << text(arguments, pair.first);
+        if (const auto *expanded = arguments.find("stack_expanded");
+            expanded && *expanded->boolean_if())
+            result.arguments << "--stack-expanded";
+    }
+    else if (name == "ravo.sessions.list")
     {
         result.arguments = {"studio", "sessions"};
         if (arguments.find("workspace_root"))
@@ -433,7 +506,27 @@ Result<McpInvocation> mcp_invocation(const std::string_view name, const JsonValu
         else
         {
             auto body = *binding->object_if();
-            if (name == "ravo.history.restore")
+            if (name == "ravo.review.apply" || name == "ravo.metadata.patch" ||
+                name == "ravo.keywords.replace")
+            {
+                const auto kind = name == "ravo.review.apply"   ? "review" :
+                                  name == "ravo.metadata.patch" ? "metadata" :
+                                                                  "keywords";
+                body.emplace("kind", "annotation");
+                body.emplace(
+                    "annotation",
+                    JsonValue::Object{
+                        {"version", JsonValue::number("1")},
+                        {"kind", kind},
+                        {"fields", *arguments.find(name == "ravo.keywords.replace" ? "keywords" :
+                                                                                     "fields")}});
+            }
+            else if (name == "ravo.studio.select")
+            {
+                body.emplace("kind", "select");
+                body.emplace("target_asset_id", *arguments.find("target_asset_id"));
+            }
+            else if (name == "ravo.history.restore")
             {
                 body.emplace("kind", "restore");
                 body.emplace("history_id", *arguments.find("history_id"));
@@ -464,7 +557,9 @@ Result<McpInvocation> mcp_invocation(const std::string_view name, const JsonValu
                                                           QStringLiteral("960"));
     if (!result.session_id.empty())
         result.arguments << "--session-id" << QString::fromStdString(result.session_id);
-    result.arguments << "--timeout-ms" << QString::number(result.timeout_ms) << "--json";
+    if (name != "ravo.catalog.query")
+        result.arguments << "--timeout-ms" << QString::number(result.timeout_ms);
+    result.arguments << "--json";
     return result;
 }
 } // namespace ravo::cli_internal

@@ -217,16 +217,6 @@ std::string generate_keyword_id()
     return random_hex_id("kwd_");
 }
 
-std::string generate_ai_proposal_id()
-{
-    return random_hex_id("aip_");
-}
-
-std::string generate_ai_suggestion_id()
-{
-    return random_hex_id("ais_");
-}
-
 std::string generate_external_editor_open_intent_id()
 {
     return random_hex_id("eeo_");

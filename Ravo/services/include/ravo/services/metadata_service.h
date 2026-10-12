@@ -33,7 +33,8 @@ public:
     [[nodiscard]] Result<KeywordMembershipMutation>
     set_tags_selection(const std::vector<std::string> &asset_ids,
                        const std::vector<std::string> &tags,
-                       std::optional<std::int64_t> expected_revision = std::nullopt);
+                       std::optional<std::int64_t> expected_revision = std::nullopt,
+                       const CancellationToken &cancellation = {});
     [[nodiscard]] Result<LibraryCaptureFacets> list_capture_facets() const;
     [[nodiscard]] Result<LibraryLocationFacets> list_location_facets() const;
     [[nodiscard]] Result<LibraryCaptureFacets> list_capture_facets(const LibraryQuery &scope) const;
@@ -58,7 +59,8 @@ public:
     [[nodiscard]] Result<WritableMetadataMutation>
     set_writable_metadata_selection(const std::vector<std::string> &asset_ids,
                                     const WritableMetadataPatch &patch,
-                                    std::optional<std::int64_t> expected_revision = std::nullopt);
+                                    std::optional<std::int64_t> expected_revision = std::nullopt,
+                                    const CancellationToken &cancellation = {});
 
     [[nodiscard]] Result<AssetRecord>
     refresh_capture_metadata(std::string_view asset_id, const CancellationToken &cancellation);
