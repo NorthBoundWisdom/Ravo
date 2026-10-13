@@ -103,7 +103,7 @@ Open the matching release notes for installation details and the features in
 that build. Linux packages target the documented modern distribution/runtime
 baseline; see [installation](userdoc/docs/en/quick-start/install-and-launch.md).
 
-Ravo is in active development before 1.0. **This README describes the current
+Ravo remains in active development. **This README describes the current
 development branch; a published download can contain an earlier feature set.**
 Platform qualification and remaining release work are tracked openly in
 [Packaging](DevDocs/Packaging.md) and the [product queue](DevDocs/TODO.md).

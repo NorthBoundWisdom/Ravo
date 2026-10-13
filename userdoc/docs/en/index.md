@@ -77,7 +77,7 @@ control. Scripts use the same catalog and image services as the desktop app.
 - [User-run smoke test](qa/smoke-test.md)
 - [Regression checklist](qa/regression-checklist.md)
 
-Ravo is in active development before 1.0. Hardware, package and real-corpus
+Ravo remains in active development. Hardware, package and real-corpus
 qualification remain specific to the source SHA and host. An unsupported
 operation reports a reason; a successful test on one platform does not qualify
 every other platform.

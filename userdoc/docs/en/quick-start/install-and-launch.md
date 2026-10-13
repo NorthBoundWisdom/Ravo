@@ -26,7 +26,7 @@ multimedia libraries include `libpipewire-0.3-0`, `libva2`, `libva-drm2` and
 [Packaging](https://github.com/NorthBoundWisdom/Ravo/blob/main/DevDocs/Packaging.md)
 for the complete runtime baseline.
 
-Ravo is under active development before 1.0. Choose the exact release notes
+Ravo remains in active development. Choose the exact release notes
 and platform evidence for your download rather than assuming all features on
 `main` have already shipped.
 
