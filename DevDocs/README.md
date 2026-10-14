@@ -17,7 +17,7 @@ It does not duplicate the handbook or serve as a chronological change log.
 | Which historical behavior is accepted, removed or unsupported? | [MIGRATION.md](MIGRATION.md) |
 | What establishes correctness and regression coverage? | [TESTING.md](TESTING.md) |
 | How are dependencies resolved and published? | [Dependency_Workflow.md](Dependency_Workflow.md) |
-| How are packages built, deployed and qualified, including OS runtime dependencies? | [Packaging.md](Packaging.md) |
+| How are packages built, deployed and qualified, including bundled FFmpeg, synthetic video checks and OS runtime dependencies? | [Packaging.md](Packaging.md) |
 | Which licences and notices ship? | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) |
 | What design decisions constrain implementation? | [ADR index](adr/README.md) |
 | What should happen next? | [TODO.md](TODO.md) |

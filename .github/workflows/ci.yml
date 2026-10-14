@@ -461,7 +461,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-          sparse-checkout: Ravo/tools
+          sparse-checkout: |
+            Ravo/tools
+            Ravo/tests/fixtures/video
 
       - uses: actions/setup-python@v6
         with:

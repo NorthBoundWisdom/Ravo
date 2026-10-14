@@ -153,6 +153,10 @@ payload against its private `lib` directory. Host-installed ICU cannot satisfy
 this check; missing versions fail even if a build-host smoke succeeds (issue #3).
 Linux verification therefore requires binutils/readelf in addition to the
 existing unpack tools.
+The Linux runtime list also deploys the five FFmpeg libraries from the decoder's
+selected imported targets, preserving their SONAME links. The checker requires
+the exact FFmpeg dependencies of shipped ELF files inside the private payload;
+the build host's Qt kit cannot satisfy a missing packaged library.
 
 ## GitHub Actions
 
@@ -199,6 +203,10 @@ an earlier build/deployment failure retains its logs without a second misleading
 After packaging, `package-smoke` downloads the final artifacts onto fresh
 runners without running bootstrap, installing a Qt SDK, or restoring build
 caches. Each artifact must pass the existing catalog/offscreen checks plus
+video import, frame extraction and playback using the checked-in synthetic
+corpus. The sparse checkout includes both `Ravo/tools` and
+`Ravo/tests/fixtures/video`; missing fixtures remain a required-stage failure.
+Each artifact also passes
 `check_packaged_runtime.py --require-native-smoke`. The native check starts the
 packaged CLI and Studio with a fresh home and minimal system PATH, strips Qt
 and loader overrides, and explicitly selects `cocoa`, `windows`, or `xcb`.

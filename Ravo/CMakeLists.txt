@@ -706,11 +706,17 @@ elseif(UNIX)
     list(APPEND _ravo_linux_runtime_libraries
       ${_ravo_prefix_runtime_libraries})
   endforeach()
-  list(REMOVE_DUPLICATES _ravo_linux_runtime_libraries)
   if(NOT _ravo_linux_runtime_libraries)
     message(FATAL_ERROR
       "Ravo packaging could not find runtime libraries under RAVO_PACKAGE_RUNTIME_SEARCH_PATHS")
   endif()
+  # Deploy the exact Qt-compatible runtimes selected for the decoder, including
+  # swresample used transitively by avcodec and Qt Multimedia.
+  foreach(_ravo_component IN ITEMS avformat avcodec avutil swscale swresample)
+    get_target_property(_ravo_video_runtime ravo_ffmpeg_${_ravo_component} IMPORTED_LOCATION)
+    list(APPEND _ravo_linux_runtime_libraries "${_ravo_video_runtime}")
+  endforeach()
+  list(REMOVE_DUPLICATES _ravo_linux_runtime_libraries)
   cppkit_json_string_array(
     RAVO_PACKAGE_LINUX_RUNTIME_LIBRARIES_JSON
     _ravo_linux_runtime_libraries)

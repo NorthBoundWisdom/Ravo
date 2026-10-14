@@ -25,6 +25,24 @@ import check_packaged_runtime as cpr  # noqa: E402
 
 
 class LinuxIcuPayloadTests(unittest.TestCase):
+    def test_ffmpeg_requires_exact_bundled_sonames_including_transitive_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lib = root / "usr/lib"
+            lib.mkdir(parents=True)
+            (lib / "libQt6Multimedia.so.6").write_bytes(b"\x7fELFfixture")
+            names = ["libavformat.so.61", "libavcodec.so.61", "libavutil.so.59",
+                     "libswscale.so.8", "libswresample.so.5"]
+            needed = "\n".join(f" (NEEDED) Shared library: [{name}]" for name in names)
+            with mock.patch.object(cpr.subprocess, "run", return_value=mock.Mock(stdout=needed)):
+                for name in names:
+                    with self.assertRaisesRegex(RuntimeError, "Missing bundled FFmpeg"):
+                        cpr.check_linux_runtime_payload(
+                            root, lib, "FFmpeg", "avformat|avcodec|avutil|swscale|swresample")
+                    (lib / name).write_bytes(b"\x7fELFfixture")
+                self.assertEqual(cpr.check_linux_runtime_payload(
+                    root, lib, "FFmpeg", "avformat|avcodec|avutil|swscale|swresample"), sorted(names))
+
     def test_missing_icu_cannot_be_satisfied_by_host_libraries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -72,14 +90,28 @@ class LinuxIcuPayloadTests(unittest.TestCase):
             names = ["libQt6Core.so.6", "libicui18n.so.73", "libicuuc.so.73", "libicudata.so.73.2"]
             for name in names:
                 (root / name).touch()
-            script = root / "collect.cmake"
+            components = {"avformat": 61, "avcodec": 61, "avutil": 59, "swscale": 8, "swresample": 5}
+            kit = root / "selected video kit"
+            kit.mkdir()
+            declarations = []
+            for component, major in components.items():
+                library = kit / f"lib{component}.so.{major}"
+                library.touch()
+                names.append(library.name)
+                declarations.append(f'add_library(ravo_ffmpeg_{component} SHARED IMPORTED)\n'
+                                    f'set_target_properties(ravo_ffmpeg_{component} PROPERTIES '
+                                    f'IMPORTED_LOCATION "{library.as_posix()}")\n')
+            script = root / "CMakeLists.txt"
             output = root / "libraries.txt"
             script.write_text(
+                'cmake_minimum_required(VERSION 3.26)\nproject(RuntimeCollection LANGUAGES NONE)\n' +
+                ''.join(declarations) +
                 f'set(_ravo_package_runtime_search_paths "{root.as_posix()}")\n' + source[start:end] +
                 f'file(WRITE "{output.as_posix()}" "${{_ravo_linux_runtime_libraries}}")\n',
                 encoding="utf-8",
             )
-            subprocess.run([CMAKE_FOR_TESTS, "-P", str(script)], check=True, capture_output=True)
+            subprocess.run([CMAKE_FOR_TESTS, "-S", str(root), "-B", str(root / "build")],
+                           check=True, capture_output=True)
             self.assertEqual({Path(p).name for p in output.read_text().split(";")}, set(names))
 
 

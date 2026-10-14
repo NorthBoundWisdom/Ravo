@@ -234,7 +234,12 @@ def unpack(artifact: Path, dest: Path) -> Path:
 
 
 def check_linux_icu_payload(root: Path, library_dir: Path) -> list[str]:
-    """Require the exact ICU SONAMEs used by shipped ELF files inside the payload.
+    return check_linux_runtime_payload(root, library_dir, "ICU", r"icu[^/\s\]]*")
+
+
+def check_linux_runtime_payload(root: Path, library_dir: Path, family: str,
+                                names: str) -> list[str]:
+    """Require exact private SONAMEs used by shipped ELF files inside the payload.
 
     A successful host ldd/smoke is insufficient: the CI host may provide ICU
     that is absent on the recipient distribution (GitHub issue #3).
@@ -260,15 +265,15 @@ def check_linux_icu_payload(root: Path, library_dir: Path) -> list[str]:
             capture_output=True, text=True, check=True, timeout=30, env=env,
         )
         needed.update(re.findall(
-            r"\(NEEDED\)[^\n]*\[(libicu[^/\s\]]*\.so(?:\.[0-9]+)*)\]", result.stdout
+            rf"\(NEEDED\)[^\n]*\[(lib(?:{names})\.so(?:\.[0-9]+)*)\]", result.stdout
         ))
     for name in sorted(needed):
         library = library_dir / name
         if not library.is_file() or not is_under(library.resolve(), root.resolve()):
-            raise RuntimeError(f"Missing bundled ICU dependency: {name} (expected {library})")
+            raise RuntimeError(f"Missing bundled {family} dependency: {name} (expected {library})")
         with library.open("rb") as stream:
             if stream.read(4) != b"\x7fELF":
-                raise RuntimeError(f"Bundled ICU dependency is not ELF: {library}")
+                raise RuntimeError(f"Bundled {family} dependency is not ELF: {library}")
     return sorted(needed)
 
 
@@ -1003,6 +1008,15 @@ def main(argv: list[str] | None = None) -> int:
             except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
                 record("linux_icu_payload", Status.FAIL, str(exc))
                 print(f"ERROR: Linux ICU payload check failed: {exc}", file=sys.stderr)
+                return 1
+            try:
+                ffmpeg = check_linux_runtime_payload(
+                    root, cli.parent.parent / "lib", "FFmpeg",
+                    "avformat|avcodec|avutil|swscale|swresample")
+                record("linux_ffmpeg_payload", Status.PASS, ", ".join(ffmpeg) or "no FFmpeg dependencies")
+            except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                record("linux_ffmpeg_payload", Status.FAIL, str(exc))
+                print(f"ERROR: Linux FFmpeg payload check failed: {exc}", file=sys.stderr)
                 return 1
 
         studio, studio_hits = find_studio(root)
