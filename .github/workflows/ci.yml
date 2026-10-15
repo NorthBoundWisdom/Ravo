@@ -480,7 +480,7 @@ jobs:
             libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render0 libxcb-render-util0 libxcb-shape0 \
             libxcb-shm0 libxcb-sync1 libxcb-util1 libxcb-xfixes0 libxcb-xkb1 \
-            libpipewire-0.3-0 libva2 libva-drm2 libva-x11-2
+            libpulse0 libpipewire-0.3-0 libva2 libva-drm2 libva-x11-2
 
       - name: Download final packages
         uses: actions/download-artifact@v6

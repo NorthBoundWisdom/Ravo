@@ -7,12 +7,15 @@ Windows import libraries are generated as build-only link metadata from the
 selected Qt DLLs with MSVC tools; the runtime payload remains those Qt DLLs.
 CI bootstrap installs `qtmultimedia` alongside image formats and shader tools;
 its Qt cache identity includes that module set.
-Linux build and clean-package runners install PipeWire and VA-API runtime
-libraries (`libpipewire-0.3-0`, `libva2`, `libva-drm2`, `libva-x11-2`). The DEB
+Linux build and clean-package runners install PulseAudio, PipeWire and VA-API runtime
+libraries (`libpulse0`, `libpipewire-0.3-0`, `libva2`, `libva-drm2`, `libva-x11-2`). The DEB
 declares these host dependencies; AppImage users need them from their
 distribution. They satisfy Qt's runtime symbol resolvers even for a headless
 CLI invocation. Successful CLI JSON commands must retain empty stderr; missing
 libraries are repaired as dependencies rather than muted diagnostics.
+The shipped Qt Multimedia runtime also links `libpulse.so.0` directly, so
+PipeWire alone does not satisfy its loader dependency. Ubuntu supplies that
+library through [libpulse0](https://packages.ubuntu.com/noble/libpulse0).
 Package templates copy the FFmpeg LGPL notice alongside existing notices.
 The isolated checker requires video import, no-replace frame artifact and
 Qt playback stages. Its muted frame test does not establish audible output or
@@ -166,6 +169,24 @@ Studio compares components numerically, rejects prereleases/drafts and opens the
 specific release page only after confirmation. A newer source checkout than the
 published release does not offer a downgrade. Checks do not download/install
 assets or alter the package graph. See [ADR-0169](adr/0169-studio-release-update-check.md).
+
+Pushing a version tag automatically runs qualification and publishes the Release
+with its seven downloadable packages and generated release notes. No separate
+manual Release creation is needed. After committing the matching project version,
+publish a new tag together with `main` (replace the example version):
+
+```sh
+git tag -a v1.0.1 -m "Ravo 1.0.1"
+git push --atomic origin main v1.0.1
+gh run list --workflow ci.yml --branch v1.0.1
+gh release view v1.0.1
+```
+
+A pushed tag can exist without a Release while qualification is running or has
+failed. Inspect the tag's CI run before retrying. A transient failure can be
+retried with `gh run rerun <run-id> --failed`; a source or workflow fix requires
+a new tagged revision because reruns retain the original revision. Existing
+published tags must not be moved without explicit maintainer authorization.
 
 Ordinary branch pushes and pull requests run three full-suite jobs: macOS ARM64
 and Linux x86_64 Debug, and Windows x86_64 Release. Static checks gate compilation.
