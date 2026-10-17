@@ -1,8 +1,17 @@
 # Ravo Studio
 
+> [!IMPORTANT]
+> **Archived — no further updates.** This repository is now archived and is no
+> longer maintained. There will be no further updates, bug fixes, or releases.
+>
+> **We strongly recommend switching to [LightCraft](https://github.com/storytold/lightcraft).**
+>
+> **本仓库已归档，不再维护或更新。强烈推荐转用 [LightCraft](https://github.com/storytold/lightcraft)。**
+>
+> The documentation below is preserved for historical reference.
+
 ### A home for your photographs, from first import to final export.
 
-[![CI](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml/badge.svg)](https://github.com/NorthBoundWisdom/Ravo/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-555555)](#download)
 
@@ -15,9 +24,9 @@ Your library lives on your own storage. Core browsing, editing, and export work
 locally without an account. Non-destructive recipes let you revisit a look
 without baking it into the original.
 
-**[Download Ravo](https://github.com/NorthBoundWisdom/Ravo/releases/latest) ·
+**[Archived Ravo releases](https://github.com/NorthBoundWisdom/Ravo/releases/latest) ·
 [Read the handbook](https://northboundwisdom.github.io/Ravo/) ·
-[Report an issue](https://github.com/NorthBoundWisdom/Ravo/issues)**
+[Switch to LightCraft](https://github.com/storytold/lightcraft)**
 
 ![Ravo Studio Gallery with photo thumbnails, library navigation, metadata and scopes.](assets/screenshots/ravo-studio-gallery.png)
 
@@ -103,10 +112,10 @@ Open the matching release notes for installation details and the features in
 that build. Linux packages target the documented modern distribution/runtime
 baseline; see [installation](userdoc/docs/en/quick-start/install-and-launch.md).
 
-Ravo remains in active development. **This README describes the current
-development branch; a published download can contain an earlier feature set.**
-Platform qualification and remaining release work are tracked openly in
-[Packaging](DevDocs/Packaging.md) and the [product queue](DevDocs/TODO.md).
+Ravo is no longer maintained. **Published downloads can contain an earlier
+feature set than the archived source.** Platform qualification and unfinished
+release work at the time of archival are recorded in
+[Packaging](DevDocs/Packaging.md) and the [former product queue](DevDocs/TODO.md).
 
 ## Your first session
 
@@ -154,7 +163,7 @@ ravo catalog list --catalog "/path/to/library.sqlite" --json
 Read the [CLI guide](userdoc/docs/en/guides/cli.md) or the
 [capability and command reference](Ravo/README.md).
 
-## Build, contribute, and explore
+## Build and explore the archived source
 
 Ravo uses C++20, Qt 6 Quick, and CMake presets. For a new source checkout:
 
@@ -169,8 +178,8 @@ cmake --build --preset mac_clang_release
 Use the matching `win_msvc_*` or `linux_clang_*` preset on Windows or Linux.
 The [build guide](Ravo/README.md#build-and-test) covers prerequisites, dependency
 access, tests, and launch paths. The [developer documentation](DevDocs/README.md)
-explains architecture and current work; contribution constraints are in
-[AGENTS.md](AGENTS.md).
+preserves architecture and unfinished work at archival; repository constraints
+are in [AGENTS.md](AGENTS.md).
 
 Ravo draws on darktable's photographic heritage while using its own catalog,
 engine services, and Qt Quick application. Historic XMP conversion has explicit
